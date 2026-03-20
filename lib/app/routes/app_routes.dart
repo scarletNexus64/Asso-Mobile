@@ -1,0 +1,74 @@
+part of 'app_pages.dart';
+// DO NOT EDIT. This is code generated via package:get_cli/get_cli.dart
+
+abstract class Routes {
+  Routes._();
+  static const HOME = _Paths.HOME;
+  static const SPLASH = _Paths.SPLASH;
+  static const ONBOARDING = _Paths.ONBOARDING;
+  static const WELCOMER = _Paths.WELCOMER;
+  static const REGISTER = _Paths.REGISTER;
+  static const LOGIN = _Paths.LOGIN;
+  static const SEARCH = _Paths.SEARCH;
+  static const CHAT = _Paths.CHAT;
+  static const CHATDETAIL = _Paths.CHATDETAIL;
+  static const NOTIFICATION = _Paths.NOTIFICATION;
+  static const PROFILE = _Paths.PROFILE;
+  static const TRACKING = _Paths.TRACKING;
+  static const PRODUCT = _Paths.PRODUCT;
+  static const FAVORITES = _Paths.FAVORITES;
+  static const SETTINGS = _Paths.SETTINGS;
+  static const SHIPMENT = _Paths.SHIPMENT;
+  static const PREFERENCES = _Paths.PREFERENCES;
+  static const POST = _Paths.POST;
+  static const DASHBORD = _Paths.DASHBORD;
+  static const COMPLETE_PROFILE = _Paths.COMPLETE_PROFILE;
+  static const OTP = _Paths.OTP;
+  static const DELIVERY_DASHBOARD = _Paths.DELIVERY_DASHBOARD;
+  static const VENDOR_DASHBOARD = _Paths.VENDOR_DASHBOARD;
+  static const WALLET = _Paths.WALLET;
+  static const VENDOR_CONFIG = _Paths.VENDOR_CONFIG;
+  static const ORDER_MANAGEMENT = _Paths.ORDER_MANAGEMENT;
+  static const STORE_MANAGEMENT = _Paths.STORE_MANAGEMENT;
+  static const SHIP_CONFIG = _Paths.SHIP_CONFIG;
+  static const MY_ORDER = _Paths.MY_ORDER;
+  static const HELP = _Paths.HELP;
+  static const FAQ = _Paths.FAQ;
+  static const ABOUT = _Paths.ABOUT;
+}
+
+abstract class _Paths {
+  _Paths._();
+  static const HOME = '/home';
+  static const SPLASH = '/splash';
+  static const ONBOARDING = '/onboarding';
+  static const WELCOMER = '/welcomer';
+  static const REGISTER = '/register';
+  static const LOGIN = '/login';
+  static const SEARCH = '/search';
+  static const CHAT = '/chat';
+  static const CHATDETAIL = '/chatdetail';
+  static const NOTIFICATION = '/notification';
+  static const PROFILE = '/profile';
+  static const TRACKING = '/tracking';
+  static const PRODUCT = '/product';
+  static const FAVORITES = '/favorites';
+  static const SETTINGS = '/settings';
+  static const SHIPMENT = '/shipment';
+  static const PREFERENCES = '/preferences';
+  static const POST = '/post';
+  static const DASHBORD = '/dashbord';
+  static const COMPLETE_PROFILE = '/complete-profile';
+  static const OTP = '/otp';
+  static const DELIVERY_DASHBOARD = '/delivery-dashboard';
+  static const VENDOR_DASHBOARD = '/vendor-dashboard';
+  static const WALLET = '/wallet';
+  static const VENDOR_CONFIG = '/vendor-config';
+  static const ORDER_MANAGEMENT = '/order-management';
+  static const STORE_MANAGEMENT = '/store-management';
+  static const SHIP_CONFIG = '/ship-config';
+  static const MY_ORDER = '/my-order';
+  static const HELP = '/help';
+  static const FAQ = '/faq';
+  static const ABOUT = '/about';
+}
