@@ -251,18 +251,31 @@ class ChatdetailController extends GetxController with SafeControllerMixin {
     // Send via API
     if (_conversationId != null) {
       try {
+        print('📤 [CHAT] Sending message to API...');
         final response = await ConversationService.sendMessage(
           _conversationId!,
           text,
           productId: productId,
         );
 
+        print('📥 [CHAT] API Response received:');
+        print('   └─ Success: ${response.success}');
+        print('   └─ Status Code: ${response.statusCode}');
+        print('   └─ Message: ${response.message}');
+        print('   └─ Data: ${response.data}');
+
         if (!response.success) {
+          print('❌ [CHAT] Message sending failed!');
           Get.snackbar('Erreur', 'Message non envoyé',
             snackPosition: SnackPosition.BOTTOM,
           );
+        } else {
+          print('✅ [CHAT] Message sent successfully!');
         }
-      } catch (e) {
+      } catch (e, stackTrace) {
+        print('❌ [CHAT] Exception while sending message:');
+        print('   └─ Error: $e');
+        print('   └─ StackTrace: $stackTrace');
         Get.snackbar('Erreur', 'Impossible d\'envoyer le message',
           snackPosition: SnackPosition.BOTTOM,
         );

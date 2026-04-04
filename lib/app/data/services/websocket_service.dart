@@ -2,8 +2,10 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:get/get.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
+import 'package:http/http.dart' as http;
 import '../models/message_model.dart';
 import '../providers/storage_service.dart';
+import '../../core/values/constants.dart';
 
 class WebSocketService extends GetxService {
   static WebSocketService get to => Get.find<WebSocketService>();
@@ -11,6 +13,7 @@ class WebSocketService extends GetxService {
   WebSocketChannel? _channel;
   final _isConnected = false.obs;
   bool get isConnected => _isConnected.value;
+  String? _socketId;
 
   // Streams pour broadcaster les événements
   final _messageStream = StreamController<MessageModel>.broadcast();
@@ -23,7 +26,7 @@ class WebSocketService extends GetxService {
 
   // Configuration Reverb (Laravel)
   static const String appKey = '9r0idxmfd6d9lc9e055h';
-  static const String host = '10.195.115.28';
+  static const String host = '10.202.205.28';
   static const int wsPort = 8080;
 
   // Channels actifs
@@ -47,35 +50,41 @@ class WebSocketService extends GetxService {
       // Connexion WebSocket Pusher/Reverb
       final uri = Uri.parse('ws://$host:$wsPort/app/$appKey?protocol=7&client=dart&version=1.0.0');
 
+      print('🔌 [WebSocket] Attempting to connect to: $uri');
       _channel = WebSocketChannel.connect(uri);
 
       // Écouter les messages entrants
       _subscription = _channel!.stream.listen(
         _handleIncomingMessage,
         onError: (error) {
-          print('❌ WebSocket error: $error');
+          print('❌ [WebSocket] Error: $error');
           _isConnected.value = false;
         },
         onDone: () {
-          print('🔌 WebSocket connection closed');
+          print('🔌 [WebSocket] Connection closed');
           _isConnected.value = false;
         },
       );
 
-      _isConnected.value = true;
-      print('✅ WebSocket connected to Reverb');
+      print('🔌 [WebSocket] Stream listener attached, waiting for connection_established...');
     } catch (e) {
-      print('❌ Error initializing WebSocket: $e');
+      print('❌ [WebSocket] Error initializing: $e');
     }
   }
 
   /// Gérer les messages entrants
   void _handleIncomingMessage(dynamic message) {
     try {
+      print('📨 [WebSocket] Raw message received: $message');
       final data = jsonDecode(message);
       final event = data['event'] as String?;
 
-      if (event == null) return;
+      if (event == null) {
+        print('⚠️  [WebSocket] No event field in message');
+        return;
+      }
+
+      print('📩 [WebSocket] Event: $event');
 
       switch (event) {
         case 'pusher:connection_established':
@@ -94,17 +103,28 @@ class WebSocketService extends GetxService {
           _handleOnlineStatus(data);
           break;
         default:
-          print('📩 Unhandled event: $event');
+          print('📩 [WebSocket] Unhandled event: $event');
       }
     } catch (e) {
-      print('❌ Error handling incoming message: $e');
+      print('❌ [WebSocket] Error handling incoming message: $e');
+      print('   └─ Message was: $message');
     }
   }
 
   /// Connexion établie
   void _handleConnectionEstablished(Map<String, dynamic> data) {
-    print('✅ Pusher connection established');
-    _isConnected.value = true;
+    try {
+      final dataContent = data['data'] is String
+          ? jsonDecode(data['data'])
+          : data['data'] as Map<String, dynamic>? ?? {};
+
+      _socketId = dataContent['socket_id'] as String?;
+      print('✅ Pusher connection established - Socket ID: $_socketId');
+      _isConnected.value = true;
+    } catch (e) {
+      print('❌ Error parsing connection data: $e');
+      _isConnected.value = true;
+    }
   }
 
   /// Abonnement réussi
@@ -117,8 +137,15 @@ class WebSocketService extends GetxService {
 
   /// S'abonner à une conversation
   Future<void> subscribeToConversation(int conversationId) async {
+    // Attendre que la connexion soit établie (max 5 secondes)
+    int attempts = 0;
+    while (!_isConnected.value && attempts < 50) {
+      await Future.delayed(const Duration(milliseconds: 100));
+      attempts++;
+    }
+
     if (_channel == null || !_isConnected.value) {
-      print('⚠️  WebSocket not connected');
+      print('⚠️  WebSocket not connected after waiting');
       return;
     }
 
@@ -183,8 +210,15 @@ class WebSocketService extends GetxService {
 
   /// S'abonner au statut en ligne d'un utilisateur
   Future<void> subscribeToUserStatus(int userId) async {
+    // Attendre que la connexion soit établie (max 5 secondes)
+    int attempts = 0;
+    while (!_isConnected.value && attempts < 50) {
+      await Future.delayed(const Duration(milliseconds: 100));
+      attempts++;
+    }
+
     if (_channel == null || !_isConnected.value) {
-      print('⚠️  WebSocket not connected');
+      print('⚠️  WebSocket not connected after waiting');
       return;
     }
 
@@ -217,24 +251,49 @@ class WebSocketService extends GetxService {
 
   /// Obtenir l'authentification du channel (appel à l'API Laravel)
   Future<String> _getChannelAuth(String channelName, String? token) async {
-    // Pour l'instant, on retourne une auth vide
-    // En production, tu dois appeler ton endpoint /broadcasting/auth
-    // qui retourne { "auth": "APP_KEY:signature" }
+    if (_socketId == null) {
+      print('⚠️  Socket ID not available yet');
+      return '$appKey:no-socket-id';
+    }
 
-    // TODO: Implémenter l'appel API réel
-    // final response = await http.post(
-    //   'http://$host:8000/broadcasting/auth',
-    //   headers: {
-    //     'Authorization': 'Bearer $token',
-    //     'Content-Type': 'application/json',
-    //   },
-    //   body: jsonEncode({
-    //     'socket_id': _socketId,
-    //     'channel_name': channelName,
-    //   }),
-    // );
+    if (token == null) {
+      print('⚠️  No auth token available');
+      return '$appKey:no-token';
+    }
 
-    return '$appKey:fake-signature';
+    try {
+      // Extraire l'URL de base depuis AppConstants
+      final baseUrl = AppConstants.baseUrl.replaceAll('/api', '');
+      final authUrl = '$baseUrl/broadcasting/auth';
+
+      print('🔑 Authenticating channel: $channelName');
+
+      final response = await http.post(
+        Uri.parse(authUrl),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'Accept': 'application/json',
+        },
+        body: {
+          'socket_id': _socketId!,
+          'channel_name': channelName,
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final auth = data['auth'] as String;
+        print('✅ Channel authenticated successfully');
+        return auth;
+      } else {
+        print('❌ Authentication failed: ${response.statusCode} - ${response.body}');
+        return '$appKey:auth-failed';
+      }
+    } catch (e) {
+      print('❌ Error getting channel auth: $e');
+      return '$appKey:error';
+    }
   }
 
   /// Gérer l'événement message.sent

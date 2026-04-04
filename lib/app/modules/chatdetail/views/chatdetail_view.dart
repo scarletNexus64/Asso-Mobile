@@ -140,9 +140,9 @@ class ChatdetailView extends GetView<ChatdetailController> {
             )),
           ),
 
-          // Typing indicator
+          // Typing indicator (for other user)
           Obx(() {
-            if (!controller.isTyping.value) return SizedBox.shrink();
+            if (!controller.otherUserTyping.value) return SizedBox.shrink();
             return _buildTypingIndicator(context);
           }),
 

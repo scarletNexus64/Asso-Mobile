@@ -10,7 +10,11 @@ class WalletService {
       final response = await wallet_provider.WalletService.getWallet();
 
       if (response.success && response.data != null) {
-        return WalletModel.fromJson(response.data!);
+        // Extract the actual data from the response
+        final actualData = response.data!['data'] as Map<String, dynamic>?;
+        if (actualData != null) {
+          return WalletModel.fromJson(actualData);
+        }
       }
       return null;
     } catch (e) {
@@ -33,18 +37,21 @@ class WalletService {
       );
 
       if (response.success && response.data != null) {
-        final data = response.data!;
-        final transactionsList = data['transactions'] as List? ?? [];
+        // Extract the actual data from the response
+        final actualData = response.data!['data'] as Map<String, dynamic>?;
+        if (actualData != null) {
+          final transactionsList = actualData['transactions'] as List? ?? [];
 
-        return {
-          'transactions': transactionsList
-              .map((t) => WalletTransactionModel.fromJson(t))
-              .toList(),
-          'current_page': data['current_page'] ?? page,
-          'last_page': data['last_page'] ?? 1,
-          'total': data['total'] ?? 0,
-          'per_page': data['per_page'] ?? perPage,
-        };
+          return {
+            'transactions': transactionsList
+                .map((t) => WalletTransactionModel.fromJson(t))
+                .toList(),
+            'current_page': actualData['current_page'] ?? page,
+            'last_page': actualData['last_page'] ?? 1,
+            'total': actualData['total'] ?? 0,
+            'per_page': actualData['per_page'] ?? perPage,
+          };
+        }
       }
 
       return {
@@ -108,7 +115,11 @@ class WalletService {
       );
 
       if (response.success && response.data != null) {
-        return response.data!;
+        // Extract the actual data from the response
+        final actualData = response.data!['data'] as Map<String, dynamic>?;
+        if (actualData != null) {
+          return actualData;
+        }
       }
 
       return {
@@ -168,10 +179,14 @@ class WalletService {
       final response = await wallet_provider.WalletService.getWithdrawalBalances();
 
       if (response.success && response.data != null) {
-        return {
-          'success': true,
-          ...response.data!,
-        };
+        // Extract the actual data from the response
+        final actualData = response.data!['data'] as Map<String, dynamic>?;
+        if (actualData != null) {
+          return {
+            'success': true,
+            ...actualData,
+          };
+        }
       }
 
       return {
@@ -269,10 +284,14 @@ class WalletService {
       );
 
       if (response.success && response.data != null) {
-        return {
-          'success': true,
-          ...response.data!,
-        };
+        // Extract the actual data from the response
+        final actualData = response.data!['data'] as Map<String, dynamic>?;
+        if (actualData != null) {
+          return {
+            'success': true,
+            ...actualData,
+          };
+        }
       }
 
       return {
@@ -304,7 +323,11 @@ class WalletService {
       );
 
       if (response.success && response.data != null) {
-        return response.data!;
+        // Extract the actual data from the response
+        final actualData = response.data!['data'] as Map<String, dynamic>?;
+        if (actualData != null) {
+          return actualData;
+        }
       }
 
       return {
@@ -333,10 +356,14 @@ class WalletService {
       final response = await ApiProvider.get('/v1/wallet/payment-status/$paymentId');
 
       if (response.success && response.data != null) {
-        return {
-          'success': true,
-          ...response.data!,
-        };
+        // Extract the actual data from the response
+        final actualData = response.data!['data'] as Map<String, dynamic>?;
+        if (actualData != null) {
+          return {
+            'success': true,
+            ...actualData,
+          };
+        }
       }
 
       return {

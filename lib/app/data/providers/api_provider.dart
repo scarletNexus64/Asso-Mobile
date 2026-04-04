@@ -217,10 +217,16 @@ class ApiProvider {
       final body = jsonDecode(response.body);
       final success = body['success'] == true && response.statusCode >= 200 && response.statusCode < 300;
 
+      // Extract message - can be either String or Map
+      final messageField = body['message'];
+      final messageString = messageField is String
+          ? messageField
+          : (success ? 'Succès' : 'Erreur');
+
       developer.log(
         'Response parsed',
         name: 'ApiProvider',
-        error: 'Success: $success, Status: ${response.statusCode}, Message: ${body['message']}',
+        error: 'Success: $success, Status: ${response.statusCode}, Message: $messageString',
       );
 
       // Handle 401 - Unauthorized (token expired)
@@ -240,7 +246,7 @@ class ApiProvider {
 
       return ApiResponse(
         success: success,
-        message: body['message'] ?? (success ? 'Succès' : 'Erreur'),
+        message: messageString,
         statusCode: response.statusCode,
         data: body,
       );
