@@ -6,6 +6,7 @@ import '../../../core/utils/app_theme_system.dart';
 import '../../../core/controllers/app_config_controller.dart';
 import '../../../routes/app_pages.dart';
 import '../controllers/wallet_controller.dart';
+import '../views/paypal_native_webview.dart';
 
 /// Bottom sheet pour recharger le wallet en 2 étapes
 /// Step 1: Choix de la méthode de paiement
@@ -36,11 +37,6 @@ class _RechargeBottomSheetState extends State<RechargeBottomSheet> {
   final _formKey = GlobalKey<FormState>();
   final _amountController = TextEditingController();
   final _phoneController = TextEditingController();
-  final _cardNumberController = TextEditingController();
-  final _cardExpiryController = TextEditingController();
-  final _cardCvvController = TextEditingController();
-  final _cardHolderController = TextEditingController();
-  final _emailController = TextEditingController();
 
   bool _isProcessing = false;
 
@@ -51,11 +47,6 @@ class _RechargeBottomSheetState extends State<RechargeBottomSheet> {
   void dispose() {
     _amountController.dispose();
     _phoneController.dispose();
-    _cardNumberController.dispose();
-    _cardExpiryController.dispose();
-    _cardCvvController.dispose();
-    _cardHolderController.dispose();
-    _emailController.dispose();
     super.dispose();
   }
 
@@ -511,9 +502,8 @@ class _RechargeBottomSheetState extends State<RechargeBottomSheet> {
           // Champs spécifiques selon la méthode
           if (_selectedMethod == 'om' || _selectedMethod == 'momo')
             ..._buildMobileMoneyFields(context),
-          if (_selectedMethod == 'visa' || _selectedMethod == 'mastercard')
-            ..._buildCardFields(context),
-          if (_selectedMethod == 'paypal') ..._buildPayPalFields(context),
+          // Pour VISA, MasterCard et PayPal, on n'affiche PAS de champs supplémentaires
+          // PayPal WebView gérera tout
 
           const SizedBox(height: 24),
 
@@ -539,9 +529,11 @@ class _RechargeBottomSheetState extends State<RechargeBottomSheet> {
                         strokeWidth: 2,
                       ),
                     )
-                  : const Text(
-                      'Confirmer la recharge',
-                      style: TextStyle(
+                  : Text(
+                      _selectedMethod == 'om' || _selectedMethod == 'momo'
+                          ? 'Confirmer la recharge'
+                          : 'Payer avec PayPal',
+                      style: const TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
                       ),
@@ -607,145 +599,6 @@ class _RechargeBottomSheetState extends State<RechargeBottomSheet> {
     ];
   }
 
-  List<Widget> _buildCardFields(BuildContext context) {
-    return [
-      TextFormField(
-        controller: _cardHolderController,
-        textCapitalization: TextCapitalization.characters,
-        decoration: InputDecoration(
-          labelText: 'Nom sur la carte',
-          hintText: 'JOHN DOE',
-          prefixIcon: const Icon(Icons.person),
-          filled: true,
-          fillColor: AppThemeSystem.getSurfaceColor(context),
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-        ),
-        validator: (value) {
-          if (value == null || value.isEmpty) {
-            return 'Veuillez entrer le nom';
-          }
-          return null;
-        },
-      ),
-      const SizedBox(height: 12),
-      TextFormField(
-        controller: _cardNumberController,
-        keyboardType: TextInputType.number,
-        inputFormatters: [
-          FilteringTextInputFormatter.digitsOnly,
-          LengthLimitingTextInputFormatter(16),
-        ],
-        decoration: InputDecoration(
-          labelText: 'Numéro de carte',
-          hintText: '4111 1111 1111 1111',
-          prefixIcon: const Icon(Icons.credit_card),
-          filled: true,
-          fillColor: AppThemeSystem.getSurfaceColor(context),
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-        ),
-        validator: (value) {
-          if (value == null || value.isEmpty) {
-            return 'Veuillez entrer le numéro de carte';
-          }
-          if (value.length < 15) {
-            return 'Numéro de carte invalide';
-          }
-          return null;
-        },
-      ),
-      const SizedBox(height: 12),
-      Row(
-        children: [
-          Expanded(
-            child: TextFormField(
-              controller: _cardExpiryController,
-              keyboardType: TextInputType.number,
-              inputFormatters: [
-                FilteringTextInputFormatter.digitsOnly,
-                LengthLimitingTextInputFormatter(4),
-              ],
-              decoration: InputDecoration(
-                labelText: 'Expiration',
-                hintText: 'MM/AA',
-                prefixIcon: const Icon(Icons.calendar_today),
-                filled: true,
-                fillColor: AppThemeSystem.getSurfaceColor(context),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-              validator: (value) {
-                if (value == null || value.isEmpty) {
-                  return 'Requis';
-                }
-                if (value.length != 4) {
-                  return 'Format: MMAA';
-                }
-                return null;
-              },
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: TextFormField(
-              controller: _cardCvvController,
-              keyboardType: TextInputType.number,
-              inputFormatters: [
-                FilteringTextInputFormatter.digitsOnly,
-                LengthLimitingTextInputFormatter(3),
-              ],
-              decoration: InputDecoration(
-                labelText: 'CVV',
-                hintText: '123',
-                prefixIcon: const Icon(Icons.lock),
-                filled: true,
-                fillColor: AppThemeSystem.getSurfaceColor(context),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-              validator: (value) {
-                if (value == null || value.isEmpty) {
-                  return 'Requis';
-                }
-                if (value.length != 3) {
-                  return '3 chiffres';
-                }
-                return null;
-              },
-            ),
-          ),
-        ],
-      ),
-    ];
-  }
-
-  List<Widget> _buildPayPalFields(BuildContext context) {
-    return [
-      TextFormField(
-        controller: _emailController,
-        keyboardType: TextInputType.emailAddress,
-        decoration: InputDecoration(
-          labelText: 'Email PayPal',
-          hintText: 'votre.email@exemple.com',
-          prefixIcon: const Icon(Icons.email),
-          filled: true,
-          fillColor: AppThemeSystem.getSurfaceColor(context),
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-        ),
-        validator: (value) {
-          if (value == null || value.isEmpty) {
-            return 'Veuillez entrer votre email PayPal';
-          }
-          if (!value.contains('@') || !value.contains('.')) {
-            return 'Email invalide';
-          }
-          return null;
-        },
-      ),
-    ];
-  }
-
   Future<void> _handleRecharge() async {
     if (!_formKey.currentState!.validate()) {
       return;
@@ -803,25 +656,76 @@ class _RechargeBottomSheetState extends State<RechargeBottomSheet> {
         // PayPal (VISA, MasterCard, PayPal)
         paymentMethod = 'paypal';
 
-        final result = await walletController.initiateRecharge(
+        // Créer l'ordre PayPal natif
+        final result = await walletController.initiateNativePayPalPayment(
           amount: amount,
-          paymentMethod: paymentMethod,
         );
 
         if (!mounted) return;
 
         if (result['success'] == true) {
+          // Fermer le bottom sheet avant d'ouvrir PayPal
           Navigator.of(context).pop();
 
-          Get.snackbar(
-            'Succès',
-            result['message'] ?? 'Recharge initiée avec succès',
-            backgroundColor: AppThemeSystem.successColor,
-            colorText: AppThemeSystem.whiteColor,
+          final data = result['data'] as Map<String, dynamic>?;
+          final approvalUrl = data?['approval_url'] as String?;
+          final orderId = data?['order_id'] as String?;
+          final paymentId = data?['payment_id'] as int?;
+
+          if (approvalUrl == null || orderId == null || paymentId == null) {
+            Get.snackbar(
+              'Erreur',
+              'Données PayPal manquantes',
+              backgroundColor: AppThemeSystem.errorColor,
+              colorText: AppThemeSystem.whiteColor,
+            );
+            return;
+          }
+
+          // Ouvrir PayPal WebView
+          final paypalResult = await Get.to<Map<String, dynamic>>(
+            () => PayPalNativeWebView(
+              approvalUrl: approvalUrl,
+              orderId: orderId,
+              paymentId: paymentId,
+              amount: amount,
+            ),
           );
 
-          // TODO: Ouvrir PayPal pour finaliser le paiement
-          // final paymentUrl = result['payment_url'];
+          if (paypalResult != null && paypalResult['success'] == true) {
+            // L'utilisateur a approuvé, capturer le paiement
+            final captureResult = await walletController.captureNativePayPalPayment(
+              paymentId: paymentId,
+              orderId: orderId,
+            );
+
+            if (captureResult['success'] == true) {
+              Get.snackbar(
+                'Succès',
+                captureResult['message'] ?? 'Paiement PayPal réussi',
+                backgroundColor: AppThemeSystem.successColor,
+                colorText: AppThemeSystem.whiteColor,
+              );
+
+              // Rafraîchir le wallet et naviguer vers l'historique
+              await walletController.refresh();
+              Get.toNamed(Routes.WALLET_HISTORY);
+            } else {
+              Get.snackbar(
+                'Erreur',
+                captureResult['message'] ?? 'Échec de la capture du paiement',
+                backgroundColor: AppThemeSystem.errorColor,
+                colorText: AppThemeSystem.whiteColor,
+              );
+            }
+          } else if (paypalResult != null && paypalResult['cancelled'] == true) {
+            Get.snackbar(
+              'Annulé',
+              'Paiement PayPal annulé',
+              backgroundColor: AppThemeSystem.warningColor,
+              colorText: AppThemeSystem.whiteColor,
+            );
+          }
         } else {
           Get.snackbar(
             'Erreur',

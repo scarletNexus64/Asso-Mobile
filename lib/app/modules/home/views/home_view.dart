@@ -12,6 +12,7 @@ import '../../chat/views/chat_view.dart';
 import '../../tracking/views/tracking_view.dart';
 import '../../profile/views/profile_view.dart';
 import '../../wallet/views/wallet_view.dart';
+import '../../notification/controllers/notification_controller.dart';
 import '../controllers/home_controller.dart';
 
 class HomeView extends GetView<HomeController> {
@@ -175,19 +176,24 @@ class HomeView extends GetView<HomeController> {
                           SizedBox(width: 4),
 
                           // Notifications icon with badge
-                          _buildIconButtonWithBadge(
-                            context: context,
-                            icon: Icon(
-                              Icons.notifications_outlined,
-                              color: AppThemeSystem.getPrimaryTextColor(context),
-                            ),
-                            badgeCount: '3',
-                            onPressed: () {
-                              AuthGuard.navigateIfAuthenticated(
-                                context,
-                                '/notification',
-                                featureName: 'les notifications',
-                                useDialog: false,
+                          GetX<NotificationController>(
+                            builder: (notifController) {
+                              final count = notifController.unreadCount.value;
+                              return _buildIconButtonWithBadge(
+                                context: context,
+                                icon: Icon(
+                                  Icons.notifications_outlined,
+                                  color: AppThemeSystem.getPrimaryTextColor(context),
+                                ),
+                                badgeCount: count > 0 ? count.toString() : null,
+                                onPressed: () {
+                                  AuthGuard.navigateIfAuthenticated(
+                                    context,
+                                    '/notification',
+                                    featureName: 'les notifications',
+                                    useDialog: false,
+                                  );
+                                },
                               );
                             },
                           ),
@@ -974,7 +980,7 @@ class HomeView extends GetView<HomeController> {
   Widget _buildIconButtonWithBadge({
     required BuildContext context,
     required Widget icon,
-    required String badgeCount,
+    String? badgeCount, // Nullable maintenant
     required VoidCallback onPressed,
   }) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -993,34 +999,35 @@ class HomeView extends GetView<HomeController> {
             minHeight: deviceType == DeviceType.mobile ? 40 : 48,
           ),
         ),
-        // Badge
-        Positioned(
-          right: deviceType == DeviceType.mobile ? 6 : 8,
-          top: deviceType == DeviceType.mobile ? 6 : 8,
-          child: Container(
-            padding: EdgeInsets.all(deviceType == DeviceType.mobile ? 3 : 4),
-            decoration: BoxDecoration(
-              color: AppThemeSystem.errorColor,
-              shape: BoxShape.circle,
-              border: Border.all(
-                color: isDark
-                    ? AppThemeSystem.darkCardColor
-                    : Colors.white,
-                width: 1.5,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: AppThemeSystem.primaryColor.withValues(alpha: 0.3),
-                  blurRadius: 4,
-                  offset: const Offset(0, 2),
+        // Badge (affiché seulement si badgeCount != null)
+        if (badgeCount != null)
+          Positioned(
+            right: deviceType == DeviceType.mobile ? 6 : 8,
+            top: deviceType == DeviceType.mobile ? 6 : 8,
+            child: Container(
+              padding: EdgeInsets.all(deviceType == DeviceType.mobile ? 3 : 4),
+              decoration: BoxDecoration(
+                color: AppThemeSystem.errorColor,
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: isDark
+                      ? AppThemeSystem.darkCardColor
+                      : Colors.white,
+                  width: 1.5,
                 ),
-              ],
-            ),
-            constraints: BoxConstraints(
-              minWidth: deviceType == DeviceType.mobile ? 16 : 18,
-              minHeight: deviceType == DeviceType.mobile ? 16 : 18,
-            ),
-            child: Center(
+                boxShadow: [
+                  BoxShadow(
+                    color: AppThemeSystem.primaryColor.withValues(alpha: 0.3),
+                    blurRadius: 4,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              constraints: BoxConstraints(
+                minWidth: deviceType == DeviceType.mobile ? 16 : 18,
+                minHeight: deviceType == DeviceType.mobile ? 16 : 18,
+              ),
+              child: Center(
               child: Text(
                 badgeCount,
                 style: TextStyle(

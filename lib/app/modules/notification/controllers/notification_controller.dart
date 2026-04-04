@@ -1,23 +1,28 @@
 import 'package:get/get.dart';
-import 'package:get_storage/get_storage.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 
 import '../../../core/utils/app_theme_system.dart';
+import '../../../core/models/notification_model.dart';
+import '../../../data/services/notification_service.dart';
 import '../../wallet/controllers/wallet_controller.dart';
 
 class NotificationController extends GetxController {
   final FirebaseMessaging _firebaseMessaging = FirebaseMessaging.instance;
-  final GetStorage _storage = GetStorage();
 
-  // Liste des notifications (pour affichage dans une page dédiée si besoin)
-  final notifications = <Map<String, dynamic>>[].obs;
+  // Liste des notifications (synchronisées avec le backend)
+  final notifications = <NotificationModel>[].obs;
   final unreadCount = 0.obs;
+  final isLoading = false.obs;
+  final isLoadingMore = false.obs;
+  int _currentPage = 1;
+  bool _hasMorePages = true;
 
   @override
   void onInit() {
     super.onInit();
     _setupFCMListeners();
+    fetchNotifications(); // Charger l'historique depuis le backend
   }
 
   /// Configure les listeners FCM
@@ -39,14 +44,19 @@ class NotificationController extends GetxController {
     final data = message.data;
     final notification = message.notification;
 
-    // Ajouter à la liste des notifications
-    _addNotification({
-      'title': notification?.title ?? 'Notification',
-      'body': notification?.body ?? '',
-      'data': data,
-      'timestamp': DateTime.now().toIso8601String(),
-      'read': false,
-    });
+    // Ajouter localement (elle sera aussi dans le backend)
+    _addLocalNotification(NotificationModel(
+      id: DateTime.now().millisecondsSinceEpoch, // ID temporaire
+      userId: 0, // Sera remplacé par le backend
+      title: notification?.title ?? 'Notification',
+      body: notification?.body ?? '',
+      type: data['type'] as String?,
+      data: data,
+      isRead: false,
+      sentAt: DateTime.now(),
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
+    ));
 
     // Afficher un snackbar
     _showNotificationSnackbar(
@@ -57,6 +67,9 @@ class NotificationController extends GetxController {
 
     // Gérer les actions selon le type
     _handleNotificationAction(data);
+
+    // Rafraîchir depuis le backend pour avoir l'ID réel
+    updateUnreadCount();
   }
 
   /// Gère le clic sur une notification en arrière-plan
@@ -65,14 +78,8 @@ class NotificationController extends GetxController {
 
     final data = message.data;
 
-    // Marquer comme lue
-    _addNotification({
-      'title': message.notification?.title ?? 'Notification',
-      'body': message.notification?.body ?? '',
-      'data': data,
-      'timestamp': DateTime.now().toIso8601String(),
-      'read': true,
-    });
+    // Rafraîchir les notifications depuis le backend
+    fetchNotifications(refresh: true);
 
     // Gérer les actions selon le type
     _handleNotificationAction(data, fromClick: true);
@@ -211,87 +218,153 @@ class NotificationController extends GetxController {
     }
   }
 
-  /// Ajoute une notification à la liste
-  void _addNotification(Map<String, dynamic> notification) {
-    notifications.insert(0, notification);
-    if (notification['read'] == false) {
-      unreadCount.value++;
+  /// Récupère les notifications depuis le backend
+  Future<void> fetchNotifications({bool refresh = false}) async {
+    if (refresh) {
+      _currentPage = 1;
+      _hasMorePages = true;
+      notifications.clear();
     }
 
-    // Sauvegarder dans le storage
-    _saveNotifications();
+    if (!_hasMorePages) return;
+
+    isLoading.value = true;
+
+    try {
+      final response = await NotificationService.getNotifications(
+        page: _currentPage,
+        perPage: 20,
+      );
+
+      if (response.success && response.data != null) {
+        final newNotifications = NotificationService.parseNotifications(response.data!['notifications']);
+
+        if (refresh) {
+          notifications.value = newNotifications;
+        } else {
+          notifications.addAll(newNotifications);
+        }
+
+        // Mettre à jour le compteur non lus
+        unreadCount.value = response.data!['unread_count'] ?? 0;
+
+        // Vérifier s'il y a plus de pages
+        final pagination = response.data!['pagination'];
+        if (pagination != null) {
+          _currentPage = pagination['current_page'];
+          final lastPage = pagination['last_page'];
+          _hasMorePages = _currentPage < lastPage;
+        }
+      }
+    } catch (e) {
+      print('❌ Erreur lors du chargement des notifications: $e');
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
+  /// Charge plus de notifications (pagination)
+  Future<void> loadMoreNotifications() async {
+    if (isLoadingMore.value || !_hasMorePages) return;
+
+    isLoadingMore.value = true;
+    _currentPage++;
+
+    try {
+      await fetchNotifications();
+    } finally {
+      isLoadingMore.value = false;
+    }
+  }
+
+  /// Met à jour le compteur de notifications non lues
+  Future<void> updateUnreadCount() async {
+    try {
+      final response = await NotificationService.getUnreadCount();
+      if (response.success && response.data != null) {
+        unreadCount.value = response.data!['unread_count'] ?? 0;
+      }
+    } catch (e) {
+      print('❌ Erreur lors de la mise à jour du compteur: $e');
+    }
+  }
+
+  /// Ajoute une notification locale (depuis FCM)
+  void _addLocalNotification(NotificationModel notification) {
+    notifications.insert(0, notification);
+    if (!notification.isRead) {
+      unreadCount.value++;
+    }
   }
 
   /// Marque une notification comme lue
-  void markAsRead(int index) {
-    if (index >= 0 && index < notifications.length) {
-      if (notifications[index]['read'] == false) {
-        notifications[index]['read'] = true;
-        unreadCount.value = (unreadCount.value - 1).clamp(0, 999);
-        notifications.refresh();
-        _saveNotifications();
+  Future<void> markAsRead(int notificationId) async {
+    try {
+      final response = await NotificationService.markAsRead(notificationId);
+
+      if (response.success) {
+        // Mettre à jour localement
+        final index = notifications.indexWhere((n) => n.id == notificationId);
+        if (index != -1) {
+          notifications[index] = notifications[index].copyWith(
+            isRead: true,
+            readAt: DateTime.now(),
+          );
+          notifications.refresh();
+          unreadCount.value = (unreadCount.value - 1).clamp(0, 999);
+        }
       }
+    } catch (e) {
+      print('❌ Erreur lors du marquage comme lu: $e');
     }
   }
 
   /// Marque toutes les notifications comme lues
-  void markAllAsRead() {
-    for (var notification in notifications) {
-      notification['read'] = true;
+  Future<void> markAllAsRead() async {
+    try {
+      final response = await NotificationService.markAllAsRead();
+
+      if (response.success) {
+        // Mettre à jour localement
+        notifications.value = notifications.map((n) => n.copyWith(isRead: true, readAt: DateTime.now())).toList();
+        unreadCount.value = 0;
+        notifications.refresh();
+      }
+    } catch (e) {
+      print('❌ Erreur lors du marquage de toutes comme lues: $e');
     }
-    unreadCount.value = 0;
-    notifications.refresh();
-    _saveNotifications();
   }
 
   /// Supprime une notification
-  void deleteNotification(int index) {
-    if (index >= 0 && index < notifications.length) {
-      if (notifications[index]['read'] == false) {
-        unreadCount.value = (unreadCount.value - 1).clamp(0, 999);
+  Future<void> deleteNotification(int notificationId) async {
+    try {
+      final response = await NotificationService.deleteNotification(notificationId);
+
+      if (response.success) {
+        // Mettre à jour localement
+        final notification = notifications.firstWhere((n) => n.id == notificationId);
+        if (!notification.isRead) {
+          unreadCount.value = (unreadCount.value - 1).clamp(0, 999);
+        }
+        notifications.removeWhere((n) => n.id == notificationId);
       }
-      notifications.removeAt(index);
-      _saveNotifications();
+    } catch (e) {
+      print('❌ Erreur lors de la suppression: $e');
     }
   }
 
   /// Supprime toutes les notifications
-  void clearAll() {
-    notifications.clear();
-    unreadCount.value = 0;
-    _saveNotifications();
-  }
-
-  /// Sauvegarde les notifications dans le storage
-  void _saveNotifications() {
+  Future<void> clearAll() async {
     try {
-      // Limiter à 50 notifications max
-      final toSave = notifications.take(50).toList();
-      _storage.write('notifications', toSave);
-    } catch (e) {
-      print('❌ [FCM] Erreur lors de la sauvegarde des notifications: $e');
-    }
-  }
+      final response = await NotificationService.deleteAllNotifications();
 
-  /// Charge les notifications depuis le storage
-  void loadNotifications() {
-    try {
-      final saved = _storage.read('notifications');
-      if (saved != null && saved is List) {
-        notifications.value = List<Map<String, dynamic>>.from(
-          saved.map((item) => Map<String, dynamic>.from(item)),
-        );
-        unreadCount.value = notifications.where((n) => n['read'] == false).length;
+      if (response.success) {
+        notifications.clear();
+        unreadCount.value = 0;
       }
     } catch (e) {
-      print('❌ [FCM] Erreur lors du chargement des notifications: $e');
+      print('❌ Erreur lors de la suppression de toutes: $e');
     }
   }
 
-  @override
-  void onClose() {
-    // Sauvegarder avant de fermer
-    _saveNotifications();
-    super.onClose();
-  }
 }
