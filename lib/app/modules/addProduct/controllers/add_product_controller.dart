@@ -2,6 +2,8 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:image_picker/image_picker.dart';
+import '../../../data/providers/product_service.dart';
+import '../../../data/providers/api_provider.dart';
 
 class AddProductController extends GetxController {
   // Form controllers
@@ -69,6 +71,7 @@ class AddProductController extends GetxController {
   @override
   void onInit() {
     super.onInit();
+    _loadCategories();
     _loadStorages();
   }
 
@@ -80,7 +83,73 @@ class AddProductController extends GetxController {
     super.onClose();
   }
 
-  /// Charge les espaces de stockage (fake data)
+  /// Charge les catégories depuis l'API
+  void _loadCategories() async {
+    try {
+      final response = await ProductService.getCategories();
+
+      if (response.success && response.data != null) {
+        final data = response.data!['data'] ?? response.data!;
+
+        if (data is List) {
+          // Restructure categories from API format
+          final Map<String, List<Map<String, String>>> categories = {};
+          for (var cat in data) {
+            final catMap = cat as Map<String, dynamic>;
+            final catName = catMap['name'] ?? catMap['category_name'] ?? 'Autre';
+            final catId = catMap['id']?.toString() ?? catMap['category_id']?.toString() ?? '';
+
+            if (!categories.containsKey(catName)) {
+              categories[catName] = [];
+            }
+
+            // Add subcategories if they exist
+            if (catMap['subcategories'] is List) {
+              for (var subcat in catMap['subcategories']) {
+                final subMap = subcat as Map<String, dynamic>;
+                categories[catName]!.add({
+                  'id': subMap['id']?.toString() ?? '',
+                  'name': subMap['name'] ?? subMap['subcategory_name'] ?? 'Sous-catégorie',
+                });
+              }
+            } else {
+              // If no subcategories, add the category itself as a subcategory
+              categories[catName]!.add({
+                'id': catId,
+                'name': catName,
+              });
+            }
+          }
+          categoriesData.clear();
+          categoriesData.addAll(categories);
+        } else if (data is Map) {
+          // Alternative format
+          final Map<String, List<Map<String, String>>> categories = {};
+          data.forEach((key, value) {
+            if (value is List) {
+              categories[key] = (value as List)
+                  .map<Map<String, String>>((item) {
+                    if (item is Map<String, dynamic>) {
+                      return {
+                        'id': item['id']?.toString() ?? '',
+                        'name': item['name']?.toString() ?? 'Sous-catégorie',
+                      };
+                    }
+                    return {'id': '', 'name': item.toString()};
+                  })
+                  .toList();
+            }
+          });
+          categoriesData.clear();
+          categoriesData.addAll(categories);
+        }
+      }
+    } catch (e) {
+      // Keep the hardcoded categories as fallback
+    }
+  }
+
+  /// Charge les espaces de stockage (fake data - client-side info)
   void _loadStorages() {
     storageList.value = [
       {
@@ -349,24 +418,147 @@ class AddProductController extends GetxController {
     isLoading.value = true;
 
     try {
-      // TODO: Implémenter l'appel API pour créer le produit
-      await Future.delayed(const Duration(seconds: 2));
+      // Calculer la taille estimée des images
+      double totalSizeMb = 0;
+      for (var image in productImages) {
+        final bytes = await image.length();
+        totalSizeMb += bytes / 1048576;
+      }
 
-      Get.snackbar(
-        'Succès',
-        'Produit ajouté avec succès',
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: Get.theme.colorScheme.primary,
-        colorText: Get.theme.colorScheme.onPrimary,
+      print('');
+      print('📦 ADD PRODUCT: Total images size: ${totalSizeMb.toStringAsFixed(2)} MB');
+
+      // Préparer les fichiers pour l'upload
+      final filesMap = <String, String>{};
+      for (int i = 0; i < productImages.length; i++) {
+        filesMap['images[$i]'] = productImages[i].path;
+      }
+
+      // Préparer les champs
+      final fieldsMap = <String, String>{
+        'name': nameController.text.trim(),
+        'description': descriptionController.text.trim(),
+        'category_id': selectedCategory.value ?? '',
+        'subcategory_id': selectedSubcategory.value ?? '',
+        'type': articleType.value,
+        'price_type': priceType.value,
+        'storage_id': selectedStorage.value?['id']?.toString() ?? '',
+      };
+
+      if (priceType.value == 'fixed') {
+        fieldsMap['price'] = priceController.text.trim();
+      }
+
+      if (primaryImageIndex.value > 0 && primaryImageIndex.value < productImages.length) {
+        fieldsMap['primary_image_index'] = primaryImageIndex.value.toString();
+      }
+
+      // Appel API multipart pour créer le produit
+      final response = await ApiProvider.multipart(
+        '/v1/products',
+        fields: fieldsMap,
+        files: filesMap,
       );
 
-      // Retour au dashboard
-      Get.back();
+      if (response.success) {
+        Get.snackbar(
+          'Succès',
+          'Produit ajouté avec succès',
+          snackPosition: SnackPosition.BOTTOM,
+          backgroundColor: const Color(0xFF4CAF50),
+          colorText: Colors.white,
+        );
+
+        // Afficher info stockage si disponible
+        if (response.data?['storage_info'] != null) {
+          final storageInfo = response.data!['storage_info'];
+          print('📊 Storage used: ${storageInfo['used_mb']} MB');
+          print('📊 Storage remaining: ${storageInfo['remaining_mb']} MB');
+        }
+
+        // Retour au dashboard
+        Get.back();
+      } else {
+        // Gérer les erreurs spécifiques
+        if (response.data?['error_code'] == 'NO_ACTIVE_PACKAGE') {
+          Get.dialog(
+            AlertDialog(
+              title: const Text('Package requis'),
+              content: Text(
+                response.message ?? 'Vous devez souscrire à un package de stockage',
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Get.back(),
+                  child: const Text('Annuler'),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    Get.back();
+                    Get.back(); // Fermer addProduct
+                    Get.toNamed('/package-subscription');
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFF58A3A),
+                  ),
+                  child: const Text(
+                    'Voir les packages',
+                    style: TextStyle(color: Colors.white),
+                  ),
+                ),
+              ],
+            ),
+          );
+        } else if (response.data?['error_code'] == 'INSUFFICIENT_STORAGE') {
+          final requiredMb = response.data?['required_mb'] ?? 0;
+          final availableMb = response.data?['available_mb'] ?? 0;
+
+          Get.dialog(
+            AlertDialog(
+              title: const Text('Espace insuffisant'),
+              content: Text(
+                'Espace requis : ${requiredMb.toStringAsFixed(2)} MB\n'
+                'Espace disponible : ${availableMb.toStringAsFixed(2)} MB\n\n'
+                'Veuillez souscrire à un package supplémentaire.',
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Get.back(),
+                  child: const Text('Annuler'),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    Get.back();
+                    Get.toNamed('/package-subscription');
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFF58A3A),
+                  ),
+                  child: const Text(
+                    'Voir les packages',
+                    style: TextStyle(color: Colors.white),
+                  ),
+                ),
+              ],
+            ),
+          );
+        } else {
+          Get.snackbar(
+            'Erreur',
+            response.message ?? 'Impossible d\'ajouter le produit',
+            snackPosition: SnackPosition.BOTTOM,
+            backgroundColor: const Color(0xFFF44336),
+            colorText: Colors.white,
+          );
+        }
+      }
     } catch (e) {
       Get.snackbar(
         'Erreur',
-        'Une erreur est survenue lors de l\'ajout du produit',
+        'Une erreur est survenue lors de l\'ajout du produit: $e',
         snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
       );
     } finally {
       isLoading.value = false;

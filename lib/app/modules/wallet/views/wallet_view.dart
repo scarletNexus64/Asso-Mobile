@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:intl/intl.dart';
-import '../../../core/utils/app_theme_system.dart';
+
 import '../controllers/wallet_controller.dart';
-import '../models/wallet_models.dart';
+import '../../../core/utils/app_theme_system.dart';
+import '../widgets/withdrawal_bottom_sheet.dart';
+import '../widgets/recharge_bottom_sheet.dart';
 
 class WalletView extends GetView<WalletController> {
   const WalletView({super.key});
@@ -11,368 +12,680 @@ class WalletView extends GetView<WalletController> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: context.backgroundColor,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back_ios, color: context.primaryTextColor),
-          onPressed: () => Get.back(),
-        ),
-        title: Text(
-          'Mon Wallet',
-          style: context.h5.copyWith(fontWeight: FontWeight.w600),
-        ),
-        actions: [
-          IconButton(
-            icon: Icon(Icons.refresh, color: context.primaryTextColor),
-            onPressed: controller.loadWalletData,
-          ),
-        ],
-      ),
-      body: Obx(() {
-        if (controller.isLoading.value && controller.walletStats.value == null) {
-          return const Center(child: CircularProgressIndicator());
-        }
+      backgroundColor: AppThemeSystem.getBackgroundColor(context),
+      body: RefreshIndicator(
+        onRefresh: () => controller.refresh(),
+        child: Obx(() {
+          if (controller.isLoading.value) {
+            return const Center(child: CircularProgressIndicator());
+          }
 
-        return RefreshIndicator(
-          onRefresh: controller.loadWalletData,
-          child: SingleChildScrollView(
-            padding: EdgeInsets.all(context.horizontalPadding),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _BalanceCard(),
-                SizedBox(height: context.sectionSpacing),
-                _StatisticsCards(),
-                SizedBox(height: context.sectionSpacing),
-                _SimpleChart(),
-                SizedBox(height: context.sectionSpacing),
-                _FiltersSection(),
-                SizedBox(height: context.elementSpacing),
-                _TransactionsList(),
-              ],
-            ),
-          ),
-        );
-      }),
-    );
-  }
-}
-
-class _BalanceCard extends GetView<WalletController> {
-  @override
-  Widget build(BuildContext context) {
-    return Obx(() {
-      final stats = controller.walletStats.value;
-      if (stats == null) return const SizedBox.shrink();
-
-      return Container(
-        padding: EdgeInsets.all(context.horizontalPadding * 1.5),
-        decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            colors: [Color(0xFFF58A3A), Color(0xFFFF6F00)],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          borderRadius: context.borderRadius(BorderRadiusType.medium),
-          boxShadow: [
-            BoxShadow(
-              color: const Color(0xFFF58A3A).withValues(alpha: 0.3),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                const Icon(Icons.account_balance_wallet, color: Colors.white, size: 28),
-                const Spacer(),
-                if (stats.pendingAmount > 0)
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.3),
-                      borderRadius: BorderRadius.circular(12),
+          if (controller.errorMessage.value.isNotEmpty) {
+            return Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24.0),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.error_outline_rounded,
+                      size: 64,
+                      color: AppThemeSystem.errorColor,
                     ),
-                    child: Text(
-                      '${stats.pendingAmount.toStringAsFixed(0)} XAF en attente',
-                      style: const TextStyle(color: Colors.white, fontSize: 11),
-                    ),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            const Text(
-              'Solde disponible',
-              style: TextStyle(color: Colors.white70, fontSize: 14),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              '${NumberFormat('#,###').format(stats.availableBalance)} XAF',
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 32,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 20),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: controller.showWithdrawalForm,
-                icon: const Icon(Icons.money_off),
-                label: const Text('Retirer des fonds'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.white,
-                  foregroundColor: const Color(0xFFF58A3A),
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                ),
-              ),
-            ),
-          ],
-        ),
-      );
-    });
-  }
-}
-
-class _StatisticsCards extends GetView<WalletController> {
-  @override
-  Widget build(BuildContext context) {
-    return Obx(() {
-      final stats = controller.walletStats.value;
-      if (stats == null) return const SizedBox.shrink();
-
-      return Row(
-        children: [
-          Expanded(
-            child: _StatCard(
-              icon: Icons.arrow_upward,
-              label: 'Gains totaux',
-              value: '${NumberFormat('#,###').format(stats.totalEarnings)} XAF',
-              color: AppThemeSystem.successColor,
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: _StatCard(
-              icon: Icons.arrow_downward,
-              label: 'Retraits',
-              value: '${NumberFormat('#,###').format(stats.totalWithdrawals)} XAF',
-              color: AppThemeSystem.errorColor,
-            ),
-          ),
-        ],
-      );
-    });
-  }
-}
-
-class _StatCard extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final String value;
-  final Color color;
-
-  const _StatCard({
-    required this.icon,
-    required this.label,
-    required this.value,
-    required this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: context.surfaceColor,
-        borderRadius: context.borderRadius(BorderRadiusType.medium),
-        border: Border.all(color: context.borderColor),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(icon, color: color, size: 24),
-          const SizedBox(height: 12),
-          Text(value, style: context.body1.copyWith(fontWeight: FontWeight.bold)),
-          const SizedBox(height: 4),
-          Text(label, style: context.caption.copyWith(color: context.secondaryTextColor)),
-        ],
-      ),
-    );
-  }
-}
-
-class _SimpleChart extends GetView<WalletController> {
-  @override
-  Widget build(BuildContext context) {
-    return Obx(() {
-      final stats = controller.walletStats.value;
-      if (stats == null || stats.dailyEarnings.isEmpty) return const SizedBox.shrink();
-
-      final maxAmount = stats.dailyEarnings.map((e) => e.amount).reduce((a, b) => a > b ? a : b);
-      if (maxAmount == 0) return const SizedBox.shrink();
-
-      return Container(
-        padding: EdgeInsets.all(context.horizontalPadding),
-        decoration: BoxDecoration(
-          color: context.surfaceColor,
-          borderRadius: context.borderRadius(BorderRadiusType.medium),
-          border: Border.all(color: context.borderColor),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Gains des 30 derniers jours', style: context.h6.copyWith(fontWeight: FontWeight.bold)),
-            const SizedBox(height: 20),
-            SizedBox(
-              height: 150,
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: stats.dailyEarnings.map((earning) {
-                  final heightPercent = earning.amount / maxAmount;
-                  return Expanded(
-                    child: Container(
-                      margin: const EdgeInsets.symmetric(horizontal: 1),
-                      height: heightPercent * 150,
-                      decoration: BoxDecoration(
-                        color: AppThemeSystem.primaryColor.withValues(alpha: 0.7),
-                        borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
+                    const SizedBox(height: 16),
+                    Text(
+                      controller.errorMessage.value,
+                      style: TextStyle(
+                        fontSize: 16,
+                        color: AppThemeSystem.getSecondaryTextColor(context),
                       ),
+                      textAlign: TextAlign.center,
                     ),
-                  );
-                }).toList(),
-              ),
-            ),
-          ],
-        ),
-      );
-    });
-  }
-}
-
-class _FiltersSection extends GetView<WalletController> {
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text('Filtrer par période', style: context.body1.copyWith(fontWeight: FontWeight.w600)),
-        const SizedBox(height: 12),
-        Obx(() => Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: FilterPeriod.values.map((period) {
-            final isSelected = controller.selectedPeriod.value == period;
-            return GestureDetector(
-              onTap: () => controller.selectedPeriod.value = period,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                decoration: BoxDecoration(
-                  color: isSelected ? AppThemeSystem.primaryColor : AppThemeSystem.grey100,
-                  borderRadius: context.borderRadius(BorderRadiusType.small),
-                  border: Border.all(
-                    color: isSelected ? AppThemeSystem.primaryColor : AppThemeSystem.grey300,
-                  ),
-                ),
-                child: Text(
-                  period.label,
-                  style: TextStyle(
-                    color: isSelected ? Colors.white : context.secondaryTextColor,
-                    fontWeight: FontWeight.w600,
-                    fontSize: 12,
-                  ),
+                    const SizedBox(height: 24),
+                    ElevatedButton(
+                      onPressed: () => controller.loadWallet(),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppThemeSystem.primaryColor,
+                        foregroundColor: AppThemeSystem.whiteColor,
+                        minimumSize: const Size(double.infinity, 48),
+                      ),
+                      child: const Text('Réessayer'),
+                    ),
+                  ],
                 ),
               ),
-            );
-          }).toList(),
-        )),
-      ],
-    );
-  }
-}
-
-class _TransactionsList extends GetView<WalletController> {
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text('Historique des transactions', style: context.body1.copyWith(fontWeight: FontWeight.w600)),
-        const SizedBox(height: 12),
-        Obx(() {
-          if (controller.filteredTransactions.isEmpty) {
-            return Container(
-              padding: const EdgeInsets.all(40),
-              alignment: Alignment.center,
-              child: Text('Aucune transaction', style: context.body2.copyWith(color: context.secondaryTextColor)),
             );
           }
 
-          return Column(
-            children: controller.filteredTransactions.map((transaction) {
-              return _TransactionItem(transaction: transaction);
-            }).toList(),
+          return SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SizedBox(height: 20),
+
+                // Carte bancaire style VISA/ASSO
+                _buildAssoCard(context),
+
+                const SizedBox(height: 24),
+
+                // Actions rapides
+                _buildQuickActions(context),
+
+                const SizedBox(height: 24),
+
+                // Soldes par méthode de paiement
+                _buildBalancesByProvider(context),
+
+                const SizedBox(height: 100), // Espace pour le bottom nav
+              ],
+            ),
           );
         }),
-      ],
+      ),
     );
   }
-}
 
-class _TransactionItem extends GetView<WalletController> {
-  final Transaction transaction;
+  /// Carte bancaire ASSO (style VISA)
+  Widget _buildAssoCard(BuildContext context) {
+    // Utiliser LayoutBuilder pour un design responsive
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final deviceType = AppThemeSystem.getDeviceType(context);
 
-  const _TransactionItem({required this.transaction});
+        // Calcul responsive de la hauteur de la carte
+        double cardHeight;
+        double horizontalMargin;
+        double cardPadding;
+        double logoFontSize;
+        double balanceFontSize;
+        double cardNumberFontSize;
 
-  @override
-  Widget build(BuildContext context) {
-    final isCredit = transaction.type.isCredit;
-    final color = controller.getTransactionColor(transaction.type);
+        switch (deviceType) {
+          case DeviceType.mobile:
+            cardHeight = 200;
+            horizontalMargin = 20;
+            cardPadding = 20;
+            logoFontSize = 20;
+            balanceFontSize = 28;
+            cardNumberFontSize = 16;
+            break;
+          case DeviceType.tablet:
+            cardHeight = 240;
+            horizontalMargin = 32;
+            cardPadding = 28;
+            logoFontSize = 24;
+            balanceFontSize = 36;
+            cardNumberFontSize = 18;
+            break;
+          case DeviceType.largeTablet:
+            cardHeight = 260;
+            horizontalMargin = 40;
+            cardPadding = 32;
+            logoFontSize = 26;
+            balanceFontSize = 40;
+            cardNumberFontSize = 20;
+            break;
+          default:
+            cardHeight = 280;
+            horizontalMargin = 48;
+            cardPadding = 36;
+            logoFontSize = 28;
+            balanceFontSize = 44;
+            cardNumberFontSize = 22;
+        }
+
+        return Container(
+          margin: EdgeInsets.symmetric(horizontal: horizontalMargin),
+          height: cardHeight,
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                Color(0xFF1e3c72), // Bleu foncé
+                Color(0xFF2a5298), // Bleu moyen
+                Color(0xFF7e22ce), // Violet
+              ],
+            ),
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.3),
+                blurRadius: 20,
+                offset: const Offset(0, 10),
+              ),
+            ],
+          ),
+          child: Stack(
+            children: [
+              // Motif de fond (cercles décoratifs)
+              Positioned(
+                right: -50,
+                top: -50,
+                child: Container(
+                  width: 200,
+                  height: 200,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Colors.white.withValues(alpha: 0.1),
+                  ),
+                ),
+              ),
+              Positioned(
+                left: -30,
+                bottom: -30,
+                child: Container(
+                  width: 150,
+                  height: 150,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Colors.white.withValues(alpha: 0.05),
+                  ),
+                ),
+              ),
+
+              // Contenu de la carte
+              Padding(
+                padding: EdgeInsets.all(cardPadding),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    // Header avec logo ASSO et type de carte
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        // Logo ASSO
+                        Container(
+                          padding: EdgeInsets.symmetric(
+                            horizontal: logoFontSize * 0.6,
+                            vertical: logoFontSize * 0.3,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            'ASSO',
+                            style: TextStyle(
+                              fontSize: logoFontSize,
+                              fontWeight: FontWeight.bold,
+                              color: const Color(0xFF1e3c72),
+                              letterSpacing: 2,
+                            ),
+                          ),
+                        ),
+                        // Puce EMV (chip de carte)
+                        _buildEMVChip(cardHeight),
+                      ],
+                    ),
+
+                    // Numéro de carte (masqué style VISA)
+                    _buildCardNumber(context, cardNumberFontSize),
+
+                    // Footer: Solde + Holder
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        // Solde disponible
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Solde',
+                                style: TextStyle(
+                                  fontSize: balanceFontSize * 0.35,
+                                  color: Colors.white.withValues(alpha: 0.7),
+                                  letterSpacing: 0.5,
+                                  fontWeight: FontWeight.w300,
+                                ),
+                              ),
+                              SizedBox(height: balanceFontSize * 0.1),
+                              // Utiliser Builder au lieu de Obx pour éviter l'erreur
+                              Builder(
+                                builder: (context) {
+                                  // Lire la valeur réactive ici
+                                  final balance = controller.formattedBalance;
+                                  return Text(
+                                    balance,
+                                    style: TextStyle(
+                                      fontSize: balanceFontSize,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.white,
+                                      letterSpacing: 0.5,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  );
+                                },
+                              ),
+                            ],
+                          ),
+                        ),
+                        // Type de carte (WALLET badge)
+                        Container(
+                          padding: EdgeInsets.symmetric(
+                            horizontal: cardNumberFontSize * 0.5,
+                            vertical: cardNumberFontSize * 0.25,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(
+                              color: Colors.white.withValues(alpha: 0.3),
+                              width: 1,
+                            ),
+                          ),
+                          child: Text(
+                            'WALLET',
+                            style: TextStyle(
+                              fontSize: cardNumberFontSize * 0.55,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.white,
+                              letterSpacing: 1.5,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  /// Puce EMV (chip de carte bancaire)
+  Widget _buildEMVChip(double cardHeight) {
+    final chipSize = cardHeight * 0.25; // 25% de la hauteur de la carte
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.all(12),
+      width: chipSize * 1.3,
+      height: chipSize,
       decoration: BoxDecoration(
-        color: context.surfaceColor,
-        borderRadius: context.borderRadius(BorderRadiusType.small),
-        border: Border.all(color: context.borderColor),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            const Color(0xFFD4AF37), // Or
+            const Color(0xFFFFD700), // Or clair
+            const Color(0xFFB8860B), // Or foncé
+          ],
+        ),
+        borderRadius: BorderRadius.circular(6),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.3),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
+      child: Stack(
+        children: [
+          // Lignes horizontales de la puce
+          Positioned(
+            top: chipSize * 0.2,
+            left: chipSize * 0.15,
+            right: chipSize * 0.15,
+            child: Container(
+              height: 1,
+              color: const Color(0xFF8B6914).withValues(alpha: 0.3),
+            ),
+          ),
+          Positioned(
+            top: chipSize * 0.4,
+            left: chipSize * 0.15,
+            right: chipSize * 0.15,
+            child: Container(
+              height: 1,
+              color: const Color(0xFF8B6914).withValues(alpha: 0.3),
+            ),
+          ),
+          Positioned(
+            top: chipSize * 0.6,
+            left: chipSize * 0.15,
+            right: chipSize * 0.15,
+            child: Container(
+              height: 1,
+              color: const Color(0xFF8B6914).withValues(alpha: 0.3),
+            ),
+          ),
+          Positioned(
+            top: chipSize * 0.8,
+            left: chipSize * 0.15,
+            right: chipSize * 0.15,
+            child: Container(
+              height: 1,
+              color: const Color(0xFF8B6914).withValues(alpha: 0.3),
+            ),
+          ),
+          // Lignes verticales
+          Positioned(
+            left: chipSize * 0.3,
+            top: chipSize * 0.15,
+            bottom: chipSize * 0.15,
+            child: Container(
+              width: 1,
+              color: const Color(0xFF8B6914).withValues(alpha: 0.3),
+            ),
+          ),
+          Positioned(
+            left: chipSize * 0.5,
+            top: chipSize * 0.15,
+            bottom: chipSize * 0.15,
+            child: Container(
+              width: 1,
+              color: const Color(0xFF8B6914).withValues(alpha: 0.3),
+            ),
+          ),
+          Positioned(
+            left: chipSize * 0.7,
+            top: chipSize * 0.15,
+            bottom: chipSize * 0.15,
+            child: Container(
+              width: 1,
+              color: const Color(0xFF8B6914).withValues(alpha: 0.3),
+            ),
+          ),
+          Positioned(
+            right: chipSize * 0.15,
+            top: chipSize * 0.15,
+            bottom: chipSize * 0.15,
+            child: Container(
+              width: 1,
+              color: const Color(0xFF8B6914).withValues(alpha: 0.3),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Numéro de carte masqué (style VISA)
+  Widget _buildCardNumber(BuildContext context, double fontSize) {
+    // Générer un numéro de carte virtuel basé sur le téléphone de l'utilisateur
+    String generateCardNumber() {
+      final phone = controller.userPhone;
+      if (phone == null || phone.isEmpty) {
+        return '**** **** **** ****';
+      }
+
+      // Utiliser les derniers chiffres du téléphone
+      final lastDigits = phone.length >= 4
+          ? phone.substring(phone.length - 4)
+          : phone.padLeft(4, '0');
+
+      return '**** **** **** $lastDigits';
+    }
+
+    return Builder(
+      builder: (context) {
+        final cardNumber = generateCardNumber();
+        return Text(
+          cardNumber,
+          style: TextStyle(
+            fontSize: fontSize,
+            fontWeight: FontWeight.w500,
+            color: Colors.white.withValues(alpha: 0.95),
+            letterSpacing: 2,
+            fontFamily: 'Courier', // Police monospace pour le numéro
+          ),
+        );
+      },
+    );
+  }
+
+  /// Actions rapides (Recharger, Retirer, Historique)
+  Widget _buildQuickActions(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Row(
         children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.1),
-              borderRadius: context.borderRadius(BorderRadiusType.small),
-            ),
-            child: Icon(
-              isCredit ? Icons.add : Icons.remove,
-              color: color,
-              size: 20,
+          Expanded(
+            child: _buildActionButton(
+              context: context,
+              icon: Icons.add_circle_outline_rounded,
+              label: 'Recharger',
+              color: AppThemeSystem.successColor,
+              onTap: () async {
+                await RechargeBottomSheet.show(context);
+                controller.refresh();
+              },
             ),
           ),
           const SizedBox(width: 12),
+          Expanded(
+            child: _buildActionButton(
+              context: context,
+              icon: Icons.arrow_circle_up_outlined,
+              label: 'Retirer',
+              color: AppThemeSystem.warningColor,
+              onTap: () => _showWithdrawalOptions(context),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Obx(
+              () => _buildActionButton(
+                context: context,
+                icon: Icons.history_rounded,
+                label: 'Historique',
+                color: AppThemeSystem.infoColor,
+                onTap: () => Get.toNamed('/wallet/history'),
+                badgeCount: controller.pendingTransactionsCount,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildActionButton({
+    required BuildContext context,
+    required IconData icon,
+    required String label,
+    required Color color,
+    required VoidCallback onTap,
+    int? badgeCount,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 16),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: color.withValues(alpha: 0.3),
+            width: 1,
+          ),
+        ),
+        child: Column(
+          children: [
+            Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Icon(icon, color: color, size: 28),
+                if (badgeCount != null && badgeCount > 0)
+                  Positioned(
+                    right: -6,
+                    top: -6,
+                    child: Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: BoxDecoration(
+                        color: AppThemeSystem.errorColor,
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: AppThemeSystem.whiteColor,
+                          width: 1.5,
+                        ),
+                      ),
+                      constraints: const BoxConstraints(
+                        minWidth: 18,
+                        minHeight: 18,
+                      ),
+                      child: Text(
+                        badgeCount > 99 ? '99+' : badgeCount.toString(),
+                        style: const TextStyle(
+                          color: AppThemeSystem.whiteColor,
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              label,
+              style: TextStyle(
+                color: color,
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Soldes par provider (Mobile Money et Bank Cards)
+  Widget _buildBalancesByProvider(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Soldes par Méthode',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: AppThemeSystem.getPrimaryTextColor(context),
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // Mobile Money (Orange Money + MTN MoMo)
+          Obx(() {
+            final balance = controller.wallet.value?.freemopayBalance ?? 0.0;
+            return _buildProviderCard(
+              context: context,
+              iconData: Icons.phone_android_rounded,
+              emoji: '📱',
+              title: 'Mobile Money',
+              subtitle: 'Orange Money & MTN MoMo',
+              balance: balance,
+              color: AppThemeSystem.freemopayColor,
+            );
+          }),
+
+          const SizedBox(height: 12),
+
+          // Bank Cards (VISA, MasterCard, PayPal)
+          Obx(() {
+            final balance = controller.wallet.value?.paypalBalance ?? 0.0;
+            return _buildProviderCard(
+              context: context,
+              iconData: Icons.credit_card_rounded,
+              emoji: '💳',
+              title: 'Cartes Bancaires',
+              subtitle: 'VISA, MasterCard, PayPal',
+              balance: balance,
+              color: AppThemeSystem.paypalColor,
+            );
+          }),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildProviderCard({
+    required BuildContext context,
+    required IconData iconData,
+    required String emoji,
+    required String title,
+    required String subtitle,
+    required double balance,
+    required Color color,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppThemeSystem.getSurfaceColor(context),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: AppThemeSystem.getBorderColor(context),
+          width: 1,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: color.withValues(alpha: 0.1),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          // Icône avec emoji
+          Stack(
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  iconData,
+                  color: color,
+                  size: 24,
+                ),
+              ),
+              Positioned(
+                right: -2,
+                top: -2,
+                child: Text(
+                  emoji,
+                  style: const TextStyle(fontSize: 16),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(width: 16),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  transaction.description,
-                  style: context.body2.copyWith(fontWeight: FontWeight.w600),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+                  title,
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                    color: AppThemeSystem.getPrimaryTextColor(context),
+                  ),
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  DateFormat('dd/MM/yyyy à HH:mm').format(transaction.date),
-                  style: context.caption.copyWith(color: context.secondaryTextColor),
+                  subtitle,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: AppThemeSystem.getSecondaryTextColor(context),
+                  ),
                 ),
               ],
             ),
@@ -381,26 +694,19 @@ class _TransactionItem extends GetView<WalletController> {
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               Text(
-                '${isCredit ? '+' : '-'}${NumberFormat('#,###').format(transaction.amount)} XAF',
-                style: context.body1.copyWith(
-                  color: color,
+                '${balance.toStringAsFixed(0)} F',
+                style: TextStyle(
+                  fontSize: 18,
                   fontWeight: FontWeight.bold,
+                  color: color,
                 ),
               ),
-              const SizedBox(height: 2),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(
-                  color: _getStatusColor(transaction.status).withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: Text(
-                  transaction.status.label,
-                  style: TextStyle(
-                    fontSize: 10,
-                    color: _getStatusColor(transaction.status),
-                    fontWeight: FontWeight.w600,
-                  ),
+              Text(
+                'CFA',
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w500,
+                  color: AppThemeSystem.getSecondaryTextColor(context),
                 ),
               ),
             ],
@@ -410,15 +716,194 @@ class _TransactionItem extends GetView<WalletController> {
     );
   }
 
-  Color _getStatusColor(TransactionStatus status) {
-    switch (status) {
-      case TransactionStatus.completed:
-        return AppThemeSystem.successColor;
-      case TransactionStatus.pending:
-        return AppThemeSystem.warningColor;
-      case TransactionStatus.failed:
-      case TransactionStatus.cancelled:
-        return AppThemeSystem.errorColor;
-    }
+  /// Affiche les options de retrait
+  void _showWithdrawalOptions(BuildContext context) {
+    Get.bottomSheet(
+      Container(
+        decoration: BoxDecoration(
+          color: AppThemeSystem.getBackgroundColor(context),
+          borderRadius: const BorderRadius.only(
+            topLeft: Radius.circular(24),
+            topRight: Radius.circular(24),
+          ),
+        ),
+        padding: EdgeInsets.all(AppThemeSystem.getHorizontalPadding(context)),
+        child: SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Handle bar
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 20),
+                  decoration: BoxDecoration(
+                    color: AppThemeSystem.grey300,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+
+              // Title
+              Text(
+                'Choisir une méthode de retrait',
+                style: TextStyle(
+                  fontSize: AppThemeSystem.getFontSize(context, FontSizeType.h4),
+                  fontWeight: FontWeight.bold,
+                  color: AppThemeSystem.getPrimaryTextColor(context),
+                ),
+              ),
+              SizedBox(height: AppThemeSystem.getSectionSpacing(context)),
+
+              // Mobile Money Option
+              _buildWithdrawalOption(
+                context: context,
+                iconData: Icons.phone_android_rounded,
+                emoji: '📱',
+                title: 'Mobile Money',
+                subtitle: 'Orange Money & MTN MoMo',
+                balance: controller.wallet.value?.freemopayBalance ?? 0.0,
+                color: AppThemeSystem.freemopayColor,
+                onTap: () async {
+                  Get.back();
+                  final result = await WithdrawalBottomSheet.show(
+                    provider: 'freemopay',
+                    availableBalance: controller.wallet.value?.freemopayBalance ?? 0.0,
+                  );
+                  if (result == true) {
+                    controller.refresh();
+                  }
+                },
+              ),
+
+              SizedBox(height: AppThemeSystem.getElementSpacing(context)),
+
+              // Bank Cards Option
+              _buildWithdrawalOption(
+                context: context,
+                iconData: Icons.credit_card_rounded,
+                emoji: '💳',
+                title: 'Cartes Bancaires',
+                subtitle: 'VISA, MasterCard, PayPal',
+                balance: controller.wallet.value?.paypalBalance ?? 0.0,
+                color: AppThemeSystem.paypalColor,
+                onTap: () async {
+                  Get.back();
+                  final result = await WithdrawalBottomSheet.show(
+                    provider: 'paypal',
+                    availableBalance: controller.wallet.value?.paypalBalance ?? 0.0,
+                  );
+                  if (result == true) {
+                    controller.refresh();
+                  }
+                },
+              ),
+
+              SizedBox(height: AppThemeSystem.getElementSpacing(context)),
+            ],
+          ),
+        ),
+      ),
+      isDismissible: true,
+      enableDrag: true,
+    );
+  }
+
+  /// Option de retrait
+  Widget _buildWithdrawalOption({
+    required BuildContext context,
+    required IconData iconData,
+    required String emoji,
+    required String title,
+    required String subtitle,
+    required double balance,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: AppThemeSystem.getSurfaceColor(context),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: AppThemeSystem.getBorderColor(context),
+            width: 1,
+          ),
+        ),
+        child: Row(
+          children: [
+            // Icône avec emoji
+            Stack(
+              children: [
+                Container(
+                  width: 48,
+                  height: 48,
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(
+                    iconData,
+                    color: color,
+                    size: 24,
+                  ),
+                ),
+                Positioned(
+                  right: -2,
+                  top: -2,
+                  child: Text(
+                    emoji,
+                    style: const TextStyle(fontSize: 16),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold,
+                      color: AppThemeSystem.getPrimaryTextColor(context),
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: AppThemeSystem.getSecondaryTextColor(context),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '${balance.toStringAsFixed(0)} FCFA disponible',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: color,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(
+              Icons.arrow_forward_ios_rounded,
+              color: AppThemeSystem.getSecondaryTextColor(context),
+              size: 18,
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }

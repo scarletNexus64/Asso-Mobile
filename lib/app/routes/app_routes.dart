@@ -35,6 +35,11 @@ abstract class Routes {
   static const HELP = _Paths.HELP;
   static const FAQ = _Paths.FAQ;
   static const ABOUT = _Paths.ABOUT;
+  static const PACKAGE_SUBSCRIPTION = _Paths.PACKAGE_SUBSCRIPTION;
+  static const PRODUCT_MANAGEMENT = _Paths.PRODUCT_MANAGEMENT;
+  static const ADD_PRODUCT = _Paths.ADD_PRODUCT;
+  static const USSD_WAITING = _Paths.USSD_WAITING;
+  static const WALLET_HISTORY = _Paths.WALLET_HISTORY;
 }
 
 abstract class _Paths {
@@ -71,4 +76,9 @@ abstract class _Paths {
   static const HELP = '/help';
   static const FAQ = '/faq';
   static const ABOUT = '/about';
+  static const PACKAGE_SUBSCRIPTION = '/package-subscription';
+  static const PRODUCT_MANAGEMENT = '/product-management';
+  static const ADD_PRODUCT = '/add-product';
+  static const USSD_WAITING = '/ussd-waiting';
+  static const WALLET_HISTORY = '/wallet/history';
 }

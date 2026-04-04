@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "190895267247",
+    "project_id": "asso-27ba4",
+    "storage_bucket": "asso-27ba4.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:190895267247:android:e038e53dfbfdd41dff235a",
+        "android_client_info": {
+          "package_name": "com.asso.asso"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDnP2PwED24w-J6S88b-ronh1AGszQJzRM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -46,12 +46,7 @@ class LoginView extends GetView<LoginController> {
               _buildDivider(context),
 
               SizedBox(height: context.sectionSpacing),
-
-              // Boutons de connexion sociale
-              _buildSocialButtons(context),
-
-              SizedBox(height: context.sectionSpacing),
-
+              
               // Lien vers inscription
               _buildRegisterLink(context),
             ],
@@ -90,7 +85,7 @@ class LoginView extends GetView<LoginController> {
         width: logoSize,
         height: logoSize,
         decoration: BoxDecoration(
-          borderRadius: context.borderRadius(BorderRadiusType.large),
+          shape: BoxShape.circle,
           boxShadow: [
             BoxShadow(
               color: AppThemeSystem.primaryColor.withValues(alpha: 0.2),
@@ -99,11 +94,12 @@ class LoginView extends GetView<LoginController> {
             ),
           ],
         ),
-        child: ClipRRect(
-          borderRadius: context.borderRadius(BorderRadiusType.large),
+        child: ClipOval(
           child: Image.asset(
             'assets/images/logo.png',
-            fit: BoxFit.contain,
+            fit: BoxFit.cover,
+            width: logoSize,
+            height: logoSize,
           ),
         ),
       ),
@@ -187,8 +183,7 @@ class LoginView extends GetView<LoginController> {
           ),
           initialCountryCode: 'CM', // Cameroun par défaut
           onChanged: (phone) {
-            controller.phoneNumber.value = phone.completeNumber;
-            controller.countryCode.value = phone.countryCode;
+            controller.onPhoneChanged(phone.number, phone.countryCode);
           },
           style: context.body1.copyWith(
             color: context.primaryTextColor,
@@ -296,95 +291,6 @@ class LoginView extends GetView<LoginController> {
       ],
     );
   }
-
-  /// Boutons de connexion sociale
-  Widget _buildSocialButtons(BuildContext context) {
-    return Row(
-      children: [
-        // Google
-        Expanded(
-          child: _buildSocialButton(
-            context,
-            icon: Icons.g_mobiledata_rounded,
-            label: 'Google',
-            backgroundColor: Colors.white,
-            textColor: AppThemeSystem.grey800,
-            borderColor: AppThemeSystem.grey300,
-            onPressed: () {
-              // TODO: Implémenter Google Sign In
-            },
-          ),
-        ),
-
-        SizedBox(width: context.elementSpacing),
-
-        // Apple
-        Expanded(
-          child: _buildSocialButton(
-            context,
-            icon: Icons.apple_rounded,
-            label: 'Apple',
-            backgroundColor: const Color(0xFF8BC34A),
-            textColor: Colors.white,
-            onPressed: () {
-              // TODO: Implémenter Apple Sign In
-            },
-          ),
-        ),
-      ],
-    );
-  }
-
-  /// Un bouton de connexion sociale
-  Widget _buildSocialButton(
-    BuildContext context, {
-    required IconData icon,
-    required String label,
-    required Color backgroundColor,
-    required Color textColor,
-    Color? borderColor,
-    required VoidCallback onPressed,
-  }) {
-    return SizedBox(
-      height: 48,
-      child: ElevatedButton(
-        onPressed: onPressed,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: backgroundColor,
-          foregroundColor: textColor,
-          elevation: borderColor != null ? 0 : 1,
-          shadowColor: Colors.black.withValues(alpha: 0.1),
-          shape: RoundedRectangleBorder(
-            borderRadius: context.borderRadius(BorderRadiusType.medium),
-            side: borderColor != null
-                ? BorderSide(color: borderColor, width: 1.5)
-                : BorderSide.none,
-          ),
-          padding: EdgeInsets.symmetric(horizontal: 12),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 20, color: textColor),
-            SizedBox(width: 6),
-            Flexible(
-              child: Text(
-                label,
-                style: context.textStyle(
-                  FontSizeType.caption,
-                  fontWeight: FontWeight.w600,
-                  color: textColor,
-                ),
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   /// Lien vers inscription
   Widget _buildRegisterLink(BuildContext context) {
     return Center(

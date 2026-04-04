@@ -103,6 +103,7 @@ enum CertificationStatus {
   certified,
   expiringSoon,
   expired,
+  rejected,
 }
 
 extension CertificationStatusExtension on CertificationStatus {
@@ -118,6 +119,8 @@ extension CertificationStatusExtension on CertificationStatus {
         return 'Expire bientôt';
       case CertificationStatus.expired:
         return 'Expiré';
+      case CertificationStatus.rejected:
+        return 'Rejeté';
     }
   }
 }

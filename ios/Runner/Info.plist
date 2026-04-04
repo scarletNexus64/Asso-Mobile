@@ -51,5 +51,16 @@
     <string>Nous avons besoin de votre localisation pour afficher votre position et configurer votre boutique</string>
     <key>NSLocationAlwaysUsageDescription</key>
     <string>Nous avons besoin de votre localisation pour améliorer votre expérience</string>
+
+    <!-- Configuration Firebase Cloud Messaging -->
+    <key>FirebaseAppDelegateProxyEnabled</key>
+    <false/>
+
+    <!-- Background modes pour les notifications -->
+    <key>UIBackgroundModes</key>
+    <array>
+      <string>fetch</string>
+      <string>remote-notification</string>
+    </array>
   </dict>
 </plist>

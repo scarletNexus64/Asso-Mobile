@@ -1,43 +1,47 @@
 import 'dart:async';
+import 'dart:developer' as developer;
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import '../../../data/providers/auth_service.dart';
+import '../../../data/services/firebase_messaging_service.dart';
 import '../../../routes/app_pages.dart';
 
 class OtpController extends GetxController {
-  // Controllers pour les champs OTP
   late List<TextEditingController> otpControllers;
   late List<FocusNode> focusNodes;
 
-  // États observables
   final phoneNumber = ''.obs;
-  final secondsRemaining = 120.obs; // 2 minutes par défaut
+  final secondsRemaining = 120.obs;
   final isLoading = false.obs;
   final isOtpComplete = false.obs;
+  final isNewUser = false.obs;
 
-  // Timer
   Timer? _timer;
 
   @override
   void onInit() {
     super.onInit();
+    developer.log('========== OTP CONTROLLER INIT ==========', name: 'OtpController');
 
-    // Récupérer le numéro de téléphone depuis les arguments
-    if (Get.arguments != null && Get.arguments['phoneNumber'] != null) {
-      phoneNumber.value = Get.arguments['phoneNumber'];
+    if (Get.arguments != null) {
+      phoneNumber.value = Get.arguments['phoneNumber'] ?? '';
+      isNewUser.value = Get.arguments['isNewUser'] ?? false;
+      developer.log(
+        'Arguments received',
+        name: 'OtpController',
+        error: 'Phone: ${phoneNumber.value}, Is new user: ${isNewUser.value}',
+      );
     }
 
-    // Initialiser les controllers et focus nodes
     otpControllers = List.generate(6, (index) => TextEditingController());
     focusNodes = List.generate(6, (index) => FocusNode());
 
-    // Démarrer le timer
     _startTimer();
   }
 
   @override
   void onReady() {
     super.onReady();
-    // Focus automatique sur le premier champ
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (focusNodes.isNotEmpty) {
         focusNodes[0].requestFocus();
@@ -47,7 +51,6 @@ class OtpController extends GetxController {
 
   @override
   void onClose() {
-    // Libérer les ressources
     for (var controller in otpControllers) {
       controller.dispose();
     }
@@ -58,8 +61,8 @@ class OtpController extends GetxController {
     super.onClose();
   }
 
-  /// Démarre le timer de countdown
   void _startTimer() {
+    developer.log('Starting OTP timer (120s)', name: 'OtpController');
     secondsRemaining.value = 120;
     _timer?.cancel();
 
@@ -67,82 +70,102 @@ class OtpController extends GetxController {
       if (secondsRemaining.value > 0) {
         secondsRemaining.value--;
       } else {
+        developer.log('OTP timer expired', name: 'OtpController');
         timer.cancel();
       }
     });
   }
 
-  /// Appelé quand un champ OTP change
   void onOtpChanged(String value, int index) {
     if (value.isNotEmpty) {
-      // Passer au champ suivant si ce n'est pas le dernier
       if (index < 5) {
         focusNodes[index + 1].requestFocus();
       } else {
-        // Dernier champ, retirer le focus
         focusNodes[index].unfocus();
       }
     } else {
-      // Si l'utilisateur efface, retourner au champ précédent
       if (index > 0) {
         focusNodes[index - 1].requestFocus();
       }
     }
-
-    // Vérifier si tous les champs sont remplis
     _checkOtpComplete();
   }
 
-  /// Vérifie si tous les champs OTP sont remplis
   void _checkOtpComplete() {
-    isOtpComplete.value = otpControllers.every((controller) {
-      return controller.text.isNotEmpty;
-    });
+    isOtpComplete.value = otpControllers.every((c) => c.text.isNotEmpty);
+    if (isOtpComplete.value) {
+      developer.log(
+        'OTP complete',
+        name: 'OtpController',
+        error: 'Code: ${getOtpCode()}',
+      );
+    }
   }
 
-  /// Récupère le code OTP complet
   String getOtpCode() {
-    return otpControllers.map((controller) => controller.text).join();
+    return otpControllers.map((c) => c.text).join();
   }
 
-  /// Renvoie le code OTP
-  void resendOtp() {
-    // TODO: Implémenter l'appel API pour renvoyer le code
+  Future<void> resendOtp() async {
+    developer.log(
+      '========== RESEND OTP ==========',
+      name: 'OtpController',
+      error: 'Phone: ${phoneNumber.value}',
+    );
 
-    // Réinitialiser les champs
+    // Extract raw phone from full phone
+    final response = await AuthService.sendOtp(
+      phone: phoneNumber.value.replaceAll(RegExp(r'^\+\d{1,3}'), ''),
+      countryCode: phoneNumber.value.contains('+')
+          ? phoneNumber.value.replaceAll(RegExp(r'\d{8,}$'), '')
+          : '+237',
+    );
+
+    developer.log(
+      'Resend OTP response',
+      name: 'OtpController',
+      error: 'Success: ${response.success}',
+    );
+
     for (var controller in otpControllers) {
       controller.clear();
     }
     isOtpComplete.value = false;
-
-    // Redémarrer le timer
     _startTimer();
-
-    // Focus sur le premier champ
     focusNodes[0].requestFocus();
 
-    // Afficher un message de succès
     Get.snackbar(
-      'Code renvoyé',
-      'Un nouveau code a été envoyé au ${phoneNumber.value}',
+      response.success ? 'Code renvoyé' : 'Erreur',
+      response.success
+          ? 'Un nouveau code a été envoyé au ${phoneNumber.value}'
+          : response.message,
       snackPosition: SnackPosition.BOTTOM,
-      backgroundColor: Get.theme.colorScheme.primary,
-      colorText: Get.theme.colorScheme.onPrimary,
+      backgroundColor: response.success
+          ? Get.theme.colorScheme.primary
+          : Get.theme.colorScheme.error,
+      colorText: response.success
+          ? Get.theme.colorScheme.onPrimary
+          : Get.theme.colorScheme.onError,
       duration: const Duration(seconds: 3),
       margin: const EdgeInsets.all(16),
       borderRadius: 12,
     );
   }
 
-  /// Permet de modifier le numéro de téléphone
   void changePhoneNumber() {
-    // Retourner à la page précédente (Login ou Welcomer)
+    developer.log('Changing phone number - going back', name: 'OtpController');
     Get.back();
   }
 
-  /// Vérifie le code OTP
   Future<void> verifyOtp() async {
+    developer.log(
+      '========== VERIFY OTP ==========',
+      name: 'OtpController',
+      error: 'OTP complete: ${isOtpComplete.value}',
+    );
+
     if (!isOtpComplete.value) {
+      developer.log('OTP incomplete', name: 'OtpController');
       Get.snackbar(
         'Code incomplet',
         'Veuillez entrer le code à 6 chiffres',
@@ -160,20 +183,27 @@ class OtpController extends GetxController {
 
     try {
       final otpCode = getOtpCode();
+      developer.log(
+        'Verifying OTP',
+        name: 'OtpController',
+        error: 'Phone: ${phoneNumber.value}, Code: $otpCode, Is new user: ${isNewUser.value}',
+      );
 
-      // TODO: Implémenter l'appel API pour vérifier le code
-      // Exemple:
-      // final response = await AuthService.verifyOtp(phoneNumber.value, otpCode);
+      final response = await AuthService.verifyOtp(
+        fullPhone: phoneNumber.value,
+        otpCode: otpCode,
+      );
 
-      // Simulation d'un délai réseau
-      await Future.delayed(const Duration(seconds: 2));
+      developer.log(
+        'Verify OTP response',
+        name: 'OtpController',
+        error: 'Success: ${response.success}, Message: ${response.message}',
+      );
 
-      // Pour la démo, accepter le code 123456
-      if (otpCode == '123456') {
-        // Code correct
+      if (response.success) {
         Get.snackbar(
           'Succès',
-          'Code vérifié avec succès',
+          'Connexion réussie',
           snackPosition: SnackPosition.BOTTOM,
           backgroundColor: Get.theme.colorScheme.primary,
           colorText: Get.theme.colorScheme.onPrimary,
@@ -182,14 +212,50 @@ class OtpController extends GetxController {
           borderRadius: 12,
         );
 
-        // Naviguer vers la page des préférences
         await Future.delayed(const Duration(milliseconds: 500));
-        Get.offAllNamed(Routes.PREFERENCES);
+
+        // Envoyer le token FCM au backend ET s'abonner au topic des annonces
+        developer.log('📱 Registering device and subscribing to topics...', name: 'OtpController');
+        try {
+          final results = await FirebaseMessagingService.to.registerDeviceAndSubscribe();
+          developer.log(
+            'FCM registration result',
+            name: 'OtpController',
+            error: 'Token sent: ${results['token_sent']}, Topic subscribed: ${results['topic_subscribed']}',
+          );
+        } catch (e) {
+          developer.log(
+            'Error registering device/subscribing to topics',
+            name: 'OtpController',
+            error: e,
+          );
+          // On ne bloque pas la navigation même si l'opération échoue
+        }
+
+        // Navigate based on profile completeness
+        final isNew = response.data?['is_new_user'] ?? false;
+        developer.log(
+          'Navigation decision',
+          name: 'OtpController',
+          error: 'Is new user: $isNew',
+        );
+
+        if (isNew) {
+          developer.log('Navigating to PREFERENCES', name: 'OtpController');
+          Get.offAllNamed(Routes.PREFERENCES);
+        } else {
+          developer.log('Navigating to HOME', name: 'OtpController');
+          Get.offAllNamed(Routes.HOME);
+        }
       } else {
-        // Code incorrect
+        developer.log(
+          'OTP verification failed',
+          name: 'OtpController',
+          error: response.message,
+        );
         Get.snackbar(
           'Code incorrect',
-          'Le code que vous avez entré est incorrect. Veuillez réessayer.',
+          response.message,
           snackPosition: SnackPosition.BOTTOM,
           backgroundColor: Get.theme.colorScheme.error,
           colorText: Get.theme.colorScheme.onError,
@@ -198,15 +264,19 @@ class OtpController extends GetxController {
           borderRadius: 12,
         );
 
-        // Réinitialiser les champs
         for (var controller in otpControllers) {
           controller.clear();
         }
         isOtpComplete.value = false;
         focusNodes[0].requestFocus();
       }
-    } catch (e) {
-      // Erreur
+    } catch (e, stackTrace) {
+      developer.log(
+        'OTP verification error',
+        name: 'OtpController',
+        error: e,
+        stackTrace: stackTrace,
+      );
       Get.snackbar(
         'Erreur',
         'Une erreur est survenue. Veuillez réessayer.',

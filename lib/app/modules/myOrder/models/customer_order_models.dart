@@ -61,6 +61,17 @@ class CustomerOrderItem {
     required this.unitPrice,
     required this.totalPrice,
   });
+
+  factory CustomerOrderItem.fromMap(Map<String, dynamic> map) {
+    return CustomerOrderItem(
+      productId: (map['product_id'] ?? map['id'] ?? '').toString(),
+      productName: map['product']?['name'] ?? 'Produit',
+      productImage: map['product']?['main_image'],
+      quantity: map['quantity'] ?? 1,
+      unitPrice: double.tryParse(map['unit_price']?.toString() ?? '0') ?? 0,
+      totalPrice: double.tryParse(map['total_price']?.toString() ?? '0') ?? 0,
+    );
+  }
 }
 
 /// Commande client
@@ -92,4 +103,34 @@ class CustomerOrder {
     this.deliveryPersonName,
     this.deliveryPersonPhone,
   });
+
+  factory CustomerOrder.fromMap(Map<String, dynamic> map) {
+    final statusStr = map['status']?.toString() ?? 'pending';
+    return CustomerOrder(
+      id: (map['id'] ?? '').toString(),
+      status: _parseStatus(statusStr),
+      items: (map['items'] as List?)?.map((i) => CustomerOrderItem.fromMap(Map<String, dynamic>.from(i))).toList() ?? [],
+      subtotal: double.tryParse(map['subtotal']?.toString() ?? '0') ?? 0,
+      deliveryFee: double.tryParse(map['delivery_fee']?.toString() ?? '0') ?? 0,
+      total: double.tryParse(map['total']?.toString() ?? '0') ?? 0,
+      orderDate: DateTime.tryParse(map['created_at'] ?? '') ?? DateTime.now(),
+      deliveryDate: map['delivered_at'] != null ? DateTime.tryParse(map['delivered_at']) : null,
+      deliveryAddress: map['delivery_address'] ?? '',
+      trackingNumber: map['tracking_number'],
+      deliveryPersonName: map['delivery_person'] != null ? '${map['delivery_person']['first_name']} ${map['delivery_person']['last_name']}' : null,
+      deliveryPersonPhone: map['delivery_person']?['phone'],
+    );
+  }
+
+  static CustomerOrderStatus _parseStatus(String status) {
+    switch (status) {
+      case 'pending': return CustomerOrderStatus.pending;
+      case 'confirmed': return CustomerOrderStatus.confirmed;
+      case 'preparing': return CustomerOrderStatus.preparing;
+      case 'shipped': return CustomerOrderStatus.shipped;
+      case 'delivered': return CustomerOrderStatus.delivered;
+      case 'cancelled': return CustomerOrderStatus.cancelled;
+      default: return CustomerOrderStatus.pending;
+    }
+  }
 }

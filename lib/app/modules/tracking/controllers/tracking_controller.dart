@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import '../../../data/providers/storage_service.dart';
 
 class TrackingController extends GetxController {
   final TextEditingController searchController = TextEditingController();
@@ -12,7 +13,10 @@ class TrackingController extends GetxController {
   @override
   void onInit() {
     super.onInit();
-    _loadShipments();
+    // Charger les expéditions uniquement si l'utilisateur est connecté
+    if (StorageService.isAuthenticated) {
+      _loadShipments();
+    }
     searchController.addListener(() {
       searchQuery.value = searchController.text;
     });

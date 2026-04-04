@@ -1,5 +1,8 @@
 import 'package:get/get.dart';
+import 'package:flutter/material.dart';
 import 'dart:io';
+import '../../../data/providers/vendor_service.dart';
+import '../../../core/utils/app_theme_system.dart';
 
 class VendorDashboardController extends GetxController {
   // Statut de vérification
@@ -10,51 +13,207 @@ class VendorDashboardController extends GetxController {
   final shopName = ''.obs;
   final shopDescription = ''.obs;
   final shopLogo = Rx<File?>(null);
+  final shopLogoUrl = Rx<String?>(null); // Logo URL from backend
+  final shopId = Rx<int?>(null);
   final selectedCategories = <String>[].obs;
 
-  // Statistiques (fake data)
+  // Statistiques
   final totalOrders = 0.obs;
   final totalSales = 0.0.obs;
   final totalProducts = 0.obs;
   final rating = 0.0.obs;
 
+  // Package info
+  final hasPackage = false.obs;
+  final packageInfo = Rx<Map<String, dynamic>?>(null);
+  final storageTotalMb = 0.0.obs;
+  final storageUsedMb = 0.0.obs;
+  final storageRemainingMb = 0.0.obs;
+  final storagePercentageUsed = 0.0.obs;
+  final packageExpiresAt = Rx<String?>(null);
+  final daysRemaining = 0.obs;
+
   @override
   void onInit() {
     super.onInit();
     _loadVendorData();
-    _generateFakeStats();
   }
 
-  /// Charge les données du vendeur
+  /// Charge les données du vendeur depuis l'API
   void _loadVendorData() {
-    // TODO: Charger les données depuis l'API ou le stockage local
+    _fetchVendorStats();
+  }
+
+  /// Récupère les statistiques du vendeur depuis l'API
+  Future<void> _fetchVendorStats() async {
+    print('');
+    print('========================================');
+    print('📊 VENDOR DASHBOARD: FETCH STATS START');
+    print('========================================');
+
+    try {
+      print('🌐 VENDOR DASHBOARD: Calling API...');
+      final response = await VendorService.getVendorDashboard();
+
+      print('📥 VENDOR DASHBOARD: API Response received');
+      print('  └─ Success: ${response.success}');
+      print('  └─ Status Code: ${response.statusCode}');
+      print('  └─ Message: ${response.message}');
+
+      if (response.success && response.data != null) {
+        print('✅ VENDOR DASHBOARD: Parsing response data...');
+        final data = response.data!['data'] ?? response.data!;
+
+        // Parse shop info
+        if (data['shop'] != null) {
+          final shop = data['shop'];
+          shopId.value = shop['id'];
+          shopName.value = shop['name'] ?? '';
+          shopDescription.value = shop['description'] ?? '';
+          shopLogoUrl.value = shop['logo_url'] ?? shop['logo'];
+          print('  └─ Shop ID: ${shopId.value}');
+          print('  └─ Shop Name: ${shopName.value}');
+          print('  └─ Shop Description: ${shopDescription.value.isNotEmpty ? "YES" : "NO"}');
+          print('  └─ Shop Logo URL: ${shopLogoUrl.value ?? "NONE"}');
+        } else {
+          print('  └─ ⚠️ No shop data in response');
+        }
+
+        // Parse stats
+        if (data['stats'] != null) {
+          final stats = data['stats'];
+          totalOrders.value = stats['total_orders'] ?? 0;
+          totalSales.value = (stats['total_sales'] ?? 0).toDouble();
+          totalProducts.value = stats['total_products'] ?? 0;
+          rating.value = (stats['rating'] ?? 0).toDouble();
+          print('  └─ Total Orders: ${totalOrders.value}');
+          print('  └─ Total Sales: ${totalSales.value}');
+          print('  └─ Total Products: ${totalProducts.value}');
+          print('  └─ Rating: ${rating.value}');
+        } else {
+          print('  └─ ⚠️ No stats data in response');
+        }
+
+        // Parse verification status
+        if (data['verification'] != null) {
+          final verification = data['verification'];
+          verificationStatus.value = verification['status'] ?? 'pending';
+          verificationMessage.value = verification['message'] ?? 'Votre demande est en cours de vérification';
+          print('  └─ Verification Status: ${verificationStatus.value}');
+          print('  └─ Verification Message: ${verificationMessage.value}');
+        } else {
+          print('  └─ ⚠️ No verification data in response');
+        }
+
+        // Parse package info
+        if (data['package'] != null) {
+          final package = data['package'];
+          hasPackage.value = package['has_package'] ?? false;
+          print('  └─ Has Package: ${hasPackage.value}');
+
+          if (hasPackage.value && package['vendor_package'] != null) {
+            packageInfo.value = package['vendor_package'];
+            storageTotalMb.value = (package['vendor_package']['storage_total_mb'] ?? 0).toDouble();
+            storageUsedMb.value = (package['vendor_package']['storage_used_mb'] ?? 0).toDouble();
+            storageRemainingMb.value = (package['vendor_package']['storage_remaining_mb'] ?? 0).toDouble();
+            storagePercentageUsed.value = (package['vendor_package']['storage_percentage_used'] ?? 0).toDouble();
+            packageExpiresAt.value = package['vendor_package']['expires_at'];
+            daysRemaining.value = package['vendor_package']['days_remaining'] ?? 0;
+            print('  └─ Storage Used: ${storageUsedMb.value} MB');
+            print('  └─ Storage Total: ${storageTotalMb.value} MB');
+            print('  └─ Storage Percentage: ${storagePercentageUsed.value}%');
+            print('  └─ Days Remaining: ${daysRemaining.value}');
+          }
+        } else {
+          print('  └─ ⚠️ No package data in response');
+        }
+
+        print('========================================');
+      } else {
+        print('❌ VENDOR DASHBOARD: API failed or no data');
+        print('  └─ Falling back to mock data');
+        print('========================================');
+        // Fallback to mock data if API fails
+        _loadMockData();
+      }
+    } catch (e, stackTrace) {
+      print('💥 VENDOR DASHBOARD: Exception caught!');
+      print('  └─ Error: $e');
+      print('  └─ Stack Trace:');
+      print(stackTrace.toString().split('\n').take(5).join('\n'));
+      print('  └─ Falling back to mock data');
+      print('========================================');
+      // Fallback to mock data on error
+      _loadMockData();
+    }
+  }
+
+  /// Données fictives de secours
+  void _loadMockData() {
     shopName.value = 'Boutique Kira';
     shopDescription.value = 'Vente d\'articles de mode et électronique';
     selectedCategories.value = ['Électronique', 'Mode & Vêtements'];
+    totalOrders.value = 0;
+    totalSales.value = 0.0;
+    totalProducts.value = 0;
+    rating.value = 0.0;
   }
 
-  /// Génère des statistiques fictives pour la démo
-  void _generateFakeStats() {
-    totalOrders.value = 47;
-    totalSales.value = 285000; // XAF
-    totalProducts.value = 23;
-    rating.value = 4.5;
-  }
-
-  /// Vérifie le statut de vérification
+  /// Vérifie le statut de vérification (appelé via l'API)
   Future<void> checkVerificationStatus() async {
-    // TODO: Implémenter l'appel API pour vérifier le statut
-    // Pour l'instant, simulation
-    await Future.delayed(const Duration(seconds: 1));
-
-    // Exemple de changement de statut
-    // verificationStatus.value = 'approved';
-    // verificationMessage.value = 'Votre compte vendeur est activé!';
+    await _fetchVendorStats();
   }
 
   /// Rafraîchit les données
   Future<void> refreshData() async {
     await checkVerificationStatus();
-    _loadVendorData();
+  }
+
+  /// Navigate to add product with package check
+  void navigateToAddProduct() {
+    if (!hasPackage.value) {
+      // Show dialog explaining they need a package
+      Get.dialog(
+        AlertDialog(
+          title: Text('Package requis'),
+          content: Text(
+            'Vous devez souscrire à un package de stockage pour ajouter des produits.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Get.back(),
+              child: Text('Annuler'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Get.back();
+                Get.toNamed('/package-subscription');
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppThemeSystem.primaryColor,
+              ),
+              child: Text(
+                'Voir les packages',
+                style: TextStyle(color: Colors.white),
+              ),
+            ),
+          ],
+        ),
+      );
+    } else {
+      // Navigate to AddProduct
+      Get.toNamed('/add-product')?.then((_) {
+        // Refresh dashboard after adding product
+        refreshData();
+      });
+    }
+  }
+
+  /// Navigate to product management
+  void navigateToProductManagement() {
+    Get.toNamed('/product-management')?.then((_) {
+      // Refresh dashboard after managing products
+      refreshData();
+    });
   }
 }

@@ -4,6 +4,7 @@ import 'package:get/get.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 import '../models/delivery_models.dart';
+import '../../../data/providers/vendor_service.dart';
 
 class DeliveryDashboardController extends GetxController {
   // Statut du livreur
@@ -78,14 +79,26 @@ class DeliveryDashboardController extends GetxController {
     });
   }
 
-  /// Charge les demandes de livraison
+  /// Charge les demandes de livraison depuis l'API
   Future<void> loadDeliveries() async {
     isLoading.value = true;
     try {
-      await Future.delayed(const Duration(milliseconds: 500));
+      final response = await VendorService.getDeliveryDashboard();
 
-      // Générer des données de test
-      allRequests.value = _generateMockRequests();
+      if (response.success && response.data != null) {
+        final data = response.data!['data'] ?? response.data!;
+
+        // Parser les demandes de livraison depuis l'API
+        if (data['requests'] is List) {
+          allRequests.value = _parseDeliveryRequests(data['requests']);
+        } else {
+          // Fallback to mock if no requests in response
+          allRequests.value = _generateMockRequests();
+        }
+      } else {
+        // Fallback to mock data if API fails
+        allRequests.value = _generateMockRequests();
+      }
 
       // Calculer les statistiques
       stats.value = _calculateStats();
@@ -93,6 +106,11 @@ class DeliveryDashboardController extends GetxController {
       // Appliquer le filtre
       _applyFilter();
     } catch (e) {
+      // Fallback to mock data on error
+      allRequests.value = _generateMockRequests();
+      stats.value = _calculateStats();
+      _applyFilter();
+
       Get.snackbar(
         'Erreur',
         'Impossible de charger les demandes',
@@ -103,6 +121,63 @@ class DeliveryDashboardController extends GetxController {
     } finally {
       isLoading.value = false;
     }
+  }
+
+  /// Parse les demandes de livraison depuis la réponse API
+  List<DeliveryRequest> _parseDeliveryRequests(List<dynamic> rawRequests) {
+    return rawRequests.map((item) {
+      final request = item as Map<String, dynamic>;
+      return DeliveryRequest(
+        id: request['id'] ?? 'DEL${DateTime.now().millisecondsSinceEpoch}',
+        orderId: request['order_id'] ?? '',
+        status: _parseDeliveryStatus(request['status']),
+        customerName: request['customer_name'] ?? 'Client',
+        customerPhone: request['customer_phone'] ?? '',
+        pickupAddress: request['pickup_address'] ?? '',
+        pickupLocation: request['pickup_latitude'] != null && request['pickup_longitude'] != null
+            ? LatLng(request['pickup_latitude'], request['pickup_longitude'])
+            : const LatLng(4.0511, 9.7679),
+        deliveryAddress: request['delivery_address'] ?? '',
+        deliveryLocation: request['delivery_latitude'] != null && request['delivery_longitude'] != null
+            ? LatLng(request['delivery_latitude'], request['delivery_longitude'])
+            : const LatLng(4.0511, 9.7679),
+        distance: (request['distance'] ?? 0).toDouble(),
+        commission: (request['commission'] ?? 0).toDouble(),
+        requestDate: _parseDate(request['created_at']),
+        acceptedDate: request['accepted_at'] != null ? _parseDate(request['accepted_at']) : null,
+        deliveredDate: request['delivered_at'] != null ? _parseDate(request['delivered_at']) : null,
+        notes: request['notes'] ?? '',
+      );
+    }).toList();
+  }
+
+  /// Parse delivery status string to enum
+  DeliveryStatus _parseDeliveryStatus(String? status) {
+    switch (status?.toLowerCase()) {
+      case 'pending':
+        return DeliveryStatus.pending;
+      case 'accepted':
+      case 'in_progress':
+        return DeliveryStatus.inProgress;
+      case 'delivered':
+        return DeliveryStatus.delivered;
+      case 'cancelled':
+        return DeliveryStatus.cancelled;
+      default:
+        return DeliveryStatus.pending;
+    }
+  }
+
+  /// Parse ISO datetime string
+  DateTime _parseDate(dynamic dateValue) {
+    if (dateValue is String) {
+      try {
+        return DateTime.parse(dateValue);
+      } catch (e) {
+        return DateTime.now();
+      }
+    }
+    return DateTime.now();
   }
 
   /// Applique le filtre

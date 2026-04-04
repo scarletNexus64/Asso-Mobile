@@ -37,7 +37,7 @@ class ProductModel {
   /// Constructeur à partir d'un Map (pour la compatibilité avec les données hardcodées)
   factory ProductModel.fromMap(Map<String, dynamic> map) {
     return ProductModel(
-      id: map['id'] ?? '',
+      id: map['id']?.toString() ?? '',
       name: map['name'] ?? '',
       description: map['description'] ?? '',
       price: _parsePrice(map['price']),
@@ -46,12 +46,12 @@ class ProductModel {
       location: map['location'] ?? '',
       locationCity: _extractCity(map['location'] ?? ''),
       locationCountry: _extractCountry(map['location'] ?? ''),
-      images: List<String>.from(map['images'] ?? [map['image'] ?? '']),
+      images: _parseImages(map),
       condition: _parseCondition(map['condition']),
-      createdAt: map['createdAt'] != null
-          ? DateTime.parse(map['createdAt'])
+      createdAt: map['createdAt'] != null || map['created_at'] != null
+          ? DateTime.parse(map['createdAt'] ?? map['created_at'])
           : DateTime.now(),
-      isFavorite: map['isFavorite'] ?? false,
+      isFavorite: map['isFavorite'] ?? map['is_favorite'] ?? false,
       seller: map['seller'] != null
           ? SellerModel.fromMap(map['seller'])
           : SellerModel.defaultSeller(),
@@ -186,6 +186,43 @@ class ProductModel {
       }
     }
     return ProductCondition.nouveau;
+  }
+
+  static List<String> _parseImages(Map<String, dynamic> map) {
+    // Try different possible image fields from backend
+    final images = <String>[];
+
+    // Check for 'images' array
+    if (map['images'] != null) {
+      if (map['images'] is List) {
+        for (final item in map['images'] as List) {
+          if (item is String) {
+            images.add(item);
+          } else if (item is Map && item['url'] != null) {
+            images.add(item['url'].toString());
+          }
+        }
+      }
+    }
+
+    // Check for 'primary_image' field
+    if (map['primary_image'] != null && map['primary_image'].toString().isNotEmpty) {
+      final primaryImage = map['primary_image'].toString();
+      if (!images.contains(primaryImage)) {
+        images.insert(0, primaryImage);
+      }
+    }
+
+    // Check for single 'image' field
+    if (map['image'] != null && map['image'].toString().isNotEmpty) {
+      final image = map['image'].toString();
+      if (!images.contains(image)) {
+        images.add(image);
+      }
+    }
+
+    // Return empty list if no images found
+    return images;
   }
 }
 

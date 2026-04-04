@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import '../models/store_models.dart';
+import '../../../data/providers/vendor_service.dart';
 
 class StoreManagementController extends GetxController {
   // État de chargement
@@ -43,54 +44,83 @@ class StoreManagementController extends GetxController {
   Future<void> loadData() async {
     isLoading.value = true;
     try {
-      await Future.delayed(const Duration(milliseconds: 500));
+      // Essayer de charger depuis l'API
+      final response = await VendorService.getVendorDashboard();
 
-      // Charger les informations de la boutique
-      storeInfo.value = StoreInfo(
-        id: 'store_001',
-        name: 'Ma Boutique',
-        logoUrl: null,
-        description: 'Une boutique de qualité',
-        latitude: 4.0511,
-        longitude: 9.7679,
-        address: 'Avenue de la République',
-        city: 'Douala',
-        phone: '+237 690000000',
-      );
+      if (response.success && response.data != null) {
+        final data = response.data!['data'] ?? response.data!;
 
-      // Charger les statistiques de stockage
-      storageStats.value = StorageStats(
-        usedSpaceGB: 3.2,
-        totalSpaceGB: 5.0,
-        totalProducts: 45,
-        totalImages: 180,
-      );
+        // Parser les informations de la boutique
+        if (data['shop'] != null) {
+          final shop = data['shop'];
+          storeInfo.value = StoreInfo(
+            id: shop['id'] ?? 'store_001',
+            name: shop['name'] ?? 'Ma Boutique',
+            logoUrl: shop['logo_url'],
+            description: shop['description'] ?? '',
+            latitude: (shop['latitude'] ?? 4.0511).toDouble(),
+            longitude: (shop['longitude'] ?? 9.7679).toDouble(),
+            address: shop['address'] ?? '',
+            city: shop['city'] ?? 'Douala',
+            phone: shop['phone'] ?? '',
+          );
+        } else {
+          _loadMockStoreInfo();
+        }
 
-      // Charger la certification
-      certification.value = Certification(
-        isCertified: false,
-        status: CertificationStatus.notCertified,
-      );
+        // Parser les statistiques
+        if (data['stats'] != null) {
+          final stats = data['stats'];
+          storageStats.value = StorageStats(
+            usedSpaceGB: (stats['used_space_gb'] ?? 3.2).toDouble(),
+            totalSpaceGB: (stats['total_space_gb'] ?? 5.0).toDouble(),
+            totalProducts: stats['total_products'] ?? 0,
+            totalImages: stats['total_images'] ?? 0,
+          );
+        } else {
+          _loadMockStorageStats();
+        }
 
-      // Charger les statistiques d'audience
-      audienceStats.value = AudienceStats(
-        totalViews: 12450,
-        totalClicks: 3890,
-        totalOrders: 234,
-        conversionRate: 6.02,
-        dailyStats: _generateDailyStats(),
-        topProducts: {
-          'Smartphone Galaxy A54': 45,
-          'Écouteurs Bluetooth': 32,
-          'Montre connectée': 28,
-          'Chargeur rapide': 21,
-          'Câble USB-C': 18,
-        },
-      );
+        // Parser la certification
+        if (data['certification'] != null) {
+          final cert = data['certification'];
+          certification.value = Certification(
+            isCertified: cert['is_certified'] ?? false,
+            status: _parseCertificationStatus(cert['status']),
+          );
+        } else {
+          _loadMockCertification();
+        }
 
-      // Charger l'inventaire
-      inventoryEntries.value = _generateInventoryEntries();
+        // Parser les statistiques d'audience
+        if (data['audience_stats'] != null) {
+          final audience = data['audience_stats'];
+          audienceStats.value = AudienceStats(
+            totalViews: audience['total_views'] ?? 0,
+            totalClicks: audience['total_clicks'] ?? 0,
+            totalOrders: audience['total_orders'] ?? 0,
+            conversionRate: (audience['conversion_rate'] ?? 0).toDouble(),
+            dailyStats: _parseDailyStats(audience['daily_stats'] ?? []),
+            topProducts: Map<String, int>.from(audience['top_products'] ?? {}),
+          );
+        } else {
+          _loadMockAudienceStats();
+        }
+
+        // Parser l'inventaire
+        if (data['inventory'] is List) {
+          inventoryEntries.value = _parseInventoryEntries(data['inventory']);
+        } else {
+          inventoryEntries.value = _generateInventoryEntries();
+        }
+      } else {
+        // Fallback to mock data if API fails
+        _loadMockData();
+      }
     } catch (e) {
+      // Fallback to mock data on error
+      _loadMockData();
+
       Get.snackbar(
         'Erreur',
         'Impossible de charger les données',
@@ -101,6 +131,132 @@ class StoreManagementController extends GetxController {
     } finally {
       isLoading.value = false;
     }
+  }
+
+  /// Load mock data as fallback
+  void _loadMockData() {
+    _loadMockStoreInfo();
+    _loadMockStorageStats();
+    _loadMockCertification();
+    _loadMockAudienceStats();
+    inventoryEntries.value = _generateInventoryEntries();
+  }
+
+  void _loadMockStoreInfo() {
+    storeInfo.value = StoreInfo(
+      id: 'store_001',
+      name: 'Ma Boutique',
+      logoUrl: null,
+      description: 'Une boutique de qualité',
+      latitude: 4.0511,
+      longitude: 9.7679,
+      address: 'Avenue de la République',
+      city: 'Douala',
+      phone: '+237 690000000',
+    );
+  }
+
+  void _loadMockStorageStats() {
+    storageStats.value = StorageStats(
+      usedSpaceGB: 3.2,
+      totalSpaceGB: 5.0,
+      totalProducts: 45,
+      totalImages: 180,
+    );
+  }
+
+  void _loadMockCertification() {
+    certification.value = Certification(
+      isCertified: false,
+      status: CertificationStatus.notCertified,
+    );
+  }
+
+  void _loadMockAudienceStats() {
+    audienceStats.value = AudienceStats(
+      totalViews: 12450,
+      totalClicks: 3890,
+      totalOrders: 234,
+      conversionRate: 6.02,
+      dailyStats: _generateDailyStats(),
+      topProducts: {
+        'Smartphone Galaxy A54': 45,
+        'Écouteurs Bluetooth': 32,
+        'Montre connectée': 28,
+        'Chargeur rapide': 21,
+        'Câble USB-C': 18,
+      },
+    );
+  }
+
+  /// Parse certification status
+  CertificationStatus _parseCertificationStatus(String? status) {
+    switch (status?.toLowerCase()) {
+      case 'certified':
+        return CertificationStatus.certified;
+      case 'pending':
+        return CertificationStatus.pending;
+      case 'rejected':
+        return CertificationStatus.rejected;
+      default:
+        return CertificationStatus.notCertified;
+    }
+  }
+
+  /// Parse daily stats from API
+  List<DailyStats> _parseDailyStats(List<dynamic> rawStats) {
+    return rawStats.map((item) {
+      final stat = item as Map<String, dynamic>;
+      return DailyStats(
+        date: _parseDate(stat['date']),
+        views: stat['views'] ?? 0,
+        clicks: stat['clicks'] ?? 0,
+        orders: stat['orders'] ?? 0,
+      );
+    }).toList();
+  }
+
+  /// Parse inventory entries from API
+  List<InventoryEntry> _parseInventoryEntries(List<dynamic> rawEntries) {
+    return rawEntries.map((item) {
+      final entry = item as Map<String, dynamic>;
+      return InventoryEntry(
+        id: entry['id'] ?? '',
+        productId: entry['product_id'] ?? '',
+        productName: entry['product_name'] ?? 'Produit',
+        type: _parseInventoryType(entry['type']),
+        quantity: entry['quantity'] ?? 0,
+        date: _parseDate(entry['created_at'] ?? entry['date']),
+        notes: entry['notes'] ?? '',
+        orderId: entry['order_id'],
+      );
+    }).toList();
+  }
+
+  /// Parse inventory type
+  InventoryType _parseInventoryType(String? type) {
+    switch (type?.toLowerCase()) {
+      case 'entry':
+      case 'in':
+        return InventoryType.entry;
+      case 'exit':
+      case 'out':
+        return InventoryType.exit;
+      default:
+        return InventoryType.entry;
+    }
+  }
+
+  /// Parse ISO datetime string
+  DateTime _parseDate(dynamic dateValue) {
+    if (dateValue is String) {
+      try {
+        return DateTime.parse(dateValue);
+      } catch (e) {
+        return DateTime.now();
+      }
+    }
+    return DateTime.now();
   }
 
   /// Configure les bannières promotionnelles

@@ -5,17 +5,90 @@ class AppConstants {
   static const String appVersion = '1.0.0';
 
   // API Configuration
-  static const String baseUrl = 'YOUR_API_BASE_URL';
+  //  // 10.202.205.28 maps to host localhost from Android emulator
+  static const String baseUrl = 'http://10.202.205.28:8001/api';
   static const Duration apiTimeout = Duration(seconds: 30);
 
   // Storage Keys
   static const String keyUser = 'user';
   static const String keyToken = 'token';
   static const String keyThemeMode = 'theme_mode';
+  static const String keyPreferences = 'preferences';
+  static const String keyOnboardingDone = 'onboarding_done';
 
   // Pagination
   static const int defaultPageSize = 20;
 
+  // UI/UX Timing
+  static const Duration shimmerMinimumDuration = Duration(milliseconds: 800);
+  static const Duration shimmerFadeTransitionDuration = Duration(
+    milliseconds: 400,
+  );
+
   // Image Paths
   static const String logoPath = 'assets/images/logo.png';
+
+  // API Endpoints
+  static const String sendOtpUrl = '/v1/auth/send-otp';
+  static const String verifyOtpUrl = '/v1/auth/verify-otp';
+  static const String loginUrl = '/v1/auth/login';
+  static const String profileUrl = '/v1/auth/profile';
+  static const String getPreferencesUrl = '/v1/auth/preferences';
+  static const String updatePreferencesUrl = '/v1/auth/preferences';
+  static const String logoutUrl = '/v1/auth/logout';
+  static const String productsUrl = '/v1/products';
+  static const String categoriesUrl = '/v1/categories';
+  static const String bannersUrl = '/v1/banners';
+  static const String favoritesUrl = '/v1/favorites';
+  static const String ordersUrl = '/v1/orders';
+  static const String paymentInitiateUrl = '/v1/payments/initiate';
+  static const String paymentStatusUrl = '/v1/payments/status';
+  static const String vendorApplyUrl = '/v1/vendor/apply';
+  static const String vendorDashboardUrl = '/v1/vendor/dashboard';
+  static const String deliveryApplyUrl = '/v1/delivery/apply';
+  static const String deliveryDashboardUrl = '/v1/delivery/dashboard';
+  static const String settingsUrl = '/settings';
+
+  // Vendor order management
+  static const String vendorOrdersUrl = '/v1/vendor/orders';
+  static const String deliveryPersonsUrl = '/v1/vendor/orders/delivery-persons';
+
+  // Delivery management
+  static const String deliveryPendingUrl = '/v1/delivery/pending';
+  static const String deliveryActiveUrl = '/v1/delivery/active';
+
+  // Wallet
+  static const String walletUrl = '/v1/wallet';
+  static const String walletTransactionsUrl = '/v1/wallet/transactions';
+  static const String walletRechargeUrl = '/v1/wallet/recharge';
+  static const String walletCanPayUrl = '/v1/wallet/can-pay';
+  static const String walletPayUrl = '/v1/wallet/pay';
+  static const String walletWithdrawalBalancesUrl = '/v1/wallet/withdrawal-balances';
+  static const String walletWithdrawFreemopayUrl = '/v1/wallet/withdraw/freemopay';
+  static const String walletWithdrawPaypalUrl = '/v1/wallet/withdraw/paypal';
+  static const String walletWithdrawalsUrl = '/v1/wallet/withdrawals';
+  static const String walletWithdrawalStatusUrl = '/v1/wallet/withdrawal-status';
+
+  // Product creation
+  static const String createProductUrl = '/v1/products';
+
+  // Order confirmation
+  static const String confirmDeliveryUrl =
+      '/v1/orders'; // + /{id}/confirm-delivery
+
+  // Conversations
+  static const String conversationsUrl = '/v1/conversations';
+  static const String startConversationUrl = '/v1/conversations/start';
+
+  // Package subscription
+  static const String packagesUrl = '/v1/packages';
+  static const String subscribePackageUrl = '/v1/packages/subscribe';
+  static const String currentPackageUrl = '/v1/vendor/package/current';
+
+  // Vendor products management
+  static const String vendorProductsUrl = '/v1/vendor/products';
+
+  // Device Tokens & Notifications (FCM)
+  static const String deviceTokensUrl = '/v1/device-tokens';
+  static const String notificationsTestUrl = '/v1/notifications/test';
 }

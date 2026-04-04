@@ -1,106 +1,183 @@
 import 'package:get/get.dart';
+import '../../../data/providers/api_provider.dart';
+import '../../../data/providers/auth_service.dart';
+import '../../../data/providers/storage_service.dart';
+import '../../../routes/app_pages.dart';
 
 class ProfileController extends GetxController {
-  final RxMap<String, dynamic> userProfile = <String, dynamic>{}.obs;
+  final RxMap<String, dynamic> profile = <String, dynamic>{}.obs;
+  final RxBool isLoading = false.obs;
+  final RxBool isGuest = true.obs;
 
   @override
   void onInit() {
     super.onInit();
-    _loadUserProfile();
+    // Vérifier si l'utilisateur est connecté
+    isGuest.value = !StorageService.isAuthenticated;
+
+    // Charger le profil uniquement si l'utilisateur est connecté
+    if (!isGuest.value) {
+      _loadProfile();
+    } else {
+      // Mode invité - profil par défaut
+      _setGuestProfile();
+    }
   }
 
-  void _loadUserProfile() {
-    userProfile.value = {
-      'name': 'Jean Dupont',
-      'email': 'jean.dupont@email.com',
-      'phone': '+237 6 XX XX XX XX',
-      'avatar': 'JD',
-      'memberSince': 'Membre depuis Mars 2025',
-      'location': 'Douala, Cameroun',
+  void _setGuestProfile() {
+    profile.value = {
+      'name': 'Invité',
+      'avatar': '?',
+      'email': '',
+      'phone': '',
+      'location': 'Cameroun',
+      'memberSince': '',
+      'role': 'guest',
       'stats': {
-        'orders': 12,
-        'reviews': 8,
-        'favorites': 24,
+        'orders': 0,
+        'reviews': 0,
+        'favorites': 0,
       },
     };
   }
 
+  void _loadProfile() {
+    // Load from cache first
+    final cachedUser = ApiProvider.cachedUser;
+    if (cachedUser != null) {
+      _setProfileData(Map<String, dynamic>.from(cachedUser));
+    }
+
+    // Then refresh from API
+    _refreshProfile();
+  }
+
+  Future<void> _refreshProfile() async {
+    // Ne pas rafraîchir si en mode invité
+    if (isGuest.value) return;
+
+    isLoading.value = true;
+    try {
+      final response = await AuthService.getProfile();
+      if (response.success && response.data != null) {
+        final user = response.data!['user'];
+        if (user != null) {
+          _setProfileData(Map<String, dynamic>.from(user));
+        }
+      }
+    } catch (e) {
+      // Use cached data
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
+  /// Transform raw API data into view-compatible format
+  void _setProfileData(Map<String, dynamic> data) {
+    final fn = data['first_name'] ?? '';
+    final ln = data['last_name'] ?? '';
+    final fullName = '$fn $ln'.trim();
+
+    // Compute initials for avatar
+    String initials = '?';
+    if (fullName.isNotEmpty) {
+      final parts = fullName.split(' ');
+      if (parts.length >= 2) {
+        initials = '${parts[0][0]}${parts[1][0]}'.toUpperCase();
+      } else {
+        initials = fullName[0].toUpperCase();
+      }
+    }
+
+    // Build profile map with keys expected by the view
+    profile.value = {
+      ...data,
+      'name': fullName.isEmpty ? 'Utilisateur' : fullName,
+      'avatar': initials,
+      'email': data['email'] ?? '',
+      'phone': data['phone'] ?? '',
+      'location': data['address'] ?? data['city'] ?? 'Cameroun',
+      'memberSince': _formatMemberSince(data['created_at']),
+      'role': data['role'] ?? 'client',
+      'stats': data['stats'] ?? {
+        'orders': data['orders_count'] ?? 0,
+        'reviews': data['reviews_count'] ?? 0,
+        'favorites': data['favorites_count'] ?? 0,
+      },
+    };
+  }
+
+  String _formatMemberSince(dynamic createdAt) {
+    if (createdAt == null) return 'Membre récent';
+    try {
+      final date = DateTime.parse(createdAt.toString());
+      final months = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Jun', 'Jul', 'Aoû', 'Sep', 'Oct', 'Nov', 'Déc'];
+      return 'Membre depuis ${months[date.month - 1]} ${date.year}';
+    } catch (e) {
+      return 'Membre récent';
+    }
+  }
+
+  /// Getter compatible avec la vue qui attend 'userProfile'
+  RxMap<String, dynamic> get userProfile => profile;
+
+  String get displayName => profile['name'] ?? 'Utilisateur';
+  String get email => profile['email'] ?? '';
+  String get phone => profile['phone'] ?? '';
+  String get avatar => profile['avatar'] ?? '';
+  String get memberSince => profile['memberSince'] ?? '';
+  String get role => profile['role'] ?? 'client';
+  String get address => profile['location'] ?? '';
+
   void editProfile() {
-    Get.snackbar(
-      'Modification du profil',
-      'Fonction en cours de développement',
-      snackPosition: SnackPosition.BOTTOM,
-    );
+    Get.toNamed(Routes.COMPLETE_PROFILE);
   }
 
   void goToMyProducts() {
-    Get.snackbar(
-      'Mes produits',
-      'Fonction en cours de développement',
-      snackPosition: SnackPosition.BOTTOM,
-    );
+    // TODO
   }
 
   void goToFavorites() {
-    Get.toNamed('/favorites');
+    // Protégé par le UI - ne devrait pas être appelé en mode invité
+    if (StorageService.isAuthenticated) {
+      Get.toNamed(Routes.FAVORITES);
+    }
   }
 
   void goToOrders() {
-    Get.snackbar(
-      'Mes commandes',
-      'Fonction en cours de développement',
-      snackPosition: SnackPosition.BOTTOM,
-    );
+    Get.toNamed(Routes.MY_ORDER);
   }
 
   void goToAddresses() {
-    Get.snackbar(
-      'Mes adresses',
-      'Fonction en cours de développement',
-      snackPosition: SnackPosition.BOTTOM,
-    );
+    // TODO
   }
 
   void goToPaymentMethods() {
-    Get.snackbar(
-      'Moyens de paiement',
-      'Fonction en cours de développement',
-      snackPosition: SnackPosition.BOTTOM,
-    );
+    // TODO
   }
 
   void goToSettings() {
-    Get.toNamed('/settings');
+    // Protégé par le UI - ne devrait pas être appelé en mode invité
+    if (StorageService.isAuthenticated) {
+      Get.toNamed(Routes.FAVORITES); // Settings page is in Favorites/Preferences view
+    }
   }
 
   void goToHelp() {
-    Get.snackbar(
-      'Aide & Support',
-      'Fonction en cours de développement',
-      snackPosition: SnackPosition.BOTTOM,
-    );
+    // TODO
   }
 
   void goToAbout() {
-    Get.snackbar(
-      'À propos',
-      'Asso - Version 1.0.0',
-      snackPosition: SnackPosition.BOTTOM,
-    );
+    // TODO
   }
 
-  void logout() {
-    Get.defaultDialog(
-      title: 'Déconnexion',
-      middleText: 'Êtes-vous sûr de vouloir vous déconnecter ?',
-      textCancel: 'Annuler',
-      textConfirm: 'Déconnexion',
-      confirmTextColor: Get.theme.colorScheme.onError,
-      buttonColor: Get.theme.colorScheme.error,
-      onConfirm: () {
-        Get.back();
-        Get.offAllNamed('/login');
-      },
-    );
+  Future<void> logout() async {
+    try {
+      await AuthService.logout();
+    } catch (e) {
+      // Even if API fails, clear local data
+      ApiProvider.clearAuth();
+    }
+    Get.offAllNamed(Routes.WELCOMER);
   }
 }

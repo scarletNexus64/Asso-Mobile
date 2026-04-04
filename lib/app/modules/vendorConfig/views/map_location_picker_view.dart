@@ -83,34 +83,44 @@ class _MapLocationPickerViewState extends State<MapLocationPickerView> {
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        setState(() {
-          selectedAddress = data['display_name'] ??
-            'Lat: ${position.latitude.toStringAsFixed(4)}, Lng: ${position.longitude.toStringAsFixed(4)}';
-        });
+        if (mounted) {
+          setState(() {
+            selectedAddress = data['display_name'] ??
+              'Lat: ${position.latitude.toStringAsFixed(4)}, Lng: ${position.longitude.toStringAsFixed(4)}';
+          });
+        }
       } else {
+        if (mounted) {
+          setState(() {
+            selectedAddress = 'Lat: ${position.latitude.toStringAsFixed(4)}, Lng: ${position.longitude.toStringAsFixed(4)}';
+          });
+        }
+      }
+    } catch (e) {
+      if (mounted) {
         setState(() {
           selectedAddress = 'Lat: ${position.latitude.toStringAsFixed(4)}, Lng: ${position.longitude.toStringAsFixed(4)}';
         });
       }
-    } catch (e) {
-      setState(() {
-        selectedAddress = 'Lat: ${position.latitude.toStringAsFixed(4)}, Lng: ${position.longitude.toStringAsFixed(4)}';
-      });
     }
   }
 
   /// Rechercher une adresse
   Future<void> _searchLocation(String query) async {
     if (query.isEmpty) {
-      setState(() {
-        searchResults = [];
-      });
+      if (mounted) {
+        setState(() {
+          searchResults = [];
+        });
+      }
       return;
     }
 
-    setState(() {
-      isSearching = true;
-    });
+    if (mounted) {
+      setState(() {
+        isSearching = true;
+      });
+    }
 
     try {
       final url = Uri.parse(
@@ -128,25 +138,31 @@ class _MapLocationPickerViewState extends State<MapLocationPickerView> {
 
       if (response.statusCode == 200) {
         final List<dynamic> data = json.decode(response.body);
-        setState(() {
-          searchResults = data.map((item) => {
-            'display_name': item['display_name'],
-            'lat': double.parse(item['lat']),
-            'lon': double.parse(item['lon']),
-          }).toList();
-          isSearching = false;
-        });
+        if (mounted) {
+          setState(() {
+            searchResults = data.map((item) => {
+              'display_name': item['display_name'],
+              'lat': double.parse(item['lat']),
+              'lon': double.parse(item['lon']),
+            }).toList();
+            isSearching = false;
+          });
+        }
       } else {
+        if (mounted) {
+          setState(() {
+            searchResults = [];
+            isSearching = false;
+          });
+        }
+      }
+    } catch (e) {
+      if (mounted) {
         setState(() {
           searchResults = [];
           isSearching = false;
         });
       }
-    } catch (e) {
-      setState(() {
-        searchResults = [];
-        isSearching = false;
-      });
 
       Get.snackbar(
         'Erreur',

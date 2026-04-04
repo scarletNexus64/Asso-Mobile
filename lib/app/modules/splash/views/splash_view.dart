@@ -1,31 +1,19 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_spinkit/flutter_spinkit.dart';
 import 'package:get/get.dart';
 import '../../../core/utils/app_theme_system.dart';
-import '../../../routes/app_pages.dart';
+import '../controllers/splash_controller.dart';
 
-class SplashView extends StatefulWidget {
+class SplashView extends GetView<SplashController> {
   const SplashView({super.key});
 
   @override
-  State<SplashView> createState() => _SplashViewState();
-}
-
-class _SplashViewState extends State<SplashView> {
-  @override
-  void initState() {
-    super.initState();
-    // Navigation après 3 secondes
-    Timer(const Duration(seconds: 3), () {
-      if (mounted) {
-        Get.offAllNamed(Routes.ONBOARDING);
-      }
-    });
-  }
-
-  @override
   Widget build(BuildContext context) {
+    print('🎨 SPLASH VIEW: build() called');
+
+    // Force controller initialization
+    print('🎮 Controller: ${controller.hashCode}');
+
     return Scaffold(
       backgroundColor: AppThemeSystem.getBackgroundColor(context),
       body: SizedBox(

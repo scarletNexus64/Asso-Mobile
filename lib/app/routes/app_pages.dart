@@ -60,8 +60,16 @@ import '../modules/vendorDashboard/bindings/vendor_dashboard_binding.dart';
 import '../modules/vendorDashboard/views/vendor_dashboard_view.dart';
 import '../modules/wallet/bindings/wallet_binding.dart';
 import '../modules/wallet/views/wallet_view.dart';
+import '../modules/wallet/views/ussd_waiting_view.dart';
+import '../modules/wallet/views/wallet_history_view.dart';
 import '../modules/welcomer/bindings/welcomer_binding.dart';
 import '../modules/welcomer/views/welcomer_view.dart';
+import '../modules/packageSubscription/bindings/package_subscription_binding.dart';
+import '../modules/packageSubscription/views/package_subscription_view.dart';
+import '../modules/productManagement/bindings/product_management_binding.dart';
+import '../modules/productManagement/views/product_management_view.dart';
+import '../modules/addProduct/bindings/add_product_binding.dart';
+import '../modules/addProduct/views/add_product_view.dart';
 
 part 'app_routes.dart';
 
@@ -225,6 +233,31 @@ class AppPages {
       name: _Paths.ABOUT,
       page: () => const AboutView(),
       binding: AboutBinding(),
+    ),
+    GetPage(
+      name: _Paths.PACKAGE_SUBSCRIPTION,
+      page: () => const PackageSubscriptionView(),
+      binding: PackageSubscriptionBinding(),
+    ),
+    GetPage(
+      name: _Paths.PRODUCT_MANAGEMENT,
+      page: () => const ProductManagementView(),
+      binding: ProductManagementBinding(),
+    ),
+    GetPage(
+      name: _Paths.ADD_PRODUCT,
+      page: () => const AddProductView(),
+      binding: AddProductBinding(),
+    ),
+    GetPage(
+      name: _Paths.USSD_WAITING,
+      page: () => const UssdWaitingView(),
+      binding: WalletBinding(),
+    ),
+    GetPage(
+      name: _Paths.WALLET_HISTORY,
+      page: () => const WalletHistoryView(),
+      binding: WalletBinding(),
     ),
   ];
 }

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
-import '../../../data/models/product_model.dart';
+import '../../../data/providers/product_service.dart';
 
 class SearchController extends GetxController {
   // ================================
@@ -14,9 +14,8 @@ class SearchController extends GetxController {
   // ================================
   // DONNÉES DES PRODUITS
   // ================================
-  // TODO: Remplacer par un appel API dans le futur
-  final RxList<ProductModel> allProducts = <ProductModel>[].obs;
-  final RxList<ProductModel> filteredProducts = <ProductModel>[].obs;
+  final RxList<Map<String, dynamic>> searchResults = <Map<String, dynamic>>[].obs;
+  final RxList<Map<String, dynamic>> recentProducts = <Map<String, dynamic>>[].obs;
 
   // ================================
   // ÉTAT DE LA RECHERCHE
@@ -26,15 +25,19 @@ class SearchController extends GetxController {
   final RxBool showFilters = false.obs;
   final RxBool isLoading = false.obs;
   final RxBool hasFocus = false.obs;
+  final RxBool hasMore = true.obs;
+  int _currentPage = 1;
 
   // ================================
   // FILTRES
   // ================================
-  final RxString selectedCategory = 'Tous'.obs;
+  final RxInt selectedCategoryId = 0.obs;
+  final RxString selectedCategory = ''.obs;
   final RxDouble minPrice = 0.0.obs;
   final RxDouble maxPrice = 1000000.0.obs;
   final RxString selectedLocation = 'Toutes les villes'.obs;
-  final Rx<ProductCondition?> selectedCondition = Rx<ProductCondition?>(null);
+  final RxString sortBy = 'created_at'.obs;
+  final RxString sortOrder = 'desc'.obs;
 
   // ================================
   // TRI
@@ -44,17 +47,8 @@ class SearchController extends GetxController {
   // ================================
   // CATÉGORIES DISPONIBLES
   // ================================
-  final List<String> categories = [
-    'Tous',
-    'Vêtements',
-    'Électronique',
-    'Accessoires',
-    'Maison',
-    'Sport',
-    'Beauté',
-    'Livres',
-    'Autres',
-  ];
+  final RxList<Map<String, dynamic>> apiCategories = <Map<String, dynamic>>[].obs;
+  final RxList<String> categories = <String>['Tous'].obs;
 
   // ================================
   // VILLES DISPONIBLES
@@ -84,18 +78,24 @@ class SearchController extends GetxController {
   // ================================
   int get activeFiltersCount {
     int count = 0;
-    if (selectedCategory.value != 'Tous') count++;
+    if (selectedCategory.value.isNotEmpty && selectedCategory.value != 'Tous') count++;
     if (minPrice.value > 0 || maxPrice.value < 1000000) count++;
     if (selectedLocation.value != 'Toutes les villes') count++;
-    if (selectedCondition.value != null) count++;
     return count;
   }
+
+  // ================================
+  // BACKWARD COMPATIBILITY GETTERS
+  // ================================
+  /// Returns searchResults (for backward compatibility)
+  RxList<Map<String, dynamic>> get filteredProducts => searchResults;
 
   @override
   void onInit() {
     super.onInit();
     _loadSearchHistory();
-    _loadMockProducts();
+    _loadRecentProducts();
+    _loadCategories();
     _setupSearchListener();
     _setupFocusListener();
   }
@@ -111,160 +111,51 @@ class SearchController extends GetxController {
   // CHARGEMENT DES DONNÉES
   // ================================
 
-  /// Charge les produits (mock data pour l'instant)
-  void _loadMockProducts() {
-    // TODO: Remplacer par un appel API réel
-    allProducts.value = [
-      ProductModel(
-        id: '1',
-        name: 'T-shirt Design Artistique',
-        description:
-            'Magnifique t-shirt avec design unique fait à la main. Matière 100% coton de qualité premium.',
-        price: 15000,
-        category: 'Vêtements',
-        location: 'Douala, Cameroun',
-        locationCity: 'Douala',
-        locationCountry: 'Cameroun',
-        images: ['assets/images/p1.jpeg'],
-        condition: ProductCondition.nouveau,
-        createdAt: DateTime.now().subtract(const Duration(days: 2)),
-        seller: SellerModel(
-          id: 's1',
-          name: 'Boutique Fashion',
-          rating: 4.5,
-          reviewsCount: 120,
-        ),
-        tags: ['vêtements', 'fashion', 't-shirt', 'design'],
-      ),
-      ProductModel(
-        id: '2',
-        name: 'Sneakers Sport Premium',
-        description:
-            'Chaussures de sport haute qualité, confortables et durables. Parfaites pour le running.',
-        price: 35000,
-        category: 'Accessoires',
-        location: 'Yaoundé, Cameroun',
-        locationCity: 'Yaoundé',
-        locationCountry: 'Cameroun',
-        images: ['assets/images/p2.jpeg'],
-        condition: ProductCondition.nouveau,
-        createdAt: DateTime.now().subtract(const Duration(days: 5)),
-        seller: SellerModel(
-          id: 's2',
-          name: 'Sports Plus',
-          rating: 4.8,
-          reviewsCount: 250,
-        ),
-        tags: ['chaussures', 'sport', 'sneakers'],
-      ),
-      ProductModel(
-        id: '3',
-        name: 'Montre Élégante',
-        description:
-            'Montre classique pour homme, boîtier en acier inoxydable, bracelet cuir véritable.',
-        price: 45000,
-        category: 'Accessoires',
-        location: 'Douala, Cameroun',
-        locationCity: 'Douala',
-        locationCountry: 'Cameroun',
-        images: ['assets/images/p3.jpeg'],
-        condition: ProductCondition.commeNeuf,
-        createdAt: DateTime.now().subtract(const Duration(days: 1)),
-        seller: SellerModel(
-          id: 's3',
-          name: 'Time Boutique',
-          rating: 4.7,
-          reviewsCount: 180,
-        ),
-        tags: ['montre', 'accessoire', 'homme'],
-      ),
-      ProductModel(
-        id: '4',
-        name: 'Casque Audio Bluetooth',
-        description:
-            'Casque sans fil avec réduction de bruit active, autonomie 30h, son haute qualité.',
-        price: 28000,
-        category: 'Électronique',
-        location: 'Bafoussam, Cameroun',
-        locationCity: 'Bafoussam',
-        locationCountry: 'Cameroun',
-        images: ['assets/images/p4.jpeg'],
-        condition: ProductCondition.nouveau,
-        createdAt: DateTime.now().subtract(const Duration(hours: 12)),
-        seller: SellerModel(
-          id: 's4',
-          name: 'Tech Store',
-          rating: 4.9,
-          reviewsCount: 320,
-        ),
-        tags: ['électronique', 'audio', 'casque', 'bluetooth'],
-      ),
-      ProductModel(
-        id: '5',
-        name: 'Sac à Main Cuir',
-        description:
-            'Sac à main en cuir véritable, élégant et spacieux. Plusieurs compartiments.',
-        price: 32000,
-        category: 'Accessoires',
-        location: 'Douala, Cameroun',
-        locationCity: 'Douala',
-        locationCountry: 'Cameroun',
-        images: ['assets/images/p5.jpeg'],
-        condition: ProductCondition.tresBonEtat,
-        createdAt: DateTime.now().subtract(const Duration(days: 3)),
-        seller: SellerModel(
-          id: 's5',
-          name: 'Luxury Bags',
-          rating: 4.6,
-          reviewsCount: 95,
-        ),
-        tags: ['sac', 'accessoire', 'cuir', 'femme'],
-      ),
-      ProductModel(
-        id: '6',
-        name: 'Lunettes de Soleil Tendance',
-        description:
-            'Lunettes de soleil UV400, monture métallique, style aviateur moderne.',
-        price: 12000,
-        category: 'Accessoires',
-        location: 'Yaoundé, Cameroun',
-        locationCity: 'Yaoundé',
-        locationCountry: 'Cameroun',
-        images: ['assets/images/p6.jpeg'],
-        condition: ProductCondition.nouveau,
-        createdAt: DateTime.now().subtract(const Duration(days: 4)),
-        seller: SellerModel(
-          id: 's6',
-          name: 'Vision Style',
-          rating: 4.4,
-          reviewsCount: 78,
-        ),
-        tags: ['lunettes', 'accessoire', 'soleil'],
-      ),
-      ProductModel(
-        id: '7',
-        name: 'Jean Slim Fit',
-        description:
-            'Jean de qualité premium, coupe slim, tissu élastique confortable.',
-        price: 18000,
-        category: 'Vêtements',
-        location: 'Douala, Cameroun',
-        locationCity: 'Douala',
-        locationCountry: 'Cameroun',
-        images: ['assets/images/p7.jpeg'],
-        condition: ProductCondition.nouveau,
-        createdAt: DateTime.now().subtract(const Duration(days: 6)),
-        seller: SellerModel(
-          id: 's7',
-          name: 'Denim Shop',
-          rating: 4.5,
-          reviewsCount: 145,
-        ),
-        tags: ['vêtements', 'jean', 'pantalon'],
-      ),
-    ];
+  /// Charge les produits récents depuis l'API
+  Future<void> _loadRecentProducts() async {
+    isLoading.value = true;
+    try {
+      final response = await ProductService.getProducts(page: 1, perPage: 10);
+      if (response.success && response.data != null) {
+        final products = response.data!['products'] as List? ?? [];
+        recentProducts.value = products.map((p) => Map<String, dynamic>.from(p)).toList();
+      }
+    } catch (e) {
+      // Silent fail
+    } finally {
+      isLoading.value = false;
+    }
+  }
 
-    filteredProducts.value = allProducts;
+  /// Charge les catégories depuis l'API
+  Future<void> _loadCategories() async {
+    try {
+      final response = await ProductService.getCategories();
+      if (response.success && response.data != null) {
+        final cats = response.data!['categories'] as List? ?? [];
+        apiCategories.value = cats.map((c) => Map<String, dynamic>.from(c)).toList();
+
+        // Build category names list
+        categories.clear();
+        categories.add('Tous');
+        for (var cat in apiCategories) {
+          categories.add(cat['name'] ?? '');
+        }
+      }
+    } catch (e) {
+      // Use fallback categories
+      categories.value = [
+        'Tous',
+        'Vêtements',
+        'Électronique',
+        'Accessoires',
+        'Maison',
+        'Sport',
+        'Beauté',
+        'Livres',
+        'Autres',
+      ];
+    }
   }
 
   // ================================
@@ -273,10 +164,12 @@ class SearchController extends GetxController {
 
   /// Configure l'écoute des changements de texte
   void _setupSearchListener() {
-    searchTextController.addListener(() {
-      searchQuery.value = searchTextController.text;
-      _updateSuggestions();
-    });
+    // Debounce pour éviter trop de requêtes lors de la saisie
+    debounce(searchQuery, (_) {
+      if (searchQuery.value.isNotEmpty) {
+        _performSearch();
+      }
+    }, time: const Duration(milliseconds: 500));
   }
 
   /// Configure l'écoute des changements de focus
@@ -286,39 +179,97 @@ class SearchController extends GetxController {
     });
   }
 
-  /// Effectue la recherche
+  /// Effectue la recherche (appelé depuis l'historique ou suggestions)
   void performSearch(String query) {
     searchQuery.value = query;
     searchTextController.text = query;
-    isSearching.value = true;
+    isSearching.value = query.isNotEmpty;
 
-    // Ajouter à l'historique
+    // Ajouter à l'historique et lancer immédiatement (sans debounce)
     if (query.isNotEmpty) {
       _addToSearchHistory(query);
+      // Annuler tout debounce en cours et lancer immédiatement
+      _performSearchImmediate();
     }
-
-    // Appliquer tous les filtres
-    _applyFilters();
 
     // Masquer le focus du champ de recherche
     searchFocusNode.unfocus();
   }
 
-  /// Met à jour les suggestions basées sur la requête
-  void _updateSuggestions() {
+  /// Lance la recherche immédiatement sans debounce
+  Future<void> _performSearchImmediate() async {
     if (searchQuery.value.isEmpty) {
-      suggestions.clear();
+      searchResults.clear();
       return;
     }
 
-    final query = searchQuery.value.toLowerCase();
-    final matchingProducts = allProducts
-        .where((product) => product.name.toLowerCase().contains(query))
-        .take(5)
-        .map((p) => p.name)
-        .toList();
+    _currentPage = 1;
+    isLoading.value = true;
 
-    suggestions.value = matchingProducts;
+    try {
+      final response = await ProductService.getProducts(
+        page: _currentPage,
+        search: searchQuery.value,
+        categoryId: selectedCategoryId.value > 0 ? selectedCategoryId.value : null,
+        minPrice: minPrice.value > 0 ? minPrice.value : null,
+        maxPrice: maxPrice.value < 1000000 ? maxPrice.value : null,
+        sortBy: sortBy.value,
+        sortOrder: sortOrder.value,
+      );
+
+      if (response.success && response.data != null) {
+        final productsList = response.data!['products'] as List? ?? [];
+        final pagination = response.data!['pagination'] as Map<String, dynamic>? ?? {};
+        searchResults.value = productsList.map((p) => Map<String, dynamic>.from(p)).toList();
+        hasMore.value = pagination['has_more'] ?? false;
+      }
+    } catch (e) {
+      Get.snackbar('Erreur', 'Impossible de rechercher',
+        snackPosition: SnackPosition.BOTTOM,
+        margin: const EdgeInsets.all(16),
+        borderRadius: 12,
+      );
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
+  /// Effectue la recherche via l'API
+  Future<void> _performSearch() async {
+    if (searchQuery.value.isEmpty) {
+      searchResults.clear();
+      return;
+    }
+
+    _currentPage = 1;
+    isLoading.value = true;
+
+    try {
+      final response = await ProductService.getProducts(
+        page: _currentPage,
+        search: searchQuery.value,
+        categoryId: selectedCategoryId.value > 0 ? selectedCategoryId.value : null,
+        minPrice: minPrice.value > 0 ? minPrice.value : null,
+        maxPrice: maxPrice.value < 1000000 ? maxPrice.value : null,
+        sortBy: sortBy.value,
+        sortOrder: sortOrder.value,
+      );
+
+      if (response.success && response.data != null) {
+        final products = response.data!['products'] as List? ?? [];
+        final pagination = response.data!['pagination'] as Map<String, dynamic>? ?? {};
+        searchResults.value = products.map((p) => Map<String, dynamic>.from(p)).toList();
+        hasMore.value = pagination['has_more'] ?? false;
+      }
+    } catch (e) {
+      Get.snackbar('Erreur', 'Impossible de rechercher',
+        snackPosition: SnackPosition.BOTTOM,
+        margin: const EdgeInsets.all(16),
+        borderRadius: 12,
+      );
+    } finally {
+      isLoading.value = false;
+    }
   }
 
   /// Efface la recherche
@@ -327,122 +278,115 @@ class SearchController extends GetxController {
     searchTextController.clear();
     isSearching.value = false;
     suggestions.clear();
-    _applyFilters();
+    searchResults.clear();
   }
 
   // ================================
-  // FILTRES
+  // FILTRES ET PAGINATION
   // ================================
 
-  /// Applique tous les filtres actifs
-  void _applyFilters() {
-    isLoading.value = true;
+  /// Charge plus de résultats
+  Future<void> loadMore() async {
+    if (!hasMore.value || isLoading.value) return;
+    _currentPage++;
 
-    var results = List<ProductModel>.from(allProducts);
+    try {
+      final response = await ProductService.getProducts(
+        page: _currentPage,
+        search: searchQuery.value,
+        categoryId: selectedCategoryId.value > 0 ? selectedCategoryId.value : null,
+        minPrice: minPrice.value > 0 ? minPrice.value : null,
+        maxPrice: maxPrice.value < 1000000 ? maxPrice.value : null,
+        sortBy: sortBy.value,
+        sortOrder: sortOrder.value,
+      );
 
-    // Filtre par recherche
-    if (searchQuery.value.isNotEmpty) {
-      results = results
-          .where((product) => product.matchesSearchQuery(searchQuery.value))
-          .toList();
-    }
-
-    // Filtre par catégorie
-    if (selectedCategory.value != 'Tous') {
-      results = results
-          .where((product) => product.category == selectedCategory.value)
-          .toList();
-    }
-
-    // Filtre par prix
-    results = results
-        .where((product) =>
-            product.price >= minPrice.value && product.price <= maxPrice.value)
-        .toList();
-
-    // Filtre par localisation
-    if (selectedLocation.value != 'Toutes les villes') {
-      results = results
-          .where(
-              (product) => product.locationCity == selectedLocation.value)
-          .toList();
-    }
-
-    // Filtre par condition
-    if (selectedCondition.value != null) {
-      results = results
-          .where((product) => product.condition == selectedCondition.value)
-          .toList();
-    }
-
-    // Tri
-    _sortResults(results);
-
-    filteredProducts.value = results;
-    isLoading.value = false;
-  }
-
-  /// Trie les résultats selon l'option sélectionnée
-  void _sortResults(List<ProductModel> results) {
-    switch (selectedSortOption.value) {
-      case SortOption.relevance:
-        // Tri par pertinence (déjà fait par le filtre de recherche)
-        break;
-      case SortOption.priceAsc:
-        results.sort((a, b) => a.price.compareTo(b.price));
-        break;
-      case SortOption.priceDesc:
-        results.sort((a, b) => b.price.compareTo(a.price));
-        break;
-      case SortOption.dateDesc:
-        results.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-        break;
-      case SortOption.dateAsc:
-        results.sort((a, b) => a.createdAt.compareTo(b.createdAt));
-        break;
+      if (response.success && response.data != null) {
+        final products = response.data!['products'] as List? ?? [];
+        final pagination = response.data!['pagination'] as Map<String, dynamic>? ?? {};
+        searchResults.addAll(products.map((p) => Map<String, dynamic>.from(p)));
+        hasMore.value = pagination['has_more'] ?? false;
+      }
+    } catch (e) {
+      _currentPage--;
     }
   }
 
   /// Change la catégorie
   void selectCategory(String category) {
     selectedCategory.value = category;
-    _applyFilters();
+
+    // Update category ID based on selected category name
+    if (category == 'Tous' || category.isEmpty) {
+      selectedCategoryId.value = 0;
+    } else {
+      final cat = apiCategories.firstWhereOrNull((c) => c['name'] == category);
+      selectedCategoryId.value = cat?['id'] ?? 0;
+    }
+
+    // Si on a déjà une recherche active, relancer avec le nouveau filtre
+    if (searchQuery.value.isNotEmpty) {
+      _performSearchImmediate();
+    }
   }
 
   /// Change la plage de prix
   void setPriceRange(double min, double max) {
     minPrice.value = min;
     maxPrice.value = max;
-    _applyFilters();
+    _performSearch();
   }
 
   /// Change la localisation
   void selectLocation(String location) {
     selectedLocation.value = location;
-    _applyFilters();
-  }
-
-  /// Change la condition
-  void selectCondition(ProductCondition? condition) {
-    selectedCondition.value = condition;
-    _applyFilters();
+    _performSearch();
   }
 
   /// Change l'option de tri
   void selectSortOption(SortOption option) {
     selectedSortOption.value = option;
-    _applyFilters();
+    _updateSortParams(option);
+    _performSearch();
+  }
+
+  /// Met à jour les paramètres de tri selon l'option sélectionnée
+  void _updateSortParams(SortOption option) {
+    switch (option) {
+      case SortOption.relevance:
+        sortBy.value = 'relevance';
+        sortOrder.value = 'desc';
+        break;
+      case SortOption.priceAsc:
+        sortBy.value = 'price';
+        sortOrder.value = 'asc';
+        break;
+      case SortOption.priceDesc:
+        sortBy.value = 'price';
+        sortOrder.value = 'desc';
+        break;
+      case SortOption.dateDesc:
+        sortBy.value = 'created_at';
+        sortOrder.value = 'desc';
+        break;
+      case SortOption.dateAsc:
+        sortBy.value = 'created_at';
+        sortOrder.value = 'asc';
+        break;
+    }
   }
 
   /// Réinitialise tous les filtres
   void resetFilters() {
-    selectedCategory.value = 'Tous';
+    selectedCategory.value = '';
+    selectedCategoryId.value = 0;
     minPrice.value = 0.0;
     maxPrice.value = 1000000.0;
     selectedLocation.value = 'Toutes les villes';
-    selectedCondition.value = null;
     selectedSortOption.value = SortOption.relevance;
-    _applyFilters();
+    sortBy.value = 'created_at';
+    sortOrder.value = 'desc';
+    _performSearch();
   }
 
   /// Toggle affichage des filtres
@@ -496,18 +440,18 @@ class SearchController extends GetxController {
   // ================================
 
   /// Navigue vers les détails du produit
-  void goToProductDetails(ProductModel product) {
-    Get.toNamed('/product', arguments: product.toMap());
+  void onProductTap(Map<String, dynamic> product) {
+    Get.toNamed('/product', arguments: product);
   }
 
-  /// Toggle favori
-  void toggleFavorite(ProductModel product) {
-    final index = allProducts.indexWhere((p) => p.id == product.id);
-    if (index != -1) {
-      allProducts[index] =
-          product.copyWith(isFavorite: !product.isFavorite);
-      _applyFilters();
-    }
+  /// Applique les filtres et relance la recherche
+  void applyFilters({int? categoryId, double? min, double? max, String? sort, String? order}) {
+    if (categoryId != null) selectedCategoryId.value = categoryId;
+    if (min != null) minPrice.value = min;
+    if (max != null) maxPrice.value = max;
+    if (sort != null) sortBy.value = sort;
+    if (order != null) sortOrder.value = order;
+    _performSearch();
   }
 }
 

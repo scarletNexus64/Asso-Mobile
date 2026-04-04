@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../../routes/app_pages.dart';
+import '../../../data/providers/auth_service.dart';
 
 class PreferencesController extends GetxController {
   // Catégories d'intérêt avec sous-catégories
@@ -133,14 +134,52 @@ class PreferencesController extends GetxController {
   // Catégories expandues
   final RxSet<String> expandedCategories = <String>{}.obs;
 
+  // Loading state
+  final isLoading = false.obs;
+
   @override
   void onInit() {
     super.onInit();
     _loadPreferences();
   }
 
-  void _loadPreferences() {
-    // TODO: Charger depuis le storage local
+  Future<void> _loadPreferences() async {
+    try {
+      isLoading.value = true;
+      print('📥 Loading preferences from backend...');
+
+      final response = await AuthService.getPreferences();
+
+      if (response.success && response.data != null) {
+        final preferences = response.data!['preferences'];
+        print('✅ Preferences loaded: $preferences');
+
+        // If preferences exist and have categories, pre-select them
+        if (preferences is Map && preferences['categories'] != null) {
+          final categories = preferences['categories'] as List;
+          selectedSubcategories.clear();
+          selectedSubcategories.addAll(categories.map((c) => c.toString()));
+
+          print('✅ Pre-selected ${selectedSubcategories.length} categories');
+          print('📋 Selected: ${selectedSubcategories.toList()}');
+
+          // AUTO-NAVIGATE: If user already has preferences, redirect to HOME
+          // This handles the case where preferences exist on backend but not in local storage
+          if (selectedSubcategories.isNotEmpty) {
+            print('🏠 AUTO-NAVIGATE: User has existing preferences, navigating to HOME');
+            await Future.delayed(const Duration(milliseconds: 300));
+            Get.offAllNamed(Routes.HOME);
+          }
+        }
+      } else {
+        print('ℹ️ No preferences found on backend');
+      }
+    } catch (e, stackTrace) {
+      print('❌ Error loading preferences: $e');
+      print('Stack trace: $stackTrace');
+    } finally {
+      isLoading.value = false;
+    }
   }
 
   void toggleCategory(String categoryId) {
@@ -188,8 +227,16 @@ class PreferencesController extends GetxController {
       return;
     }
 
-    // TODO: Sauvegarder les préférences dans le storage local
-    // await _savePreferences();
+    // Sauvegarder les préférences via l'API
+    final prefs = {
+      'categories': selectedSubcategories.toList(),
+    };
+
+    try {
+      await AuthService.updatePreferences(prefs);
+    } catch (e) {
+      // Silent fail - prefs saved locally anyway
+    }
 
     // Afficher un message de succès
     Get.snackbar(

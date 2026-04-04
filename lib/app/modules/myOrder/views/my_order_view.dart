@@ -43,7 +43,7 @@ class MyOrderView extends GetView<MyOrderController> {
               }
 
               return RefreshIndicator(
-                onRefresh: controller.loadOrders,
+                onRefresh: () => controller.loadOrders(refresh: true),
                 child: ListView.separated(
                   padding: EdgeInsets.all(context.horizontalPadding),
                   itemCount: controller.filteredOrders.length,
@@ -67,13 +67,13 @@ class MyOrderView extends GetView<MyOrderController> {
       padding: EdgeInsets.symmetric(horizontal: context.horizontalPadding),
       child: Obx(() {
         final filters = [
-          {'label': 'Tout', 'value': null},
-          {'label': 'En attente', 'value': CustomerOrderStatus.pending},
-          {'label': 'Confirmée', 'value': CustomerOrderStatus.confirmed},
-          {'label': 'En préparation', 'value': CustomerOrderStatus.preparing},
-          {'label': 'Expédiée', 'value': CustomerOrderStatus.shipped},
-          {'label': 'Livrée', 'value': CustomerOrderStatus.delivered},
-          {'label': 'Annulée', 'value': CustomerOrderStatus.cancelled},
+          {'label': 'Tout', 'value': 'all'},
+          {'label': 'En attente', 'value': 'pending'},
+          {'label': 'Confirmée', 'value': 'confirmed'},
+          {'label': 'En préparation', 'value': 'preparing'},
+          {'label': 'Expédiée', 'value': 'shipped'},
+          {'label': 'Livrée', 'value': 'delivered'},
+          {'label': 'Annulée', 'value': 'cancelled'},
         ];
 
         return ListView.separated(
@@ -88,8 +88,9 @@ class MyOrderView extends GetView<MyOrderController> {
               label: Text(filter['label'] as String),
               selected: isSelected,
               onSelected: (selected) {
-                controller.selectedStatus.value =
-                    selected ? filter['value'] as CustomerOrderStatus? : null;
+                if (selected) {
+                  controller.filterByStatus(filter['value'] as String);
+                }
               },
               backgroundColor: context.surfaceColor,
               selectedColor: AppThemeSystem.primaryColor.withValues(alpha: 0.2),
@@ -428,7 +429,8 @@ class MyOrderView extends GetView<MyOrderController> {
   bool _shouldShowActions(CustomerOrder order) {
     return order.status == CustomerOrderStatus.pending ||
         order.status == CustomerOrderStatus.confirmed ||
-        order.status == CustomerOrderStatus.shipped;
+        order.status == CustomerOrderStatus.shipped ||
+        order.status == CustomerOrderStatus.delivered;
   }
 
   Widget _buildOrderActions(BuildContext context, CustomerOrder order) {
@@ -501,6 +503,21 @@ class MyOrderView extends GetView<MyOrderController> {
               ),
             ),
           ],
+
+          // Bouton Confirmer la livraison (débloque l'argent)
+          if (order.status == CustomerOrderStatus.delivered)
+            Expanded(
+              child: ElevatedButton.icon(
+                onPressed: () => controller.confirmDelivery(order.id),
+                icon: const Icon(Icons.check_circle_outline, size: 18),
+                label: const Text('Confirmer la réception'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.green,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                ),
+              ),
+            ),
         ],
       ),
     );

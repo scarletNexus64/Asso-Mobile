@@ -1,19 +1,39 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:get/get.dart';
 import '../../../core/utils/app_theme_system.dart';
+import '../../../core/utils/auth_guard.dart';
+import '../../../core/values/constants.dart';
+import '../../../core/widgets/shimmer_widgets.dart';
+import '../../../data/providers/auth_service.dart';
+import '../../../data/providers/storage_service.dart';
 import '../../../routes/app_pages.dart';
-import '../../search/views/search_view.dart';
 import '../../chat/views/chat_view.dart';
 import '../../tracking/views/tracking_view.dart';
 import '../../profile/views/profile_view.dart';
+import '../../wallet/views/wallet_view.dart';
 import '../controllers/home_controller.dart';
-import 'accueil_view.dart';
 
 class HomeView extends GetView<HomeController> {
   const HomeView({super.key});
 
   @override
   Widget build(BuildContext context) {
+    print('');
+    print('========================================');
+    print('🎨 HOME VIEW: build() CALLED');
+    print('========================================');
+    print('  └─ Controller found: ${Get.isRegistered<HomeController>()}');
+    if (Get.isRegistered<HomeController>()) {
+      print('  └─ Controller hashCode: ${controller.hashCode}');
+      print('  └─ TabController exists: ${controller.tabController != null}');
+      if (controller.tabController != null) {
+        print('  └─ TabController hashCode: ${controller.tabController.hashCode}');
+      }
+    }
+    print('========================================');
+    print('');
+
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final deviceType = AppThemeSystem.getDeviceType(context);
 
@@ -78,15 +98,18 @@ class HomeView extends GetView<HomeController> {
                                 ),
                                 shape: BoxShape.circle,
                               ),
-                              child: Icon(
-                                Icons.person_rounded,
-                                color: Colors.white,
-                                size: 22,
+                              child: ClipOval(
+                                child: Image.asset(
+                                  'assets/images/logo.png',
+                                  fit: BoxFit.cover,
+                                  width: 40,
+                                  height: 40,
+                                ),
                               ),
                             ),
                             SizedBox(width: 8),
                             Text(
-                              'Kira',
+                              'ASSO',
                               style: context.textStyle(
                                 FontSizeType.body1,
                                 fontWeight: FontWeight.w600,
@@ -100,6 +123,20 @@ class HomeView extends GetView<HomeController> {
                       Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
+                          // Search icon
+                          _buildIconButton(
+                            context: context,
+                            icon: Icon(
+                              Icons.search_rounded,
+                              color: AppThemeSystem.getPrimaryTextColor(context),
+                            ),
+                            onPressed: () {
+                              Get.toNamed('/search');
+                            },
+                          ),
+
+                          SizedBox(width: 4),
+
                           // Camera icon for image search
                           _buildIconButton(
                             context: context,
@@ -126,7 +163,12 @@ class HomeView extends GetView<HomeController> {
                               color: AppThemeSystem.getPrimaryTextColor(context),
                             ),
                             onPressed: () {
-                              Get.toNamed('/favorites');
+                              AuthGuard.navigateIfAuthenticated(
+                                context,
+                                '/favorites',
+                                featureName: 'vos favoris',
+                                useDialog: false,
+                              );
                             },
                           ),
 
@@ -141,7 +183,12 @@ class HomeView extends GetView<HomeController> {
                             ),
                             badgeCount: '3',
                             onPressed: () {
-                              Get.toNamed('/notification');
+                              AuthGuard.navigateIfAuthenticated(
+                                context,
+                                '/notification',
+                                featureName: 'les notifications',
+                                useDialog: false,
+                              );
                             },
                           ),
                         ],
@@ -177,14 +224,6 @@ class HomeView extends GetView<HomeController> {
                     indicatorColor: AppThemeSystem.primaryColor,
                     indicatorWeight: 3,
                     indicatorSize: TabBarIndicatorSize.tab,
-                    indicator: BoxDecoration(
-                      border: Border(
-                        bottom: BorderSide(
-                          color: AppThemeSystem.primaryColor,
-                          width: 3,
-                        ),
-                      ),
-                    ),
                     labelColor: AppThemeSystem.primaryColor,
                     unselectedLabelColor: isDark
                         ? AppThemeSystem.grey400
@@ -201,52 +240,32 @@ class HomeView extends GetView<HomeController> {
                       // Accueil
                       Tab(
                         height: deviceType == DeviceType.mobile ? 64 : 72,
-                        child: _AnimatedTabIcon(
-                          controller: controller.tabController,
-                          index: 0,
-                          icon: Icons.home_rounded,
-                          label: controller.tabNames[0],
-                        ),
-                      ),
-                      // Recherche
-                      Tab(
-                        height: deviceType == DeviceType.mobile ? 64 : 72,
-                        child: _AnimatedTabIcon(
-                          controller: controller.tabController,
-                          index: 1,
-                          icon: Icons.search_rounded,
-                          label: controller.tabNames[1],
-                        ),
+                        icon: Icon(Icons.home_rounded, size: deviceType == DeviceType.mobile ? 24 : 28),
+                        text: controller.tabNames[0],
                       ),
                       // Messages
                       Tab(
                         height: deviceType == DeviceType.mobile ? 64 : 72,
-                        child: _AnimatedTabIcon(
-                          controller: controller.tabController,
-                          index: 2,
-                          icon: Icons.chat_bubble_outline_rounded,
-                          label: controller.tabNames[2],
-                        ),
+                        icon: Icon(Icons.chat_bubble_outline_rounded, size: deviceType == DeviceType.mobile ? 24 : 28),
+                        text: controller.tabNames[1],
+                      ),
+                      // Portefeuille
+                      Tab(
+                        height: deviceType == DeviceType.mobile ? 64 : 72,
+                        icon: Icon(Icons.account_balance_wallet_rounded, size: deviceType == DeviceType.mobile ? 24 : 28),
+                        text: controller.tabNames[2],
                       ),
                       // Tracking
                       Tab(
                         height: deviceType == DeviceType.mobile ? 64 : 72,
-                        child: _AnimatedTabIcon(
-                          controller: controller.tabController,
-                          index: 3,
-                          icon: Icons.local_shipping_outlined,
-                          label: controller.tabNames[3],
-                        ),
+                        icon: Icon(Icons.local_shipping_outlined, size: deviceType == DeviceType.mobile ? 24 : 28),
+                        text: controller.tabNames[3],
                       ),
                       // Profile
                       Tab(
                         height: deviceType == DeviceType.mobile ? 64 : 72,
-                        child: _AnimatedTabIcon(
-                          controller: controller.tabController,
-                          index: 4,
-                          icon: Icons.person_outline_rounded,
-                          label: controller.tabNames[4],
-                        ),
+                        icon: Icon(Icons.person_outline_rounded, size: deviceType == DeviceType.mobile ? 24 : 28),
+                        text: controller.tabNames[4],
                       ),
                     ],
                   ),
@@ -258,9 +277,9 @@ class HomeView extends GetView<HomeController> {
         body: TabBarView(
           controller: controller.tabController,
           children: const [
-            AccueilView(),
-            SearchView(),
+            HomeItemView(),
             ChatView(),
+            WalletView(),
             TrackingView(),
             ProfileView(),
           ],
@@ -326,60 +345,104 @@ class HomeView extends GetView<HomeController> {
 
                     SizedBox(height: AppThemeSystem.getElementSpacing(context)),
 
-                    // Username
-                    Text(
-                      'Kira',
-                      style: context.textStyle(
-                        FontSizeType.h4,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
-                    ),
+                    // User info from storage
+                    Builder(
+                      builder: (context) {
+                        final user = StorageService.getUser();
+                        final isAuthenticated = StorageService.isAuthenticated;
 
-                    SizedBox(height: 6),
+                        if (isAuthenticated && user != null && user.phone != null) {
+                          // Extract country code and phone number
+                          String phone = user.phone!;
+                          String countryCode = '+237';
+                          String phoneNumber = phone;
 
-                    // Numéro avec flag du pays
-                    Row(
-                      children: [
-                        // Flag Cameroun
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 4,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.2),
-                            borderRadius: context.borderRadius(BorderRadiusType.small),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
+                          if (phone.startsWith('+')) {
+                            final parts = phone.substring(1).split(RegExp(r'(?<=^\d{3})'));
+                            if (parts.length > 1) {
+                              countryCode = '+${parts[0]}';
+                              phoneNumber = parts.sublist(1).join();
+                            }
+                          }
+
+                          return Row(
                             children: [
-                              Text(
-                                '🇨🇲',
-                                style: TextStyle(fontSize: 16),
+                              // Flag Cameroun
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 4,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withValues(alpha: 0.2),
+                                  borderRadius: context.borderRadius(BorderRadiusType.small),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      '🇨🇲',
+                                      style: TextStyle(fontSize: 16),
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      countryCode,
+                                      style: context.textStyle(
+                                        FontSizeType.caption,
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               ),
-                              const SizedBox(width: 4),
-                              Text(
-                                '+237',
-                                style: context.textStyle(
-                                  FontSizeType.caption,
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w600,
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  phoneNumber,
+                                  style: context.textStyle(
+                                    FontSizeType.body2,
+                                    color: Colors.white.withValues(alpha: 0.95),
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
                                 ),
                               ),
                             ],
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          '658 895 572',
-                          style: context.textStyle(
-                            FontSizeType.body2,
-                            color: Colors.white.withValues(alpha: 0.95),
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ],
+                          );
+                        } else {
+                          // Guest mode
+                          return Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 6,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.2),
+                              borderRadius: context.borderRadius(BorderRadiusType.small),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.person_outline,
+                                  color: Colors.white,
+                                  size: 16,
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  'Mode invité',
+                                  style: context.textStyle(
+                                    FontSizeType.body2,
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        }
+                      },
                     ),
                   ],
                 ),
@@ -399,10 +462,14 @@ class HomeView extends GetView<HomeController> {
                 _buildDrawerItem(
                   context: context,
                   icon: Icons.favorite_rounded,
-                  title: 'Mes préferences',
+                  title: 'Mes préférences',
                   onTap: () {
                     Get.back();
-                    Get.toNamed('/favorites');
+                    AuthGuard.navigateIfAuthenticated(
+                      context,
+                      Routes.PREFERENCES,
+                      featureName: 'vos préférences',
+                    );
                   },
                 ),
                 _buildDrawerItem(
@@ -411,7 +478,11 @@ class HomeView extends GetView<HomeController> {
                   title: 'Mes commandes',
                   onTap: () {
                     Get.back();
-                    Get.toNamed('/shipment');
+                    AuthGuard.navigateIfAuthenticated(
+                      context,
+                      '/shipment',
+                      featureName: 'vos commandes',
+                    );
                   },
                 ),
                 SizedBox(height: AppThemeSystem.getElementSpacing(context)),
@@ -431,16 +502,121 @@ class HomeView extends GetView<HomeController> {
                   badge: 'Nouveau',
                   onTap: () {
                     Get.back();
-                    Get.toNamed('/ship-config');
+                    AuthGuard.navigateIfAuthenticated(
+                      context,
+                      '/ship-config',
+                      featureName: 'le mode livreur',
+                    );
                   },
                 ),
-                _buildDrawerItem(
-                  context: context,
-                  icon: Icons.store_rounded,
-                  title: 'Mode Vendeur',
-                  onTap: () {
-                    Get.back();
-                    Get.toNamed(Routes.VENDOR_CONFIG);
+                Builder(
+                  builder: (context) {
+                    final user = StorageService.getUser();
+                    final isVendor = user?.isVendor ?? false;
+
+                    return Padding(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: AppThemeSystem.getHorizontalPadding(context) * 0.5,
+                        vertical: 2,
+                      ),
+                      child: InkWell(
+                        onTap: () {
+                          Get.back();
+                          // Vérifier l'authentification avant d'accéder au mode vendeur
+                          if (AuthGuard.isGuest) {
+                            AppDialogs.showLoginRequiredDialog(
+                              context,
+                              featureName: 'le mode vendeur',
+                            );
+                          } else {
+                            controller.handleVendorModeNavigation();
+                          }
+                        },
+                        borderRadius: context.borderRadius(BorderRadiusType.small),
+                        child: Container(
+                          padding: EdgeInsets.symmetric(
+                            horizontal: AppThemeSystem.getHorizontalPadding(context) * 0.5,
+                            vertical: AppThemeSystem.getVerticalPadding(context) * 0.5,
+                          ),
+                          child: Row(
+                            children: [
+                              // Icône
+                              Container(
+                                width: 40,
+                                height: 40,
+                                decoration: BoxDecoration(
+                                  color: AppThemeSystem.primaryColor.withValues(alpha: 0.1),
+                                  borderRadius: context.borderRadius(BorderRadiusType.small),
+                                ),
+                                child: Icon(
+                                  Icons.store_rounded,
+                                  color: AppThemeSystem.primaryColor,
+                                  size: 20,
+                                ),
+                              ),
+
+                              SizedBox(width: 12),
+
+                              // Titre
+                              Expanded(
+                                child: Text(
+                                  'Mode Vendeur',
+                                  style: context.textStyle(
+                                    FontSizeType.body2,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ),
+
+                              // Badge vendeur actif
+                              if (isVendor) ...[
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                    vertical: 5,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: AppThemeSystem.successColor.withValues(alpha: 0.15),
+                                    borderRadius: context.borderRadius(BorderRadiusType.small),
+                                    border: Border.all(
+                                      color: AppThemeSystem.successColor.withValues(alpha: 0.3),
+                                      width: 1,
+                                    ),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        Icons.verified_rounded,
+                                        size: 14,
+                                        color: AppThemeSystem.successColor,
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        'Actif',
+                                        style: context.textStyle(
+                                          FontSizeType.overline,
+                                          color: AppThemeSystem.successColor,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                SizedBox(width: 8),
+                              ],
+
+                              // Chevron
+                              Icon(
+                                Icons.chevron_right_rounded,
+                                color: context.secondaryTextColor,
+                                size: 20,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    );
                   },
                 ),
 
@@ -548,7 +724,7 @@ class HomeView extends GetView<HomeController> {
             ),
           ),
 
-          // Footer avec déconnexion
+          // Footer avec déconnexion / connexion
           Container(
             padding: EdgeInsets.all(AppThemeSystem.getHorizontalPadding(context)),
             decoration: BoxDecoration(
@@ -564,52 +740,58 @@ class HomeView extends GetView<HomeController> {
               child: InkWell(
                 onTap: () {
                   Get.back();
-                  // Afficher un dialog de confirmation
-                  Get.dialog(
-                    AlertDialog(
-                      title: Text(
-                        'Déconnexion',
-                        style: context.textStyle(
-                          FontSizeType.h5,
-                          fontWeight: FontWeight.bold,
+                  if (AuthGuard.isGuest) {
+                    // Invité - rediriger vers la page de connexion
+                    Get.toNamed('/login');
+                  } else {
+                    // Utilisateur connecté - afficher dialog de confirmation de déconnexion
+                    Get.dialog(
+                      AlertDialog(
+                        title: Text(
+                          'Déconnexion',
+                          style: context.textStyle(
+                            FontSizeType.h5,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
-                      ),
-                      content: Text(
-                        'Êtes-vous sûr de vouloir vous déconnecter ?',
-                        style: context.textStyle(FontSizeType.body2),
-                      ),
-                      actions: [
-                        TextButton(
-                          onPressed: () => Get.back(),
-                          child: Text(
-                            'Annuler',
-                            style: context.textStyle(
-                              FontSizeType.button,
-                              color: context.secondaryTextColor,
+                        content: Text(
+                          'Êtes-vous sûr de vouloir vous déconnecter ?',
+                          style: context.textStyle(FontSizeType.body2),
+                        ),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Get.back(),
+                            child: Text(
+                              'Annuler',
+                              style: context.textStyle(
+                                FontSizeType.button,
+                                color: context.secondaryTextColor,
+                              ),
                             ),
                           ),
-                        ),
-                        ElevatedButton(
-                          onPressed: () {
-                            Get.back();
-                            Get.offAllNamed('/login');
-                          },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppThemeSystem.errorColor,
-                            foregroundColor: Colors.white,
-                          ),
-                          child: Text(
-                            'Déconnexion',
-                            style: context.textStyle(
-                              FontSizeType.button,
-                              color: Colors.white,
-                              fontWeight: FontWeight.w600,
+                          ElevatedButton(
+                            onPressed: () async {
+                              Get.back();
+                              await AuthService.logout();
+                              Get.offAllNamed('/login');
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppThemeSystem.errorColor,
+                              foregroundColor: Colors.white,
+                            ),
+                            child: Text(
+                              'Déconnexion',
+                              style: context.textStyle(
+                                FontSizeType.button,
+                                color: Colors.white,
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
                           ),
-                        ),
-                      ],
-                    ),
-                  );
+                        ],
+                      ),
+                    );
+                  }
                 },
                 borderRadius: context.borderRadius(BorderRadiusType.medium),
                 child: Container(
@@ -618,10 +800,14 @@ class HomeView extends GetView<HomeController> {
                     vertical: AppThemeSystem.getVerticalPadding(context) * 0.75,
                   ),
                   decoration: BoxDecoration(
-                    color: AppThemeSystem.errorColor.withValues(alpha: 0.1),
+                    color: AuthGuard.isGuest
+                        ? AppThemeSystem.primaryColor.withValues(alpha: 0.1)
+                        : AppThemeSystem.errorColor.withValues(alpha: 0.1),
                     borderRadius: context.borderRadius(BorderRadiusType.medium),
                     border: Border.all(
-                      color: AppThemeSystem.errorColor.withValues(alpha: 0.3),
+                      color: AuthGuard.isGuest
+                          ? AppThemeSystem.primaryColor.withValues(alpha: 0.3)
+                          : AppThemeSystem.errorColor.withValues(alpha: 0.3),
                       width: 1,
                     ),
                   ),
@@ -629,16 +815,20 @@ class HomeView extends GetView<HomeController> {
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Icon(
-                        Icons.logout_rounded,
-                        color: AppThemeSystem.errorColor,
+                        AuthGuard.isGuest ? Icons.login_rounded : Icons.logout_rounded,
+                        color: AuthGuard.isGuest
+                            ? AppThemeSystem.primaryColor
+                            : AppThemeSystem.errorColor,
                         size: 22,
                       ),
                       const SizedBox(width: 12),
                       Text(
-                        'Déconnexion',
+                        AuthGuard.isGuest ? 'Se connecter' : 'Déconnexion',
                         style: context.textStyle(
                           FontSizeType.body1,
-                          color: AppThemeSystem.errorColor,
+                          color: AuthGuard.isGuest
+                              ? AppThemeSystem.primaryColor
+                              : AppThemeSystem.errorColor,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
@@ -849,69 +1039,1105 @@ class HomeView extends GetView<HomeController> {
   }
 }
 
-/// Widget d'icône de tab animé
-class _AnimatedTabIcon extends StatefulWidget {
-  final TabController controller;
-  final int index;
-  final IconData icon;
-  final String label;
 
-  const _AnimatedTabIcon({
-    required this.controller,
-    required this.index,
-    required this.icon,
-    required this.label,
+class HomeItemView extends GetView<HomeController> {
+  const HomeItemView({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Obx(() {
+      if (controller.isLoadingNearby.value && controller.isLoadingRecent.value) {
+        return _buildLoadingState(context);
+      }
+
+      return RefreshIndicator(
+        onRefresh: controller.refreshProducts,
+        color: AppThemeSystem.primaryColor,
+        child: CustomScrollView(
+          slivers: [
+            // Carousel de bannières
+            SliverToBoxAdapter(
+              child: _buildBannerCarousel(context),
+            ),
+
+            // Catégories horizontales
+            SliverToBoxAdapter(
+              child: _buildCategories(context),
+            ),
+
+            // Afficher les sections "Proche de vous" et "Récemment postés" seulement si "Tous" est sélectionné
+            if (controller.selectedCategory.value == 'Tous') ...[
+              // Section "Proche de vous"
+              SliverToBoxAdapter(
+                child: _buildSectionTitle(
+                  context,
+                  'Proche de vous',
+                  Icons.location_on_rounded,
+                  onSeeAll: controller.onSeeAllNearby,
+                ),
+              ),
+
+              // Liste horizontale de produits proches
+              SliverToBoxAdapter(
+                child: AnimatedSwitcher(
+                  duration: AppConstants.shimmerFadeTransitionDuration,
+                  switchInCurve: Curves.easeIn,
+                  switchOutCurve: Curves.easeOut,
+                  child: controller.isLoadingNearby.value
+                      ? ShimmerWidgets.horizontalProductListShimmer(context)
+                      : _buildHorizontalProductList(context, controller.nearbyProducts),
+                ),
+              ),
+
+              // Section "Récemment postés"
+              SliverToBoxAdapter(
+                child: _buildSectionTitle(
+                  context,
+                  'Récemment postés',
+                  Icons.schedule_rounded,
+                ),
+              ),
+
+              // Grille de produits récents
+              controller.isLoadingRecent.value
+                  ? SliverPadding(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: AppThemeSystem.getHorizontalPadding(context),
+                      ),
+                      sliver: SliverGrid(
+                        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount:
+                              AppThemeSystem.getDeviceType(context) == DeviceType.mobile ? 2 : 3,
+                          childAspectRatio: 0.75,
+                          crossAxisSpacing: 12,
+                          mainAxisSpacing: 12,
+                        ),
+                        delegate: SliverChildBuilderDelegate(
+                          (context, index) => ShimmerWidgets.productCardShimmer(context),
+                          childCount: 6,
+                        ),
+                      ),
+                    )
+                  : controller.recentProducts.isEmpty
+                      ? SliverToBoxAdapter(
+                          child: Padding(
+                            padding: const EdgeInsets.all(32),
+                            child: Center(
+                              child: Column(
+                                children: [
+                                  Icon(Icons.inventory_2_outlined,
+                                      size: 64, color: AppThemeSystem.grey400),
+                                  const SizedBox(height: 16),
+                                  Text(
+                                    'Aucun produit récent',
+                                    style: context.textStyle(
+                                      FontSizeType.body1,
+                                      color: AppThemeSystem.grey600,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        )
+                      : SliverPadding(
+                          padding: EdgeInsets.symmetric(
+                            horizontal: AppThemeSystem.getHorizontalPadding(context),
+                          ),
+                          sliver: SliverGrid(
+                            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount:
+                                  AppThemeSystem.getDeviceType(context) == DeviceType.mobile ? 2 : 3,
+                              childAspectRatio: 0.75,
+                              crossAxisSpacing: 12,
+                              mainAxisSpacing: 12,
+                            ),
+                            delegate: SliverChildBuilderDelegate(
+                              (context, index) {
+                                final product = controller.recentProducts[index];
+                                return _FadeInProduct(
+                                  delay: Duration(milliseconds: index * 50),
+                                  child: _buildProductCard(context, product),
+                                );
+                              },
+                              childCount: controller.recentProducts.length,
+                            ),
+                          ),
+                        ),
+
+              // Bouton "Voir plus" stylé
+              if (controller.recentProducts.isNotEmpty)
+                SliverToBoxAdapter(
+                  child: _buildSeeMoreButton(context, controller.onSeeAllRecent),
+                ),
+            ],
+
+            // Afficher les produits filtrés par catégorie
+            if (controller.selectedCategory.value != 'Tous') ...[
+              // Section titre avec la catégorie sélectionnée
+              SliverToBoxAdapter(
+                child: _buildSectionTitle(
+                  context,
+                  controller.selectedCategory.value,
+                  Icons.category_rounded,
+                ),
+              ),
+
+              // Grille de produits filtrés
+              controller.isLoadingProducts.value
+                  ? ShimmerWidgets.productGridShimmer(context, itemCount: 6)
+                  : controller.products.isEmpty
+                      ? SliverToBoxAdapter(
+                          child: Padding(
+                            padding: const EdgeInsets.all(32),
+                            child: Center(
+                              child: Column(
+                                children: [
+                                  Icon(Icons.inventory_2_outlined,
+                                      size: 64, color: AppThemeSystem.grey400),
+                                  const SizedBox(height: 16),
+                                  Text(
+                                    'Aucun produit dans cette catégorie',
+                                    style: context.textStyle(
+                                      FontSizeType.body1,
+                                      color: AppThemeSystem.grey600,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        )
+                      : SliverPadding(
+                          padding: EdgeInsets.symmetric(
+                            horizontal: AppThemeSystem.getHorizontalPadding(context),
+                          ),
+                          sliver: SliverGrid(
+                            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount:
+                                  AppThemeSystem.getDeviceType(context) == DeviceType.mobile ? 2 : 3,
+                              childAspectRatio: 0.75,
+                              crossAxisSpacing: 12,
+                              mainAxisSpacing: 12,
+                            ),
+                            delegate: SliverChildBuilderDelegate(
+                              (context, index) {
+                                final product = controller.products[index];
+                                return _FadeInProduct(
+                                  delay: Duration(milliseconds: index * 50),
+                                  child: _buildProductCard(context, product),
+                                );
+                              },
+                              childCount: controller.products.length,
+                            ),
+                          ),
+                        ),
+
+              // Indicateur de chargement pour la pagination
+              if (controller.isLoadingMore.value)
+                SliverToBoxAdapter(
+                  child: Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: CircularProgressIndicator(
+                        color: AppThemeSystem.primaryColor,
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+
+            // Espacement en bas
+            SliverToBoxAdapter(
+              child: SizedBox(height: AppThemeSystem.getVerticalPadding(context) * 2),
+            ),
+          ],
+        ),
+      );
+    });
+  }
+
+  /// Build shimmer loading state for initial load
+  Widget _buildLoadingState(BuildContext context) {
+    final deviceType = AppThemeSystem.getDeviceType(context);
+
+    return CustomScrollView(
+      slivers: [
+        // Banner shimmer
+        SliverToBoxAdapter(
+          child: Container(
+            margin: const EdgeInsets.only(top: 16, bottom: 12),
+            height: deviceType == DeviceType.mobile ? 220 : 260,
+            child: ShimmerWidgets.bannerShimmer(context),
+          ),
+        ),
+
+        // Categories shimmer
+        SliverToBoxAdapter(
+          child: ShimmerWidgets.categoriesShimmer(context),
+        ),
+
+        // Section title placeholder
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: EdgeInsets.only(
+              left: AppThemeSystem.getHorizontalPadding(context),
+              right: AppThemeSystem.getHorizontalPadding(context),
+              top: 8,
+              bottom: 12,
+            ),
+            child: Container(
+              width: 150,
+              height: 24,
+              decoration: BoxDecoration(
+                color: AppThemeSystem.grey200,
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+          ),
+        ),
+
+        // Horizontal products shimmer
+        SliverToBoxAdapter(
+          child: ShimmerWidgets.horizontalProductListShimmer(context),
+        ),
+
+        // Section title placeholder
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: EdgeInsets.only(
+              left: AppThemeSystem.getHorizontalPadding(context),
+              right: AppThemeSystem.getHorizontalPadding(context),
+              top: 8,
+              bottom: 12,
+            ),
+            child: Container(
+              width: 150,
+              height: 24,
+              decoration: BoxDecoration(
+                color: AppThemeSystem.grey200,
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+          ),
+        ),
+
+        // Grid products shimmer
+        ShimmerWidgets.productGridShimmer(context, itemCount: 6),
+
+        // Espacement en bas
+        SliverToBoxAdapter(
+          child: SizedBox(height: AppThemeSystem.getVerticalPadding(context) * 2),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCategories(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      height: 48,
+      child: ListView.builder(
+        scrollDirection: Axis.horizontal,
+        padding: EdgeInsets.symmetric(
+          horizontal: AppThemeSystem.getHorizontalPadding(context),
+        ),
+        itemCount: controller.categories.length,
+        itemBuilder: (context, index) {
+          final category = controller.categories[index];
+
+          // Find the full category object for SVG icon
+          Map<String, dynamic>? categoryData;
+          if (index > 0) { // Skip "Tous" at index 0
+            categoryData = controller.apiCategories.firstWhereOrNull(
+              (cat) => cat['name'] == category,
+            );
+          }
+
+          return Obx(() {
+            final isSelected = controller.selectedCategory.value == category;
+
+            return GestureDetector(
+              onTap: () => controller.selectCategory(category),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                margin: const EdgeInsets.only(right: 12),
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                decoration: BoxDecoration(
+                  gradient: isSelected
+                      ? LinearGradient(
+                          colors: [
+                            AppThemeSystem.primaryColor,
+                            AppThemeSystem.primaryColor.withValues(alpha: 0.8),
+                          ],
+                        )
+                      : null,
+                  color: isSelected ? null : AppThemeSystem.getSurfaceColor(context),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: isSelected
+                        ? AppThemeSystem.primaryColor
+                        : AppThemeSystem.getBorderColor(context),
+                    width: isSelected ? 0 : 1,
+                  ),
+                  boxShadow: isSelected
+                      ? [
+                          BoxShadow(
+                            color: AppThemeSystem.primaryColor.withValues(alpha: 0.3),
+                            blurRadius: 8,
+                            offset: const Offset(0, 4),
+                          ),
+                        ]
+                      : null,
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Display category icon
+                    if (index == 0)
+                      // "Tous" category - use default icon
+                      Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: Icon(
+                          Icons.grid_view_rounded,
+                          size: 18,
+                          color: isSelected
+                              ? Colors.white
+                              : AppThemeSystem.getPrimaryTextColor(context),
+                        ),
+                      )
+                    else if (categoryData?['svg_icon'] != null)
+                      // Category with SVG icon
+                      Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: _buildCategorySvgIcon(
+                          categoryData!['svg_icon'],
+                          isSelected,
+                          context,
+                        ),
+                      ),
+                    Text(
+                      category,
+                      style: context.textStyle(
+                        FontSizeType.body2,
+                        fontWeight: FontWeight.w600,
+                        color: isSelected
+                            ? Colors.white
+                            : AppThemeSystem.getPrimaryTextColor(context),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          });
+        },
+      ),
+    );
+  }
+
+  /// Build category SVG icon
+  Widget _buildCategorySvgIcon(String svgIcon, bool isSelected, BuildContext context) {
+    try {
+      return SvgPicture.string(
+        svgIcon,
+        width: 18,
+        height: 18,
+        colorFilter: ColorFilter.mode(
+          isSelected
+              ? Colors.white
+              : AppThemeSystem.getPrimaryTextColor(context),
+          BlendMode.srcIn,
+        ),
+      );
+    } catch (e) {
+      // Fallback to default icon if SVG parsing fails
+      return Icon(
+        Icons.category_rounded,
+        size: 18,
+        color: isSelected
+            ? Colors.white
+            : AppThemeSystem.getPrimaryTextColor(context),
+      );
+    }
+  }
+
+  Widget _buildBannerCarousel(BuildContext context) {
+    final deviceType = AppThemeSystem.getDeviceType(context);
+
+    final bannerData = [
+      {'title': 'Bienvenue sur Asso', 'subtitle': 'Découvrez les meilleures offres près de chez vous'},
+      {'title': 'Livraison Rapide', 'subtitle': 'Recevez vos commandes en moins de 24h'},
+      {'title': 'Prix Imbattables', 'subtitle': 'Les meilleurs prix du marché camerounais'},
+    ];
+
+    // Use API banners or fallback to local assets
+    final bannerCount = controller.banners.isNotEmpty
+        ? controller.banners.length
+        : controller.fallbackBanners.length;
+
+    return Container(
+      margin: const EdgeInsets.only(top: 16, bottom: 12),
+      height: deviceType == DeviceType.mobile ? 220 : 260,
+      child: Column(
+        children: [
+          Expanded(
+            child: PageView.builder(
+              controller: controller.bannerController,
+              itemCount: bannerCount,
+              onPageChanged: (index) {
+                controller.currentBannerIndex.value = index;
+              },
+              itemBuilder: (context, index) {
+                final data = bannerData[index % bannerData.length];
+
+                return Container(
+                  margin: EdgeInsets.symmetric(
+                    horizontal: AppThemeSystem.getHorizontalPadding(context),
+                  ),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppThemeSystem.primaryColor.withValues(alpha: 0.15),
+                        blurRadius: 16,
+                        offset: const Offset(0, 8),
+                        spreadRadius: -4,
+                      ),
+                    ],
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(16),
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        // Image - API or local
+                        _buildBannerImage(index),
+
+                        // Gradient overlay
+                        Container(
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              colors: [
+                                Colors.black.withValues(alpha: 0.3),
+                                Colors.black.withValues(alpha: 0.7),
+                              ],
+                            ),
+                          ),
+                        ),
+
+                        // Content
+                        Positioned(
+                          left: AppThemeSystem.getHorizontalPadding(context),
+                          right: AppThemeSystem.getHorizontalPadding(context),
+                          bottom: AppThemeSystem.getVerticalPadding(context),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                controller.banners.isNotEmpty
+                                    ? (controller.banners[index]['title'] ?? data['title']!)
+                                    : data['title']!,
+                                style: context.textStyle(
+                                  deviceType == DeviceType.mobile ? FontSizeType.h3 : FontSizeType.h2,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                data['subtitle']!,
+                                style: context.textStyle(
+                                  deviceType == DeviceType.mobile ? FontSizeType.body2 : FontSizeType.body1,
+                                  color: Colors.white.withValues(alpha: 0.95),
+                                  height: 1.4,
+                                ),
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              const SizedBox(height: 16),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                                decoration: BoxDecoration(
+                                  gradient: LinearGradient(
+                                    colors: [AppThemeSystem.primaryColor, AppThemeSystem.tertiaryColor],
+                                  ),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Text(
+                                  'Découvrir',
+                                  style: context.textStyle(
+                                    FontSizeType.button,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+          const SizedBox(height: 16),
+          Obx(() => Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: List.generate(
+                  bannerCount,
+                  (index) => AnimatedContainer(
+                    duration: const Duration(milliseconds: 300),
+                    margin: const EdgeInsets.symmetric(horizontal: 4),
+                    width: controller.currentBannerIndex.value == index ? 28 : 8,
+                    height: 8,
+                    decoration: BoxDecoration(
+                      color: controller.currentBannerIndex.value == index
+                          ? AppThemeSystem.primaryColor
+                          : AppThemeSystem.grey300,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                  ),
+                ),
+              )),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBannerImage(int index) {
+    if (controller.banners.isNotEmpty && controller.banners[index]['image'] != null) {
+      return Image.network(
+        controller.banners[index]['image'],
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => Image.asset(
+          controller.fallbackBanners[index % controller.fallbackBanners.length],
+          fit: BoxFit.cover,
+        ),
+      );
+    }
+    return Image.asset(
+      controller.fallbackBanners[index % controller.fallbackBanners.length],
+      fit: BoxFit.cover,
+    );
+  }
+
+  /// Build product image widget (network or asset fallback)
+  Widget _buildProductImage(Map<String, dynamic> product, {BoxFit fit = BoxFit.cover}) {
+    final primaryImage = product['primary_image'];
+    final images = product['images'] as List?;
+
+    String? imageUrl;
+    if (primaryImage != null && primaryImage.toString().isNotEmpty) {
+      imageUrl = primaryImage.toString();
+    } else if (images != null && images.isNotEmpty) {
+      imageUrl = images[0] is Map ? images[0]['url'] : images[0].toString();
+    }
+
+    if (imageUrl != null && imageUrl.startsWith('http')) {
+      return Image.network(
+        imageUrl,
+        fit: fit,
+        errorBuilder: (_, __, ___) => _buildPlaceholderImage(),
+        loadingBuilder: (_, child, loadingProgress) {
+          if (loadingProgress == null) return child;
+          return Center(
+            child: CircularProgressIndicator(
+              value: loadingProgress.expectedTotalBytes != null
+                  ? loadingProgress.cumulativeBytesLoaded / loadingProgress.expectedTotalBytes!
+                  : null,
+              strokeWidth: 2,
+              color: AppThemeSystem.primaryColor,
+            ),
+          );
+        },
+      );
+    }
+
+    // Fallback: try as local asset
+    final localImage = product['image'];
+    if (localImage != null && localImage.toString().isNotEmpty) {
+      return Image.asset(localImage.toString(), fit: fit,
+        errorBuilder: (_, __, ___) => _buildPlaceholderImage(),
+      );
+    }
+
+    return _buildPlaceholderImage();
+  }
+
+  Widget _buildPlaceholderImage() {
+    return Container(
+      color: AppThemeSystem.grey200,
+      child: const Center(
+        child: Icon(Icons.image_outlined, size: 40, color: Colors.grey),
+      ),
+    );
+  }
+
+  /// Format price for display
+  String _formatPrice(Map<String, dynamic> product) {
+    final formattedPrice = product['formatted_price'];
+    if (formattedPrice != null) return formattedPrice.toString();
+
+    final price = product['price'];
+    if (price != null) {
+      if (price is num) {
+        return '${price.toInt().toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (match) => '${match[1]} ')} FCFA';
+      }
+      return '$price FCFA';
+    }
+    return 'Prix non défini';
+  }
+
+  /// Get product location
+  String _getLocation(Map<String, dynamic> product) {
+    return product['location']?.toString() ?? product['shop']?['address']?.toString() ?? '';
+  }
+
+  Widget _buildSectionTitle(BuildContext context, String title, IconData icon, {VoidCallback? onSeeAll}) {
+    return Padding(
+      padding: EdgeInsets.only(
+        left: AppThemeSystem.getHorizontalPadding(context),
+        right: AppThemeSystem.getHorizontalPadding(context),
+        top: 8,
+        bottom: 12,
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AppThemeSystem.primaryColor.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(icon, color: AppThemeSystem.primaryColor, size: 20),
+              ),
+              const SizedBox(width: 12),
+              Text(title, style: context.textStyle(FontSizeType.h4, fontWeight: FontWeight.bold)),
+            ],
+          ),
+          if (onSeeAll != null)
+            TextButton(
+              onPressed: onSeeAll,
+              child: Row(
+                children: [
+                  Text(
+                    'Voir plus',
+                    style: context.textStyle(
+                      FontSizeType.body2,
+                      color: AppThemeSystem.primaryColor,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  Icon(Icons.arrow_forward_ios_rounded, size: 14, color: AppThemeSystem.primaryColor),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHorizontalProductList(BuildContext context, List<Map<String, dynamic>> products) {
+    if (products.isEmpty) {
+      return const SizedBox(height: 16);
+    }
+
+    return Container(
+      height: 280,
+      margin: const EdgeInsets.only(bottom: 8),
+      child: ListView.builder(
+        scrollDirection: Axis.horizontal,
+        padding: EdgeInsets.symmetric(
+          horizontal: AppThemeSystem.getHorizontalPadding(context),
+        ),
+        itemCount: products.length,
+        itemBuilder: (context, index) {
+          final product = products[index];
+          return _FadeInProduct(
+            delay: Duration(milliseconds: index * 50),
+            child: Container(
+              width: 180,
+              margin: const EdgeInsets.only(right: 16),
+              child: GestureDetector(
+              onTap: () => Get.toNamed('/product', arguments: product),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: AppThemeSystem.getSurfaceColor(context),
+                  borderRadius: context.borderRadius(BorderRadiusType.medium),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.08),
+                      blurRadius: 12,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Stack(
+                        children: [
+                          ClipRRect(
+                            borderRadius: BorderRadius.only(
+                              topLeft: Radius.circular(AppThemeSystem.getBorderRadius(context, BorderRadiusType.medium)),
+                              topRight: Radius.circular(AppThemeSystem.getBorderRadius(context, BorderRadiusType.medium)),
+                            ),
+                            child: SizedBox.expand(child: _buildProductImage(product)),
+                          ),
+                          Positioned(
+                            top: 8,
+                            right: 8,
+                            child: Container(
+                              padding: const EdgeInsets.all(6),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                shape: BoxShape.circle,
+                                boxShadow: [
+                                  BoxShadow(color: Colors.black.withValues(alpha: 0.15), blurRadius: 6),
+                                ],
+                              ),
+                              child: Icon(
+                                product['is_favorite'] == true
+                                    ? Icons.favorite_rounded
+                                    : Icons.favorite_border_rounded,
+                                size: 16,
+                                color: product['is_favorite'] == true
+                                    ? AppThemeSystem.errorColor
+                                    : AppThemeSystem.grey600,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            product['name'] ?? 'Produit',
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: context.textStyle(FontSizeType.body2, fontWeight: FontWeight.w600),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            _formatPrice(product),
+                            style: context.textStyle(
+                              FontSizeType.subtitle2,
+                              fontWeight: FontWeight.bold,
+                              color: AppThemeSystem.primaryColor,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          if (_getLocation(product).isNotEmpty)
+                            Row(
+                              children: [
+                                Icon(Icons.location_on_outlined, size: 14, color: AppThemeSystem.grey600),
+                                const SizedBox(width: 4),
+                                Expanded(
+                                  child: Text(
+                                    _getLocation(product),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: context.textStyle(FontSizeType.caption, color: AppThemeSystem.grey600),
+                                  ),
+                                ),
+                              ],
+                            ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildProductCard(BuildContext context, Map<String, dynamic> product) {
+    return GestureDetector(
+      onTap: () => Get.toNamed('/product', arguments: product),
+      child: Container(
+        decoration: BoxDecoration(
+          color: AppThemeSystem.getSurfaceColor(context),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: AppThemeSystem.getBorderColor(context).withValues(alpha: 0.5),
+            width: 1,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.06),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
+              spreadRadius: -2,
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Stack(
+                children: [
+                  ClipRRect(
+                    borderRadius: const BorderRadius.only(
+                      topLeft: Radius.circular(16),
+                      topRight: Radius.circular(16),
+                    ),
+                    child: SizedBox.expand(child: _buildProductImage(product)),
+                  ),
+                  Container(
+                    decoration: BoxDecoration(
+                      borderRadius: const BorderRadius.only(
+                        topLeft: Radius.circular(16),
+                        topRight: Radius.circular(16),
+                      ),
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          Colors.black.withValues(alpha: 0),
+                          Colors.black.withValues(alpha: 0.02),
+                        ],
+                      ),
+                    ),
+                  ),
+                  Positioned(
+                    top: 10,
+                    right: 10,
+                    child: Container(
+                      padding: const EdgeInsets.all(7),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.95),
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(color: Colors.black.withValues(alpha: 0.15), blurRadius: 8),
+                        ],
+                      ),
+                      child: Icon(
+                        product['is_favorite'] == true
+                            ? Icons.favorite_rounded
+                            : Icons.favorite_border_rounded,
+                        size: 18,
+                        color: product['is_favorite'] == true
+                            ? AppThemeSystem.errorColor
+                            : AppThemeSystem.grey700,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    product['name'] ?? 'Produit',
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: context.textStyle(FontSizeType.body2, fontWeight: FontWeight.w600),
+                  ),
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: AppThemeSystem.primaryColor.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      _formatPrice(product),
+                      style: context.textStyle(
+                        FontSizeType.body2,
+                        fontWeight: FontWeight.bold,
+                        color: AppThemeSystem.primaryColor,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  if (_getLocation(product).isNotEmpty)
+                    Row(
+                      children: [
+                        Icon(Icons.location_on_rounded, size: 14, color: AppThemeSystem.grey600),
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: Text(
+                            _getLocation(product),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: context.textStyle(FontSizeType.caption, color: AppThemeSystem.grey600),
+                          ),
+                        ),
+                      ],
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Bouton "Voir plus" stylé
+  Widget _buildSeeMoreButton(BuildContext context, VoidCallback onTap) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Padding(
+      padding: EdgeInsets.symmetric(
+        horizontal: AppThemeSystem.getHorizontalPadding(context),
+        vertical: AppThemeSystem.getVerticalPadding(context),
+      ),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 24),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                AppThemeSystem.primaryColor.withValues(alpha: 0.1),
+                AppThemeSystem.tertiaryColor.withValues(alpha: 0.1),
+              ],
+            ),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: AppThemeSystem.primaryColor.withValues(alpha: 0.3),
+              width: 2,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: AppThemeSystem.primaryColor.withValues(alpha: 0.1),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      AppThemeSystem.primaryColor,
+                      AppThemeSystem.tertiaryColor,
+                    ],
+                  ),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.grid_view_rounded,
+                  color: Colors.white,
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Text(
+                'Voir tous les produits',
+                style: context.textStyle(
+                  FontSizeType.body1,
+                  fontWeight: FontWeight.w700,
+                  color: AppThemeSystem.primaryColor,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Icon(
+                Icons.arrow_forward_rounded,
+                color: AppThemeSystem.primaryColor,
+                size: 20,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Fade-in animation widget for smooth product appearance
+class _FadeInProduct extends StatefulWidget {
+  final Widget child;
+  final Duration delay;
+
+  const _FadeInProduct({
+    required this.child,
+    this.delay = Duration.zero,
   });
 
   @override
-  State<_AnimatedTabIcon> createState() => _AnimatedTabIconState();
+  State<_FadeInProduct> createState() => _FadeInProductState();
 }
 
-class _AnimatedTabIconState extends State<_AnimatedTabIcon> {
+class _FadeInProductState extends State<_FadeInProduct>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _opacityAnimation;
+  late Animation<Offset> _slideAnimation;
+
   @override
   void initState() {
     super.initState();
-    widget.controller.addListener(_onTabChanged);
+    _controller = AnimationController(
+      duration: AppConstants.shimmerFadeTransitionDuration,
+      vsync: this,
+    );
+
+    _opacityAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeIn),
+    );
+
+    _slideAnimation = Tween<Offset>(
+      begin: const Offset(0, 0.1),
+      end: Offset.zero,
+    ).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic),
+    );
+
+    // Start animation after delay
+    Future.delayed(widget.delay, () {
+      if (mounted) {
+        _controller.forward();
+      }
+    });
   }
 
   @override
   void dispose() {
-    widget.controller.removeListener(_onTabChanged);
+    _controller.dispose();
     super.dispose();
-  }
-
-  void _onTabChanged() {
-    if (mounted) {
-      setState(() {});
-    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final isSelected = widget.controller.index == widget.index;
-    final deviceType = AppThemeSystem.getDeviceType(context);
-
-    final color = isSelected
-        ? AppThemeSystem.primaryColor
-        : (isDark ? AppThemeSystem.grey400 : AppThemeSystem.grey600);
-
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Icon(
-          widget.icon,
-          size: deviceType == DeviceType.mobile ? 24 : 28,
-          color: color,
-        ),
-        const SizedBox(height: 4),
-        Text(
-          widget.label,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: TextStyle(color: color),
-        ),
-      ],
+    return FadeTransition(
+      opacity: _opacityAnimation,
+      child: SlideTransition(
+        position: _slideAnimation,
+        child: widget.child,
+      ),
     );
   }
 }

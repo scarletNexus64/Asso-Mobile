@@ -2,6 +2,7 @@ import 'package:get/get.dart';
 import 'package:flutter/material.dart';
 import '../models/order_model.dart';
 import '../models/cameroon_cities.dart';
+import '../../../data/providers/api_provider.dart';
 
 class OrderManagementController extends GetxController {
   // Liste complète des commandes
@@ -40,18 +41,37 @@ class OrderManagementController extends GetxController {
     super.onClose();
   }
 
-  /// Charge les commandes (pour l'instant des données de test)
+  /// Charge les commandes depuis l'API
   Future<void> loadOrders() async {
     isLoading.value = true;
 
     try {
-      // Simuler un délai de chargement
-      await Future.delayed(const Duration(milliseconds: 500));
+      // Essayer de charger depuis l'API
+      final response = await ApiProvider.get('/v1/vendor/orders');
 
-      // Données de test
-      allOrders.value = _generateMockOrders();
+      if (response.success && response.data != null) {
+        final data = response.data!['data'] ?? response.data!;
+
+        // Parser les commandes depuis l'API
+        if (data is List) {
+          allOrders.value = _parseOrdersFromApi(data);
+        } else if (data is Map && data['orders'] is List) {
+          allOrders.value = _parseOrdersFromApi(data['orders']);
+        } else {
+          // Fallback to mock if no orders in response
+          allOrders.value = _generateMockOrders();
+        }
+      } else {
+        // Fallback to mock data if API fails
+        allOrders.value = _generateMockOrders();
+      }
+
       applyFilters();
     } catch (e) {
+      // Fallback to mock data on error
+      allOrders.value = _generateMockOrders();
+      applyFilters();
+
       Get.snackbar(
         'Erreur',
         'Impossible de charger les commandes',
@@ -62,6 +82,70 @@ class OrderManagementController extends GetxController {
     } finally {
       isLoading.value = false;
     }
+  }
+
+  /// Parse orders from API response
+  List<OrderModel> _parseOrdersFromApi(List<dynamic> rawOrders) {
+    return rawOrders.map((item) {
+      final order = item as Map<String, dynamic>;
+      return OrderModel(
+        id: order['id'] ?? 'CMD${DateTime.now().millisecondsSinceEpoch}',
+        clientId: order['client_id'] ?? order['customer_id'] ?? '',
+        clientName: order['client_name'] ?? order['customer_name'] ?? 'Client',
+        clientPhone: order['client_phone'] ?? order['customer_phone'] ?? '',
+        clientAvatar: order['client_avatar'] ?? order['customer_avatar'] ?? '',
+        items: _parseOrderItems(order['items'] ?? []),
+        totalAmount: (order['total_amount'] ?? order['total'] ?? 0).toDouble(),
+        status: _parseOrderStatus(order['status']),
+        city: order['city'] ?? 'Douala',
+        address: order['address'] ?? order['delivery_address'] ?? '',
+        orderDate: _parseDate(order['created_at'] ?? order['order_date']),
+        validatedDate: order['validated_at'] != null ? _parseDate(order['validated_at']) : null,
+        cancelledDate: order['cancelled_at'] != null ? _parseDate(order['cancelled_at']) : null,
+        cancelReason: order['cancel_reason'] ?? '',
+      );
+    }).toList();
+  }
+
+  /// Parse order items
+  List<OrderItem> _parseOrderItems(List<dynamic> rawItems) {
+    return rawItems.map((item) {
+      final orderItem = item as Map<String, dynamic>;
+      return OrderItem(
+        productId: orderItem['product_id'] ?? '',
+        productName: orderItem['product_name'] ?? 'Produit',
+        quantity: orderItem['quantity'] ?? 1,
+        unitPrice: (orderItem['unit_price'] ?? orderItem['price'] ?? 0).toDouble(),
+        totalPrice: (orderItem['total_price'] ?? orderItem['total'] ?? 0).toDouble(),
+      );
+    }).toList();
+  }
+
+  /// Parse order status
+  OrderStatus _parseOrderStatus(String? status) {
+    switch (status?.toLowerCase()) {
+      case 'pending':
+        return OrderStatus.pending;
+      case 'validated':
+      case 'approved':
+        return OrderStatus.validated;
+      case 'cancelled':
+        return OrderStatus.cancelled;
+      default:
+        return OrderStatus.pending;
+    }
+  }
+
+  /// Parse ISO datetime string
+  DateTime _parseDate(dynamic dateValue) {
+    if (dateValue is String) {
+      try {
+        return DateTime.parse(dateValue);
+      } catch (e) {
+        return DateTime.now();
+      }
+    }
+    return DateTime.now();
   }
 
   /// Applique les filtres

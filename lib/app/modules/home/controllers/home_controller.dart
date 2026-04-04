@@ -1,146 +1,588 @@
+import 'dart:developer' as developer;
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import '../../../core/values/constants.dart';
+import '../../../core/utils/auth_guard.dart';
+import '../../../core/utils/app_theme_system.dart';
+import '../../../data/providers/product_service.dart';
+import '../../../data/providers/api_provider.dart';
+import '../../../data/providers/auth_service.dart';
+import '../../../data/providers/storage_service.dart';
+import '../../../routes/app_pages.dart';
+import '../../../core/base/safe_controller_mixin.dart';
 
-class HomeController extends GetxController with GetSingleTickerProviderStateMixin {
-  // Scaffold key pour le drawer
+class HomeController extends GetxController with GetSingleTickerProviderStateMixin, SafeControllerMixin {
   final GlobalKey<ScaffoldState> scaffoldKey = GlobalKey<ScaffoldState>();
 
-  // Tab Controller
   late TabController tabController;
   final RxInt currentTabIndex = 0.obs;
-
-  // Scroll Controller
   final ScrollController nestedScrollController = ScrollController();
 
-  // Tab names
   final List<String> tabNames = [
     'Accueil',
-    'Recherche',
     'Messages',
+    'Portefeuille',
     'Tracking',
     'Profile',
   ];
 
-  // Banner controller pour la page d'accueil
+  // Banner
   final PageController bannerController = PageController();
   final RxInt currentBannerIndex = 0.obs;
-  final RxString selectedCategory = 'Tous'.obs;
+  final RxList<Map<String, dynamic>> banners = <Map<String, dynamic>>[].obs;
 
-  final List<String> banners = [
+  // Categories
+  final RxList<Map<String, dynamic>> apiCategories = <Map<String, dynamic>>[].obs;
+  final RxString selectedCategory = 'Tous'.obs;
+  final RxInt selectedCategoryId = 0.obs;
+  final List<String> categories = ['Tous'];
+  final RxList<String> userPreferredCategorySlugs = <String>[].obs;
+  final RxMap<String, int> categorySlugToIdMap = <String, int>{}.obs;
+
+  // Products
+  final RxList<Map<String, dynamic>> products = <Map<String, dynamic>>[].obs;
+  final RxList<Map<String, dynamic>> nearbyProducts = <Map<String, dynamic>>[].obs;
+  final RxList<Map<String, dynamic>> recentProducts = <Map<String, dynamic>>[].obs;
+  final RxBool isLoadingProducts = false.obs;
+  final RxBool isLoadingNearby = false.obs;
+  final RxBool isLoadingRecent = false.obs;
+  final RxBool isLoadingMore = false.obs;
+  final RxBool hasMoreProducts = true.obs;
+  int _currentPage = 1;
+
+  // User
+  final RxString userName = ''.obs;
+  final RxString userAvatar = ''.obs;
+
+  // Fallback banner images (local assets)
+  final List<String> fallbackBanners = [
     'assets/images/bann1.png',
     'assets/images/bann2.png',
     'assets/images/bann3.png',
   ];
 
-  final List<String> categories = [
-    'Tous',
-    'Vêtements',
-    'Électronique',
-    'Accessoires',
-  ];
-
-  final List<Map<String, dynamic>> products = [
-    {
-      'image': 'assets/images/p1.jpeg',
-      'name': 'T-shirt Design Artistique',
-      'price': '15 000',
-      'location': 'Douala, Cameroun',
-    },
-    {
-      'image': 'assets/images/p2.jpeg',
-      'name': 'Sneakers Premium',
-      'price': '45 000',
-      'location': 'Yaoundé, Cameroun',
-    },
-    {
-      'image': 'assets/images/p3.jpeg',
-      'name': 'Sac à Main Élégant',
-      'price': '25 000',
-      'location': 'Douala, Cameroun',
-    },
-    {
-      'image': 'assets/images/p4.jpeg',
-      'name': 'Montre Connectée',
-      'price': '85 000',
-      'location': 'Yaoundé, Cameroun',
-    },
-    {
-      'image': 'assets/images/p5.jpeg',
-      'name': 'Casque Audio',
-      'price': '35 000',
-      'location': 'Douala, Cameroun',
-    },
-    {
-      'image': 'assets/images/p6.jpeg',
-      'name': 'Lunettes de Soleil',
-      'price': '12 000',
-      'location': 'Bafoussam, Cameroun',
-    },
-    {
-      'image': 'assets/images/p7.jpeg',
-      'name': 'iPhone 14 Pro',
-      'price': '750 000',
-      'location': 'Yaoundé, Cameroun',
-    },
-  ];
-
   @override
   void onInit() {
+    print('');
+    print('========================================');
+    print('🏠 HOME CONTROLLER: onInit() START');
+    print('========================================');
+    print('  └─ Controller hashCode: ${hashCode}');
+
     super.onInit();
+
+    print('  └─ Creating TabController...');
     tabController = TabController(length: tabNames.length, vsync: this);
     tabController.addListener(() {
       currentTabIndex.value = tabController.index;
     });
-    _startBannerAutoScroll();
+    print('  └─ TabController created: ${tabController.hashCode}');
+
+    // Load user info
+    final user = ApiProvider.cachedUser;
+    if (user != null) {
+      userName.value = '${user['first_name'] ?? ''} ${user['last_name'] ?? ''}'.trim();
+      userAvatar.value = user['avatar'] ?? '';
+      print('  └─ User loaded: ${userName.value}');
+    } else {
+      print('  └─ No user found');
+    }
+
+    // Load data - preferences must be loaded first
+    print('  └─ Starting data load...');
+    _loadData();
+
+    // Pagination scroll listener
+    nestedScrollController.addListener(_onScroll);
+
+    print('✅ HOME CONTROLLER: onInit() COMPLETED');
+    print('========================================');
+    print('');
+  }
+
+  @override
+  void onReady() {
+    super.onReady();
+    print('');
+    print('========================================');
+    print('🟢 HOME CONTROLLER: onReady() CALLED');
+    print('========================================');
+    print('  └─ Controller hashCode: ${hashCode}');
+    print('  └─ TabController: ${tabController.hashCode}');
+    print('  └─ Current tab: ${currentTabIndex.value}');
+    print('========================================');
+    print('');
   }
 
   @override
   void onClose() {
-    tabController.dispose();
-    bannerController.dispose();
+    print('');
+    print('========================================');
+    print('🔴 HOME CONTROLLER: onClose() START');
+    print('========================================');
+    print('  └─ Controller hashCode: ${hashCode}');
+    print('  └─ Disposing controllers...');
+
+    markAsDisposed();
     nestedScrollController.dispose();
+    bannerController.dispose();
+    tabController.dispose();
     super.onClose();
+
+    print('✅ HOME CONTROLLER: onClose() COMPLETED');
+    print('========================================');
+    print('');
+  }
+
+  void _onScroll() {
+    if (nestedScrollController.position.pixels >=
+        nestedScrollController.position.maxScrollExtent - 200) {
+      _loadMoreProducts();
+    }
+  }
+
+  /// Load all data in correct order
+  Future<void> _loadData() async {
+    // Load preferences first, then categories (which need preferences)
+    await _loadUserPreferences();
+    await _loadCategories();
+
+    // Load other data in parallel
+    _loadNearbyProducts();
+    _loadRecentProducts();
+    _loadBanners();
+    _startBannerAutoScroll();
+  }
+
+  /// Load user preferences from backend
+  Future<void> _loadUserPreferences() async {
+    // Ne pas charger les préférences si l'utilisateur n'est pas connecté
+    if (!StorageService.isAuthenticated) {
+      developer.log(
+        'User not authenticated - skipping preferences load',
+        name: 'HomeController',
+      );
+      return;
+    }
+
+    try {
+      final response = await AuthService.getPreferences();
+      if (response.success && response.data != null) {
+        final preferences = response.data!['preferences'] as Map<String, dynamic>?;
+        if (preferences != null && preferences['categories'] != null) {
+          final categoriesList = preferences['categories'] as List;
+          userPreferredCategorySlugs.value = categoriesList
+              .map((slug) => slug.toString())
+              .where((slug) => slug.isNotEmpty)
+              .toList();
+
+          developer.log(
+            'User preferred categories loaded: ${userPreferredCategorySlugs.length} slugs',
+            name: 'HomeController',
+          );
+          developer.log(
+            'Preferred slugs: ${userPreferredCategorySlugs.take(5).join(", ")}...',
+            name: 'HomeController',
+          );
+        }
+      }
+    } catch (e) {
+      developer.log(
+        'Failed to load user preferences',
+        name: 'HomeController',
+        error: e.toString(),
+      );
+      // Continue without preferences - will show all categories
+    }
+  }
+
+  Future<void> _loadCategories() async {
+    try {
+      final response = await ProductService.getCategories();
+      if (response.success && response.data != null) {
+        final cats = response.data!['categories'] as List? ?? [];
+        apiCategories.value = cats.map((c) => Map<String, dynamic>.from(c)).toList();
+
+        // Build slug to ID mapping
+        categorySlugToIdMap.clear();
+        for (var cat in apiCategories) {
+          final slug = cat['slug']?.toString();
+          final id = cat['id'];
+          if (slug != null && id != null) {
+            categorySlugToIdMap[slug] = id is int ? id : int.tryParse(id.toString()) ?? 0;
+          }
+        }
+
+        developer.log(
+          'Categories loaded: ${apiCategories.length} categories',
+          name: 'HomeController',
+        );
+
+        // Order categories based on user preferences
+        _orderCategoriesByPreferences();
+      }
+    } catch (e) {
+      developer.log(
+        'Failed to load categories',
+        name: 'HomeController',
+        error: e.toString(),
+      );
+      // Use fallback categories
+      categories.clear();
+      categories.add('Tous');
+      categories.addAll(['Vêtements', 'Électronique', 'Accessoires']);
+    }
+  }
+
+  /// Order categories: preferred first, then others
+  void _orderCategoriesByPreferences() {
+    categories.clear();
+    categories.add('Tous');
+
+    if (userPreferredCategorySlugs.isEmpty) {
+      // No preferences - show all categories in order
+      for (var cat in apiCategories) {
+        categories.add(cat['name'] ?? '');
+      }
+      developer.log(
+        'No preferences - showing all ${apiCategories.length} categories',
+        name: 'HomeController',
+      );
+    } else {
+      // Add preferred categories first
+      final preferredCats = <Map<String, dynamic>>[];
+      final otherCats = <Map<String, dynamic>>[];
+
+      for (var cat in apiCategories) {
+        final catSlug = cat['slug']?.toString() ?? '';
+        if (catSlug.isNotEmpty && userPreferredCategorySlugs.contains(catSlug)) {
+          preferredCats.add(cat);
+        } else {
+          otherCats.add(cat);
+        }
+      }
+
+      // Sort preferred categories by user's preference order
+      preferredCats.sort((a, b) {
+        final aIndex = userPreferredCategorySlugs.indexOf(a['slug']?.toString() ?? '');
+        final bIndex = userPreferredCategorySlugs.indexOf(b['slug']?.toString() ?? '');
+        return aIndex.compareTo(bIndex);
+      });
+
+      // Add preferred categories
+      for (var cat in preferredCats) {
+        categories.add(cat['name'] ?? '');
+      }
+
+      // Add remaining categories
+      for (var cat in otherCats) {
+        categories.add(cat['name'] ?? '');
+      }
+
+      developer.log(
+        'Categories ordered: ${preferredCats.length} preferred, ${otherCats.length} others',
+        name: 'HomeController',
+      );
+    }
+  }
+
+  Future<void> _loadProducts({bool refresh = false}) async {
+    if (refresh) {
+      _currentPage = 1;
+      hasMoreProducts.value = true;
+    }
+
+    isLoadingProducts.value = true;
+    final startTime = DateTime.now();
+
+    try {
+      final response = await ProductService.getProducts(
+        page: _currentPage,
+        categoryId: selectedCategoryId.value > 0 ? selectedCategoryId.value : null,
+      );
+
+      if (response.success && response.data != null) {
+        final productsList = response.data!['products'] as List? ?? [];
+        final pagination = response.data!['pagination'] as Map<String, dynamic>? ?? {};
+
+        if (refresh || _currentPage == 1) {
+          products.value = productsList.map((p) => Map<String, dynamic>.from(p)).toList();
+        } else {
+          products.addAll(productsList.map((p) => Map<String, dynamic>.from(p)));
+        }
+
+        hasMoreProducts.value = pagination['has_more'] ?? false;
+
+        developer.log(
+          'Products loaded: ${productsList.length} items (page $_currentPage, category_id: ${selectedCategoryId.value})',
+          name: 'HomeController',
+        );
+      }
+    } catch (e) {
+      developer.log(
+        'Failed to load products',
+        name: 'HomeController',
+        error: e.toString(),
+      );
+    } finally {
+      // Ensure minimum shimmer duration for smooth transition
+      final elapsed = DateTime.now().difference(startTime);
+      final remaining = AppConstants.shimmerMinimumDuration - elapsed;
+
+      if (remaining.isNegative) {
+        isLoadingProducts.value = false;
+      } else {
+        await Future.delayed(remaining);
+        isLoadingProducts.value = false;
+      }
+    }
+  }
+
+  Future<void> _loadMoreProducts() async {
+    if (isLoadingMore.value || !hasMoreProducts.value) return;
+
+    isLoadingMore.value = true;
+    _currentPage++;
+
+    try {
+      final response = await ProductService.getProducts(
+        page: _currentPage,
+        categoryId: selectedCategoryId.value > 0 ? selectedCategoryId.value : null,
+      );
+
+      if (response.success && response.data != null) {
+        final productsList = response.data!['products'] as List? ?? [];
+        final pagination = response.data!['pagination'] as Map<String, dynamic>? ?? {};
+
+        products.addAll(productsList.map((p) => Map<String, dynamic>.from(p)));
+        hasMoreProducts.value = pagination['has_more'] ?? false;
+      }
+    } catch (e) {
+      _currentPage--;
+      developer.log(
+        'Failed to load more products',
+        name: 'HomeController',
+        error: e.toString(),
+      );
+    } finally {
+      isLoadingMore.value = false;
+    }
+  }
+
+  Future<void> _loadNearbyProducts() async {
+    isLoadingNearby.value = true;
+    final startTime = DateTime.now();
+
+    try {
+      final response = await ProductService.getNearbyProducts(limit: 6);
+      if (response.success && response.data != null) {
+        final productsList = response.data!['products'] as List? ?? [];
+        nearbyProducts.value = productsList.map((p) => Map<String, dynamic>.from(p)).toList();
+
+        developer.log(
+          'Nearby products loaded: ${nearbyProducts.length} items',
+          name: 'HomeController',
+        );
+      }
+    } catch (e) {
+      developer.log(
+        'Failed to load nearby products',
+        name: 'HomeController',
+        error: e.toString(),
+      );
+    } finally {
+      // Ensure minimum shimmer duration for smooth transition
+      final elapsed = DateTime.now().difference(startTime);
+      final remaining = AppConstants.shimmerMinimumDuration - elapsed;
+
+      if (remaining.isNegative) {
+        isLoadingNearby.value = false;
+      } else {
+        await Future.delayed(remaining);
+        isLoadingNearby.value = false;
+      }
+    }
+  }
+
+  Future<void> _loadRecentProducts() async {
+    isLoadingRecent.value = true;
+    final startTime = DateTime.now();
+
+    try {
+      final response = await ProductService.getRecentProducts(limit: 6);
+      if (response.success && response.data != null) {
+        final productsList = response.data!['products'] as List? ?? [];
+        recentProducts.value = productsList.map((p) => Map<String, dynamic>.from(p)).toList();
+
+        developer.log(
+          'Recent products loaded: ${recentProducts.length} items',
+          name: 'HomeController',
+        );
+      }
+    } catch (e) {
+      developer.log(
+        'Failed to load recent products',
+        name: 'HomeController',
+        error: e.toString(),
+      );
+    } finally {
+      // Ensure minimum shimmer duration for smooth transition
+      final elapsed = DateTime.now().difference(startTime);
+      final remaining = AppConstants.shimmerMinimumDuration - elapsed;
+
+      if (remaining.isNegative) {
+        isLoadingRecent.value = false;
+      } else {
+        await Future.delayed(remaining);
+        isLoadingRecent.value = false;
+      }
+    }
+  }
+
+  Future<void> _loadBanners() async {
+    try {
+      final response = await ProductService.getBanners();
+      if (response.success && response.data != null) {
+        final bannerList = response.data!['banners'] as List? ?? [];
+        banners.value = bannerList.map((b) => Map<String, dynamic>.from(b)).toList();
+      }
+    } catch (e) {
+      // Use fallback banners
+    }
   }
 
   void handleTabTap(int index) {
-    currentTabIndex.value = index;
+    // Tabs protégés : Messages (1), Portefeuille (2), Tracking (3), Profile (4)
+    // Tab Accueil (0) est accessible sans connexion
+    final protectedTabs = [1, 2, 3, 4];
+    final tabFeatureNames = {
+      1: 'la messagerie',
+      2: 'le portefeuille',
+      3: 'le tracking de commandes',
+      4: 'votre profil',
+    };
+
+    if (protectedTabs.contains(index) && AuthGuard.isGuest) {
+      // L'utilisateur n'est pas connecté et essaie d'accéder à un tab protégé
+      final context = Get.context;
+      if (context != null) {
+        AppDialogs.showLoginRequiredDialog(
+          context,
+          featureName: tabFeatureNames[index],
+        );
+      }
+      // Rester sur le tab Accueil
+      tabController.animateTo(0);
+      currentTabIndex.value = 0;
+    } else {
+      // Autoriser l'accès au tab
+      currentTabIndex.value = index;
+    }
   }
 
   void _startBannerAutoScroll() {
-    Future.delayed(const Duration(seconds: 3), () {
-      if (bannerController.hasClients) {
-        int nextPage = (currentBannerIndex.value + 1) % banners.length;
-        bannerController.animateToPage(
+    safeDelayed(const Duration(seconds: 3), () {
+      final totalBanners = banners.isNotEmpty ? banners.length : fallbackBanners.length;
+      if (totalBanners > 0) {
+        int nextPage = (currentBannerIndex.value + 1) % totalBanners;
+        safeAnimateToPage(
+          bannerController,
           nextPage,
           duration: const Duration(milliseconds: 400),
           curve: Curves.easeInOut,
         );
         currentBannerIndex.value = nextPage;
-        _startBannerAutoScroll();
       }
+
+      // Continue the loop
+      _startBannerAutoScroll();
     });
   }
 
   void selectCategory(String category) {
     selectedCategory.value = category;
+
+    if (category == 'Tous') {
+      selectedCategoryId.value = 0;
+      // Reload nearby and recent products for "Tous" view
+      _loadNearbyProducts();
+      _loadRecentProducts();
+    } else {
+      final cat = apiCategories.firstWhereOrNull((c) => c['name'] == category);
+      selectedCategoryId.value = cat?['id'] ?? 0;
+      // Load filtered products for specific category
+      _loadProducts(refresh: true);
+    }
+
+    developer.log(
+      'Category selected: $category (id: ${selectedCategoryId.value})',
+      name: 'HomeController',
+    );
   }
 
   void onProductTap(int index) {
-    final product = {
-      ...products[index],
-      'description': 'Un produit de qualité exceptionnelle qui répond à tous vos besoins. Fabriqué avec soin et attention aux détails, ce produit offre un excellent rapport qualité-prix.',
-      'images': [
-        products[index]['image'],
-        products[(index + 1) % products.length]['image'],
-        products[(index + 2) % products.length]['image'],
-      ],
-      'seller': {
-        'name': 'Boutique ${index + 1}',
-        'rating': 4.5,
-        'reviews': 120 + (index * 10),
-      },
-    };
+    if (index < products.length) {
+      final product = products[index];
+      Get.toNamed('/product', arguments: product);
+    }
+  }
 
-    Get.toNamed('/product', arguments: product);
+  Future<void> refreshProducts() async {
+    await Future.wait([
+      _loadNearbyProducts(),
+      _loadRecentProducts(),
+    ]);
+  }
+
+  void onSeeAllNearby() {
+    // Navigate to search with nearby filter
+    Get.toNamed('/search', arguments: {'filter': 'nearby'});
+  }
+
+  void onSeeAllRecent() {
+    // Navigate to search with recent filter
+    Get.toNamed('/search', arguments: {'filter': 'recent'});
+  }
+
+  /// Refresh categories after preferences update
+  Future<void> refreshCategories() async {
+    await _loadUserPreferences();
+    _orderCategoriesByPreferences();
+  }
+
+  /// Handle vendor mode navigation based on user status
+  void handleVendorModeNavigation() {
+    print('');
+    print('========================================');
+    print('🏪 HOME: VENDOR MODE NAVIGATION');
+    print('========================================');
+
+    final user = StorageService.getUser();
+
+    if (user == null) {
+      print('❌ HOME: No user found in storage');
+      Get.snackbar(
+        'Connexion requise',
+        'Veuillez vous connecter pour accéder au mode vendeur',
+        snackPosition: SnackPosition.BOTTOM,
+      );
+      print('========================================');
+      return;
+    }
+
+    print('👤 HOME: User found');
+    print('  └─ Name: ${user.fullName}');
+    print('  └─ Role: ${user.role}');
+    print('  └─ Is Vendor: ${user.isVendor}');
+
+    if (user.isVendor) {
+      print('✅ HOME: User is already a vendor, navigating to dashboard');
+      Get.toNamed(Routes.VENDOR_DASHBOARD);
+    } else {
+      print('📝 HOME: User is not a vendor, navigating to config');
+      Get.toNamed(Routes.VENDOR_CONFIG);
+    }
+
+    print('========================================');
   }
 }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../../core/utils/app_theme_system.dart';
+import '../../../core/utils/auth_guard.dart';
 import '../controllers/product_controller.dart';
 import 'map_selection_view.dart';
 
@@ -106,7 +107,14 @@ class ProductView extends GetView<ProductController> {
                     size: 20,
                   ),
                 ),
-                onPressed: controller.toggleFavorite,
+                onPressed: () {
+                  AuthGuard.requireAuth(
+                    context,
+                    onAuthenticated: controller.toggleFavorite,
+                    featureName: 'les favoris',
+                    useDialog: false,
+                  );
+                },
               )),
               SizedBox(width: 8),
             ],
@@ -147,7 +155,7 @@ class ProductView extends GetView<ProductController> {
   }
 
   Widget _buildImageCarousel(BuildContext context, Map<String, dynamic> product) {
-    final images = product['images'] ?? [product['image']];
+    final images = _getProductImages(product);
 
     return Stack(
       children: [
@@ -157,10 +165,7 @@ class ProductView extends GetView<ProductController> {
             controller.currentImageIndex.value = index;
           },
           itemBuilder: (context, index) {
-            return Image.asset(
-              images[index],
-              fit: BoxFit.cover,
-            );
+            return _buildImageWidget(images[index]);
           },
         ),
         // Indicateurs d'images
@@ -477,17 +482,35 @@ class ProductView extends GetView<ProductController> {
           children: [
             // Bouton Message
             Expanded(
-              child: OutlinedButton.icon(
-                onPressed: () {
-                  Get.toNamed('/chat');
-                  Get.snackbar(
-                    'Message',
-                    'Ouverture de la conversation avec le vendeur...',
-                    snackPosition: SnackPosition.BOTTOM,
-                  );
-                },
-                icon: Icon(Icons.chat_bubble_outline_rounded),
-                label: Text('Message'),
+              child: Obx(() => OutlinedButton.icon(
+                onPressed: controller.isStartingConversation.value
+                    ? null
+                    : () {
+                        AuthGuard.requireAuth(
+                          context,
+                          onAuthenticated: () {
+                            controller.openConversationWithSeller(
+                              product: product,
+                            );
+                          },
+                          featureName: 'la messagerie',
+                        );
+                      },
+                icon: controller.isStartingConversation.value
+                    ? SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            AppThemeSystem.primaryColor,
+                          ),
+                        ),
+                      )
+                    : Icon(Icons.chat_bubble_outline_rounded),
+                label: Text(controller.isStartingConversation.value
+                    ? 'Ouverture...'
+                    : 'Message'),
                 style: OutlinedButton.styleFrom(
                   foregroundColor: AppThemeSystem.primaryColor,
                   side: BorderSide(color: AppThemeSystem.primaryColor, width: 2),
@@ -496,7 +519,7 @@ class ProductView extends GetView<ProductController> {
                     borderRadius: BorderRadius.circular(12),
                   ),
                 ),
-              ),
+              )),
             ),
             SizedBox(width: 12),
             // Bouton Commander
@@ -504,7 +527,13 @@ class ProductView extends GetView<ProductController> {
               flex: 2,
               child: ElevatedButton.icon(
                 onPressed: () {
-                  _showOrderDialog(context, product);
+                  AuthGuard.requireAuth(
+                    context,
+                    onAuthenticated: () {
+                      _showOrderDialog(context, product);
+                    },
+                    featureName: 'passer une commande',
+                  );
                 },
                 icon: Icon(Icons.shopping_cart_rounded, color: Colors.white),
                 label: Text(
@@ -1273,5 +1302,117 @@ class ProductView extends GetView<ProductController> {
         ),
       ),
     );
+  }
+
+  /// Get product images from various possible fields
+  List<String> _getProductImages(Map<String, dynamic> product) {
+    final images = <String>[];
+
+    // Try images array
+    if (product['images'] != null) {
+      if (product['images'] is List) {
+        for (final item in product['images'] as List) {
+          if (item is String && item.isNotEmpty) {
+            images.add(item);
+          } else if (item is Map && item['url'] != null) {
+            images.add(item['url'].toString());
+          }
+        }
+      }
+    }
+
+    // Try primary_image field
+    if (product['primary_image'] != null && product['primary_image'].toString().isNotEmpty) {
+      final primaryImage = product['primary_image'].toString();
+      if (!images.contains(primaryImage)) {
+        images.insert(0, primaryImage);
+      }
+    }
+
+    // Try single image field
+    if (images.isEmpty && product['image'] != null && product['image'].toString().isNotEmpty) {
+      images.add(product['image'].toString());
+    }
+
+    // Fallback to placeholder
+    if (images.isEmpty) {
+      images.add('assets/images/p1.jpeg');
+    }
+
+    return images;
+  }
+
+  /// Build image widget (network or asset)
+  Widget _buildImageWidget(String imageUrl) {
+    if (imageUrl.startsWith('http://') || imageUrl.startsWith('https://')) {
+      return Image.network(
+        imageUrl,
+        fit: BoxFit.cover,
+        loadingBuilder: (context, child, loadingProgress) {
+          if (loadingProgress == null) return child;
+          return Center(
+            child: CircularProgressIndicator(
+              value: loadingProgress.expectedTotalBytes != null
+                  ? loadingProgress.cumulativeBytesLoaded / loadingProgress.expectedTotalBytes!
+                  : null,
+              strokeWidth: 3,
+              valueColor: AlwaysStoppedAnimation<Color>(AppThemeSystem.primaryColor),
+            ),
+          );
+        },
+        errorBuilder: (context, error, stackTrace) {
+          return Container(
+            color: AppThemeSystem.grey200,
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.broken_image_outlined,
+                  size: 64,
+                  color: AppThemeSystem.grey400,
+                ),
+                SizedBox(height: 8),
+                Text(
+                  'Image non disponible',
+                  style: context.textStyle(
+                    FontSizeType.caption,
+                    color: AppThemeSystem.grey600,
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      );
+    } else {
+      // Try as local asset
+      return Image.asset(
+        imageUrl,
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stackTrace) {
+          return Container(
+            color: AppThemeSystem.grey200,
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.image_outlined,
+                  size: 64,
+                  color: AppThemeSystem.grey400,
+                ),
+                SizedBox(height: 8),
+                Text(
+                  'Image non disponible',
+                  style: context.textStyle(
+                    FontSizeType.caption,
+                    color: AppThemeSystem.grey600,
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      );
+    }
   }
 }

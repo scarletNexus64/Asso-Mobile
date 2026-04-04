@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import '../../../data/providers/auth_service.dart';
+import '../../../data/providers/api_provider.dart';
 
 class SettingsController extends GetxController {
   // États
@@ -245,8 +247,11 @@ class SettingsController extends GetxController {
 
       if (confirmed != true) return;
 
-      // TODO: Nettoyer les données de session
-      await Future.delayed(const Duration(milliseconds: 300));
+      try {
+        await AuthService.logout();
+      } catch (e) {
+        ApiProvider.clearAuth();
+      }
 
       Get.offAllNamed('/login');
     } catch (e) {

@@ -20,34 +20,57 @@ class PreferencesView extends GetView<PreferencesController> {
 
             // Contenu scrollable
             Expanded(
-              child: SingleChildScrollView(
-                physics: const BouncingScrollPhysics(),
-                padding: EdgeInsets.symmetric(
-                  horizontal: AppThemeSystem.getHorizontalPadding(context),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    SizedBox(height: AppThemeSystem.getElementSpacing(context)),
-
-                    // Titre principal
-                    Text(
-                      'Vos centres d\'intérêt',
-                      style: context.textStyle(
-                        FontSizeType.h2,
-                        fontWeight: FontWeight.bold,
-                      ),
+              child: Obx(() {
+                // Show loading indicator while fetching preferences
+                if (controller.isLoading.value) {
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        CircularProgressIndicator(
+                          color: AppThemeSystem.primaryColor,
+                        ),
+                        SizedBox(height: 16),
+                        Text(
+                          'Chargement de vos préférences...',
+                          style: context.textStyle(
+                            FontSizeType.body2,
+                            color: context.secondaryTextColor,
+                          ),
+                        ),
+                      ],
                     ),
+                  );
+                }
 
-                    SizedBox(height: 8),
+                return SingleChildScrollView(
+                  physics: const BouncingScrollPhysics(),
+                  padding: EdgeInsets.symmetric(
+                    horizontal: AppThemeSystem.getHorizontalPadding(context),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      SizedBox(height: AppThemeSystem.getElementSpacing(context)),
 
-                    Text(
-                      'Sélectionnez les catégories qui vous intéressent pour personnaliser votre expérience',
-                      style: context.textStyle(
-                        FontSizeType.body2,
-                        color: context.secondaryTextColor,
+                      // Titre principal
+                      Text(
+                        'Vos centres d\'intérêt',
+                        style: context.textStyle(
+                          FontSizeType.h2,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
-                    ),
+
+                      SizedBox(height: 8),
+
+                      Text(
+                        'Sélectionnez les catégories qui vous intéressent pour personnaliser votre expérience',
+                        style: context.textStyle(
+                          FontSizeType.body2,
+                          color: context.secondaryTextColor,
+                        ),
+                      ),
 
                     SizedBox(height: AppThemeSystem.getSectionSpacing(context)),
 
@@ -71,10 +94,11 @@ class PreferencesView extends GetView<PreferencesController> {
                           }).toList(),
                         )),
 
-                    SizedBox(height: AppThemeSystem.getSectionSpacing(context) * 1.5),
-                  ],
-                ),
-              ),
+                      SizedBox(height: AppThemeSystem.getSectionSpacing(context) * 1.5),
+                    ],
+                  ),
+                );
+              }),
             ),
 
             // Bouton fixe en bas

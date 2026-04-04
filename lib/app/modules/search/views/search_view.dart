@@ -1,859 +1,307 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../../core/utils/app_theme_system.dart';
-import '../../../data/models/product_model.dart';
-import '../controllers/search_controller.dart' as search;
+import '../../../core/widgets/shimmer_widgets.dart';
+import '../controllers/search_controller.dart' as search_ctrl;
 
-class SearchView extends GetView<search.SearchController> {
+/// Vue de recherche moderne et responsive
+class SearchView extends StatelessWidget {
   const SearchView({super.key});
 
   @override
   Widget build(BuildContext context) {
+    // Initialiser le controller s'il n'existe pas
+    if (!Get.isRegistered<search_ctrl.SearchController>()) {
+      Get.put(search_ctrl.SearchController());
+    }
+
+    return const _SearchViewContent();
+  }
+}
+
+class _SearchViewContent extends GetView<search_ctrl.SearchController> {
+  const _SearchViewContent();
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Scaffold(
       backgroundColor: AppThemeSystem.getBackgroundColor(context),
-      body: Obx(() {
-        // Si chargement
-        if (controller.isLoading.value) {
-          return _buildLoadingState(context);
-        }
+      body: SafeArea(
+        child: Column(
+          children: [
+            // Barre de recherche fixe
+            _buildSearchHeader(context, isDark),
 
-        // Si pas de résultats après recherche
-        if (controller.filteredProducts.isEmpty &&
-            controller.searchQuery.value.isNotEmpty) {
-          return CustomScrollView(
-            slivers: [
-              // Barre de recherche épinglée
-              _buildStickySearchBar(context),
-              // Catégories épinglées
-              _buildStickyCategories(context),
-              // Barre de filtres épinglée
-              _buildStickyFiltersBar(context),
-              // Empty state
-              SliverFillRemaining(
-                hasScrollBody: false,
-                child: _buildEmptyState(context),
-              ),
-            ],
-          );
-        }
-
-        // État initial (pas de recherche)
-        if (controller.filteredProducts.isEmpty) {
-          return CustomScrollView(
-            slivers: [
-              // Barre de recherche épinglée
-              _buildStickySearchBar(context),
-              // Catégories épinglées
-              _buildStickyCategories(context),
-              // Initial state
-              SliverFillRemaining(
-                hasScrollBody: false,
-                child: _buildInitialState(context),
-              ),
-            ],
-          );
-        }
-
-        // Affichage des produits avec scroll et éléments épinglés
-        return CustomScrollView(
-          slivers: [
-            // Barre de recherche épinglée
-            _buildStickySearchBar(context),
-
-            // Catégories épinglées
-            _buildStickyCategories(context),
-
-            // Barre de filtres épinglée
-            _buildStickyFiltersBar(context),
-
-            // Grille de produits scrollable
-            _buildProductSliverGrid(context),
+            // Contenu scrollable
+            Expanded(
+              child: Obx(() => _buildContent(context, isDark)),
+            ),
           ],
+        ),
+      ),
+    );
+  }
+
+  /// Header avec barre de recherche
+  Widget _buildSearchHeader(BuildContext context, bool isDark) {
+    return Container(
+      padding: EdgeInsets.all(AppThemeSystem.getHorizontalPadding(context)),
+      decoration: BoxDecoration(
+        color: isDark ? AppThemeSystem.darkCardColor : Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          // Champ de recherche
+          Row(
+            children: [
+              // Bouton retour
+              IconButton(
+                icon: Icon(
+                  Icons.arrow_back_rounded,
+                  color: AppThemeSystem.getPrimaryTextColor(context),
+                ),
+                onPressed: () => Get.back(),
+              ),
+
+              // Champ de recherche
+              Expanded(
+                child: Container(
+                  height: 48,
+                  decoration: BoxDecoration(
+                    color: isDark
+                        ? AppThemeSystem.grey800
+                        : AppThemeSystem.grey100,
+                    borderRadius: BorderRadius.circular(24),
+                  ),
+                  child: TextField(
+                    controller: controller.searchTextController,
+                    focusNode: controller.searchFocusNode,
+                    textInputAction: TextInputAction.search,
+                    onChanged: (value) {
+                      controller.searchQuery.value = value;
+                    },
+                    onSubmitted: (value) {
+                      if (value.isNotEmpty) {
+                        controller.performSearch(value);
+                      }
+                    },
+                    decoration: InputDecoration(
+                      hintText: 'Rechercher des produits...',
+                      hintStyle: TextStyle(
+                        color: AppThemeSystem.grey500,
+                        fontSize: 15,
+                      ),
+                      prefixIcon: Icon(
+                        Icons.search_rounded,
+                        color: AppThemeSystem.primaryColor,
+                      ),
+                      suffixIcon: Obx(() =>
+                        controller.searchQuery.value.isNotEmpty
+                            ? IconButton(
+                                icon: Icon(
+                                  Icons.close_rounded,
+                                  color: AppThemeSystem.grey500,
+                                ),
+                                onPressed: controller.clearSearch,
+                              )
+                            : const SizedBox.shrink(),
+                      ),
+                      border: InputBorder.none,
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
+                      ),
+                    ),
+                    style: context.textStyle(FontSizeType.body1),
+                  ),
+                ),
+              ),
+            ],
+          ),
+
+          // Filtres rapides (catégories)
+          const SizedBox(height: 12),
+          _buildQuickFilters(context, isDark),
+        ],
+      ),
+    );
+  }
+
+  /// Filtres rapides (catégories)
+  Widget _buildQuickFilters(BuildContext context, bool isDark) {
+    return SizedBox(
+      height: 40,
+      child: Obx(() {
+        if (controller.categories.isEmpty) return const SizedBox.shrink();
+
+        return ListView.builder(
+          scrollDirection: Axis.horizontal,
+          itemCount: controller.categories.length,
+          itemBuilder: (context, index) {
+            final category = controller.categories[index];
+
+            // Observer les changements de selectedCategory
+            final isSelected = index == 0
+                ? controller.selectedCategory.value.isEmpty || controller.selectedCategory.value == 'Tous'
+                : controller.selectedCategory.value == category;
+
+            return _buildFilterChip(
+              context,
+              isDark,
+              label: category,
+              icon: index == 0 ? Icons.grid_view_rounded : null,
+              isSelected: isSelected,
+              onTap: () {
+                controller.selectCategory(category);
+              },
+            );
+          },
         );
       }),
     );
   }
 
-  // ================================
-  // HEADERS ÉPINGLÉS (STICKY)
-  // ================================
-
-  Widget _buildStickySearchBar(BuildContext context) {
-    return SliverPersistentHeader(
-      pinned: true,
-      delegate: _SliverAppBarDelegate(
-        minHeight: 70,
-        maxHeight: 70,
-        child: _buildSearchBar(context),
-      ),
-    );
-  }
-
-  Widget _buildStickyCategories(BuildContext context) {
-    return SliverPersistentHeader(
-      pinned: true,
-      delegate: _SliverAppBarDelegate(
-        minHeight: 62,
-        maxHeight: 62,
-        child: Container(
-          color: AppThemeSystem.getBackgroundColor(context),
-          child: _buildCategories(context),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildStickyFiltersBar(BuildContext context) {
-    return SliverPersistentHeader(
-      pinned: true,
-      delegate: _SliverAppBarDelegate(
-        minHeight: 50,
-        maxHeight: 50,
-        child: Container(
-          color: AppThemeSystem.getBackgroundColor(context),
-          child: _buildFiltersBar(context),
-        ),
-      ),
-    );
-  }
-
-  // ================================
-  // BARRE DE RECHERCHE
-  // ================================
-
-  Widget _buildSearchBar(BuildContext context) {
-    return Container(
-      padding: EdgeInsets.symmetric(
-        horizontal: AppThemeSystem.getHorizontalPadding(context),
-        vertical: AppThemeSystem.getElementSpacing(context) * 0.8,
-      ),
-      decoration: BoxDecoration(
-        color: AppThemeSystem.getSurfaceColor(context),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 4,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Container(
-        height: 48,
-        decoration: BoxDecoration(
-          color: Theme.of(context).brightness == Brightness.dark
-              ? AppThemeSystem.grey800
-              : AppThemeSystem.grey100,
-          borderRadius: BorderRadius.circular(
-            AppThemeSystem.getBorderRadius(
-              context,
-              BorderRadiusType.medium,
-            ),
-          ),
-        ),
-        child: TextField(
-          controller: controller.searchTextController,
-          focusNode: controller.searchFocusNode,
-          onSubmitted: (query) => controller.performSearch(query),
-          decoration: InputDecoration(
-            hintText: 'Rechercher des produits...',
-            hintStyle: context.textStyle(
-              FontSizeType.body1,
-              color: AppThemeSystem.getSecondaryTextColor(context),
-            ),
-            prefixIcon: Icon(
-              Icons.search,
-              color: AppThemeSystem.getSecondaryTextColor(context),
-            ),
-            suffixIcon: Obx(
-              () => controller.searchQuery.value.isNotEmpty
-                  ? IconButton(
-                      icon: const Icon(Icons.clear),
-                      onPressed: controller.clearSearch,
-                      color: AppThemeSystem.getSecondaryTextColor(
-                        context,
-                      ),
-                    )
-                  : const SizedBox.shrink(),
-            ),
-            border: InputBorder.none,
-            contentPadding: const EdgeInsets.symmetric(vertical: 12),
-          ),
-          style: context.textStyle(FontSizeType.body1),
-        ),
-      ),
-    );
-  }
-
-  // ================================
-  // CATÉGORIES
-  // ================================
-
-  Widget _buildCategories(BuildContext context) {
-    return Container(
-      height: 50,
-      margin: EdgeInsets.symmetric(
-        vertical: AppThemeSystem.getElementSpacing(context) * 0.5,
-      ),
-      child: ListView.builder(
-        scrollDirection: Axis.horizontal,
-        padding: EdgeInsets.symmetric(
-          horizontal: AppThemeSystem.getHorizontalPadding(context),
-        ),
-        itemCount: controller.categories.length,
-        itemBuilder: (context, index) {
-          final category = controller.categories[index];
-
-          return Obx(
-            () {
-              final isSelected = controller.selectedCategory.value == category;
-
-              return GestureDetector(
-                onTap: () => controller.selectCategory(category),
-                child: Container(
-                  margin: EdgeInsets.only(
-                    right: AppThemeSystem.getElementSpacing(context),
-                  ),
-                  padding: EdgeInsets.symmetric(
-                    horizontal: AppThemeSystem.getHorizontalPadding(context),
-                  ),
-                  decoration: BoxDecoration(
-                    color: isSelected
-                        ? AppThemeSystem.primaryColor
-                        : AppThemeSystem.getSurfaceColor(context),
-                    borderRadius: BorderRadius.circular(
-                      AppThemeSystem.getBorderRadius(
-                        context,
-                        BorderRadiusType.large,
-                      ),
-                    ),
-                    border: Border.all(
-                      color: isSelected
-                          ? AppThemeSystem.primaryColor
-                          : AppThemeSystem.getBorderColor(context),
-                    ),
-                  ),
-                  child: Center(
-                    child: Text(
-                      category,
-                      style: context.textStyle(
-                        FontSizeType.body2,
-                        fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-                        color: isSelected
-                            ? AppThemeSystem.whiteColor
-                            : AppThemeSystem.getPrimaryTextColor(context),
-                      ),
-                    ),
-                  ),
-                ),
-              );
-            },
-          );
-        },
-      ),
-    );
-  }
-
-  // ================================
-  // BARRE DE FILTRES
-  // ================================
-
-  Widget _buildFiltersBar(BuildContext context) {
-    return Container(
-      padding: EdgeInsets.symmetric(
-        horizontal: AppThemeSystem.getHorizontalPadding(context),
-        vertical: AppThemeSystem.getElementSpacing(context) * 0.5,
-      ),
-      child: Row(
-        children: [
-          // Bouton Filtres
-          Obx(
-            () => _buildFilterButton(
-              context,
-              icon: Icons.filter_list,
-              label: 'Filtres',
-              badge: controller.activeFiltersCount > 0
-                  ? controller.activeFiltersCount.toString()
-                  : null,
-              onTap: () => _showFiltersBottomSheet(context),
-            ),
-          ),
-
-          SizedBox(width: AppThemeSystem.getElementSpacing(context)),
-
-          // Bouton Tri
-          Obx(
-            () => _buildFilterButton(
-              context,
-              icon: controller.selectedSortOption.value.icon,
-              label: 'Trier',
-              onTap: () => _showSortBottomSheet(context),
-            ),
-          ),
-
-          const Spacer(),
-
-          // Nombre de résultats
-          Obx(
-            () => Text(
-              '${controller.filteredProducts.length} résultats',
-              style: context.textStyle(
-                FontSizeType.body2,
-                color: AppThemeSystem.getSecondaryTextColor(context),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildFilterButton(
-    BuildContext context, {
-    required IconData icon,
+  /// Chip de filtre
+  Widget _buildFilterChip(
+    BuildContext context,
+    bool isDark, {
     required String label,
-    String? badge,
+    IconData? icon,
+    required bool isSelected,
     required VoidCallback onTap,
   }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: EdgeInsets.symmetric(
-          horizontal: AppThemeSystem.getHorizontalPadding(context) * 0.75,
-          vertical: AppThemeSystem.getElementSpacing(context),
-        ),
-        decoration: BoxDecoration(
-          color: badge != null
-              ? AppThemeSystem.primaryColor.withOpacity(0.1)
-              : AppThemeSystem.getSurfaceColor(context),
-          borderRadius: BorderRadius.circular(
-            AppThemeSystem.getBorderRadius(context, BorderRadiusType.medium),
-          ),
-          border: Border.all(
-            color: badge != null
-                ? AppThemeSystem.primaryColor
-                : AppThemeSystem.getBorderColor(context),
-          ),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              icon,
-              size: 18,
-              color: badge != null
-                  ? AppThemeSystem.primaryColor
-                  : AppThemeSystem.getPrimaryTextColor(context),
-            ),
-            SizedBox(width: AppThemeSystem.getElementSpacing(context) * 0.5),
-            Text(
-              label,
-              style: context.textStyle(
-                FontSizeType.body2,
-                fontWeight: FontWeight.w500,
-                color: badge != null
-                    ? AppThemeSystem.primaryColor
-                    : AppThemeSystem.getPrimaryTextColor(context),
-              ),
-            ),
-            if (badge != null) ...[
-              SizedBox(width: AppThemeSystem.getElementSpacing(context) * 0.5),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 6,
-                  vertical: 2,
-                ),
-                decoration: BoxDecoration(
-                  color: AppThemeSystem.primaryColor,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Text(
-                  badge,
-                  style: context.textStyle(
-                    FontSizeType.caption,
-                    color: AppThemeSystem.whiteColor,
-                    fontWeight: FontWeight.bold,
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(20),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          decoration: BoxDecoration(
+            gradient: isSelected
+                ? LinearGradient(
+                    colors: [
+                      AppThemeSystem.primaryColor,
+                      AppThemeSystem.tertiaryColor,
+                    ],
+                  )
+                : null,
+            color: isSelected
+                ? null
+                : isDark
+                    ? AppThemeSystem.grey800
+                    : AppThemeSystem.grey200,
+            borderRadius: BorderRadius.circular(20),
+            border: isSelected
+                ? null
+                : Border.all(
+                    color: isDark
+                        ? AppThemeSystem.grey700
+                        : AppThemeSystem.grey300,
                   ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (icon != null) ...[
+                Icon(
+                  icon,
+                  size: 16,
+                  color: isSelected
+                      ? Colors.white
+                      : AppThemeSystem.getPrimaryTextColor(context),
+                ),
+                const SizedBox(width: 6),
+              ],
+              Text(
+                label,
+                style: context.textStyle(
+                  FontSizeType.body2,
+                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                  color: isSelected
+                      ? Colors.white
+                      : AppThemeSystem.getPrimaryTextColor(context),
                 ),
               ),
             ],
-          ],
+          ),
         ),
       ),
     );
   }
 
-  // ================================
-  // GRILLE DE PRODUITS (SLIVER)
-  // ================================
-
-  Widget _buildProductSliverGrid(BuildContext context) {
-    final deviceType = AppThemeSystem.getDeviceType(context);
-    int crossAxisCount;
-    double childAspectRatio;
-
-    switch (deviceType) {
-      case DeviceType.mobile:
-        crossAxisCount = 2;
-        childAspectRatio = 0.62;
-        break;
-      case DeviceType.tablet:
-      case DeviceType.largeTablet:
-        crossAxisCount = 3;
-        childAspectRatio = 0.68;
-        break;
-      case DeviceType.iPadPro13:
-      case DeviceType.desktop:
-        crossAxisCount = 4;
-        childAspectRatio = 0.72;
-        break;
+  /// Contenu principal
+  Widget _buildContent(BuildContext context, bool isDark) {
+    // État de chargement
+    if (controller.isLoading.value) {
+      return _buildLoadingState(context);
     }
 
-    return Obx(
-      () => SliverPadding(
-        padding: EdgeInsets.all(AppThemeSystem.getHorizontalPadding(context)),
-        sliver: SliverGrid(
-          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: crossAxisCount,
-            crossAxisSpacing: AppThemeSystem.getElementSpacing(context),
-            mainAxisSpacing: AppThemeSystem.getElementSpacing(context),
-            childAspectRatio: childAspectRatio,
-          ),
-          delegate: SliverChildBuilderDelegate(
-            (context, index) {
-              final product = controller.filteredProducts[index];
-              return _buildProductCard(context, product);
-            },
-            childCount: controller.filteredProducts.length,
-          ),
-        ),
+    // Historique de recherche (si aucune recherche en cours)
+    if (!controller.isSearching.value && controller.searchQuery.value.isEmpty) {
+      return _buildSearchHistory(context, isDark);
+    }
+
+    // Résultats de recherche
+    if (controller.searchResults.isEmpty && controller.searchQuery.value.isNotEmpty) {
+      return _buildEmptyState(context, isDark);
+    }
+
+    return _buildResults(context, isDark);
+  }
+
+  /// État de chargement
+  Widget _buildLoadingState(BuildContext context) {
+    return GridView.builder(
+      padding: EdgeInsets.all(AppThemeSystem.getHorizontalPadding(context)),
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount:
+            AppThemeSystem.getDeviceType(context) == DeviceType.mobile ? 2 : 3,
+        childAspectRatio: 0.75,
+        crossAxisSpacing: 12,
+        mainAxisSpacing: 12,
       ),
+      itemCount: 6,
+      itemBuilder: (context, index) => ShimmerWidgets.productCardShimmer(context),
     );
   }
 
-  Widget _buildProductCard(BuildContext context, ProductModel product) {
-    return GestureDetector(
-      onTap: () => controller.goToProductDetails(product),
-      child: Container(
-        decoration: BoxDecoration(
-          color: AppThemeSystem.getSurfaceColor(context),
-          borderRadius: BorderRadius.circular(
-            AppThemeSystem.getBorderRadius(context, BorderRadiusType.medium),
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.05),
-              blurRadius: 4,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
+  /// Historique de recherche
+  Widget _buildSearchHistory(BuildContext context, bool isDark) {
+    return Obx(() {
+      if (controller.searchHistory.isEmpty) {
+        return _buildInitialState(context, isDark);
+      }
+
+      return SingleChildScrollView(
+        padding: EdgeInsets.all(AppThemeSystem.getHorizontalPadding(context)),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Image du produit
-            Stack(
-              children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.vertical(
-                    top: Radius.circular(
-                      AppThemeSystem.getBorderRadius(
-                        context,
-                        BorderRadiusType.medium,
-                      ),
-                    ),
-                  ),
-                  child: AspectRatio(
-                    aspectRatio: 1,
-                    child: Image.asset(
-                      product.mainImage,
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) {
-                        return Container(
-                          color: AppThemeSystem.grey200,
-                          child: const Center(
-                            child: Icon(Icons.image, size: 50),
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                ),
-
-                // Bouton favori
-                Positioned(
-                  top: 6,
-                  right: 6,
-                  child: GestureDetector(
-                    onTap: () => controller.toggleFavorite(product),
-                    child: Container(
-                      padding: const EdgeInsets.all(4),
-                      decoration: BoxDecoration(
-                        color: AppThemeSystem.whiteColor.withOpacity(0.9),
-                        shape: BoxShape.circle,
-                      ),
-                      child: Icon(
-                        product.isFavorite
-                            ? Icons.favorite
-                            : Icons.favorite_border,
-                        size: 16,
-                        color: product.isFavorite
-                            ? Colors.red
-                            : AppThemeSystem.grey600,
-                      ),
-                    ),
-                  ),
-                ),
-
-                // Badge condition (si différent de "nouveau")
-                if (product.condition != ProductCondition.nouveau)
-                  Positioned(
-                    top: 6,
-                    left: 6,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 6,
-                        vertical: 2,
-                      ),
-                      decoration: BoxDecoration(
-                        color: AppThemeSystem.infoColor,
-                        borderRadius: BorderRadius.circular(3),
-                      ),
-                      child: Text(
-                        product.condition.label,
-                        style: context.textStyle(
-                          FontSizeType.overline,
-                          color: AppThemeSystem.whiteColor,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-
-            // Infos du produit
-            Padding(
-              padding: EdgeInsets.all(
-                AppThemeSystem.getElementSpacing(context) * 0.7,
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // Nom du produit
-                  Text(
-                    product.name,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: context.textStyle(
-                      FontSizeType.caption,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-
-                  SizedBox(
-                    height: AppThemeSystem.getElementSpacing(context) * 0.25,
-                  ),
-
-                  // Prix
-                  Text(
-                    product.formattedPriceWithSeparator,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: context.textStyle(
-                      FontSizeType.caption,
-                      fontWeight: FontWeight.bold,
-                      color: AppThemeSystem.primaryColor,
-                    ),
-                  ),
-
-                  SizedBox(
-                    height: AppThemeSystem.getElementSpacing(context) * 0.25,
-                  ),
-
-                  // Localisation
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.location_on_outlined,
-                        size: 10,
-                        color: AppThemeSystem.getSecondaryTextColor(context),
-                      ),
-                      SizedBox(
-                        width:
-                            AppThemeSystem.getElementSpacing(context) * 0.15,
-                      ),
-                      Expanded(
-                        child: Text(
-                          product.locationCity,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: context.textStyle(
-                            FontSizeType.overline,
-                            color:
-                                AppThemeSystem.getSecondaryTextColor(context),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // ================================
-  // ÉTATS
-  // ================================
-
-  Widget _buildLoadingState(BuildContext context) {
-    return const Center(
-      child: CircularProgressIndicator(
-        color: AppThemeSystem.primaryColor,
-      ),
-    );
-  }
-
-  Widget _buildEmptyState(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: EdgeInsets.all(AppThemeSystem.getHorizontalPadding(context)),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.search_off,
-              size: 80,
-              color: AppThemeSystem.getSecondaryTextColor(context),
-            ),
-            SizedBox(height: AppThemeSystem.getSectionSpacing(context)),
-            Text(
-              'Aucun résultat trouvé',
-              style: context.h5,
-              textAlign: TextAlign.center,
-            ),
-            SizedBox(height: AppThemeSystem.getElementSpacing(context)),
-            Text(
-              'Essayez avec d\'autres mots-clés ou modifiez vos filtres',
-              style: context.textStyle(
-                FontSizeType.body1,
-                color: AppThemeSystem.getSecondaryTextColor(context),
-              ),
-              textAlign: TextAlign.center,
-            ),
-            SizedBox(height: AppThemeSystem.getSectionSpacing(context)),
-            if (controller.activeFiltersCount > 0)
-              ElevatedButton.icon(
-                onPressed: controller.resetFilters,
-                icon: const Icon(Icons.refresh),
-                label: const Text('Réinitialiser les filtres'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppThemeSystem.primaryColor,
-                  foregroundColor: AppThemeSystem.whiteColor,
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildInitialState(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: EdgeInsets.all(AppThemeSystem.getHorizontalPadding(context)),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.search,
-              size: 80,
-              color: AppThemeSystem.getSecondaryTextColor(context),
-            ),
-            SizedBox(height: AppThemeSystem.getSectionSpacing(context)),
-            Text(
-              'Recherchez des produits',
-              style: context.h5,
-              textAlign: TextAlign.center,
-            ),
-            SizedBox(height: AppThemeSystem.getElementSpacing(context)),
-            Text(
-              'Utilisez la barre de recherche pour trouver ce que vous cherchez',
-              style: context.textStyle(
-                FontSizeType.body1,
-                color: AppThemeSystem.getSecondaryTextColor(context),
-              ),
-              textAlign: TextAlign.center,
-            ),
-
-            // Historique de recherche
-            Obx(() {
-              if (controller.searchHistory.isEmpty) {
-                return const SizedBox.shrink();
-              }
-
-              return Column(
-                children: [
-                  SizedBox(height: AppThemeSystem.getSectionSpacing(context)),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        'Recherches récentes',
-                        style: context.textStyle(
-                          FontSizeType.subtitle1,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      TextButton(
-                        onPressed: controller.clearHistory,
-                        child: Text(
-                          'Effacer',
-                          style: context.textStyle(
-                            FontSizeType.body2,
-                            color: AppThemeSystem.primaryColor,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  SizedBox(
-                    height: AppThemeSystem.getElementSpacing(context),
-                  ),
-                  ...controller.searchHistory.take(5).map(
-                        (query) => ListTile(
-                          leading: const Icon(Icons.history),
-                          title: Text(query),
-                          trailing: IconButton(
-                            icon: const Icon(Icons.close),
-                            onPressed: () =>
-                                controller.removeFromHistory(query),
-                          ),
-                          onTap: () => controller.performSearch(query),
-                        ),
-                      ),
-                ],
-              );
-            }),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // ================================
-  // BOTTOM SHEETS
-  // ================================
-
-  void _showFiltersBottomSheet(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => _FiltersBottomSheet(controller: controller),
-    );
-  }
-
-  void _showSortBottomSheet(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (context) => _SortBottomSheet(controller: controller),
-    );
-  }
-}
-
-// ================================
-// SLIVER PERSISTENT HEADER DELEGATE
-// ================================
-
-class _SliverAppBarDelegate extends SliverPersistentHeaderDelegate {
-  final double minHeight;
-  final double maxHeight;
-  final Widget child;
-
-  _SliverAppBarDelegate({
-    required this.minHeight,
-    required this.maxHeight,
-    required this.child,
-  });
-
-  @override
-  double get minExtent => minHeight;
-
-  @override
-  double get maxExtent => maxHeight;
-
-  @override
-  Widget build(
-    BuildContext context,
-    double shrinkOffset,
-    bool overlapsContent,
-  ) {
-    return SizedBox.expand(child: child);
-  }
-
-  @override
-  bool shouldRebuild(_SliverAppBarDelegate oldDelegate) {
-    return maxHeight != oldDelegate.maxHeight ||
-        minHeight != oldDelegate.minHeight ||
-        child != oldDelegate.child;
-  }
-}
-
-// ================================
-// BOTTOM SHEET DES FILTRES
-// ================================
-
-class _FiltersBottomSheet extends StatelessWidget {
-  final search.SearchController controller;
-
-  const _FiltersBottomSheet({required this.controller});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: AppThemeSystem.getSurfaceColor(context),
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      padding: EdgeInsets.only(
-        bottom: AppThemeSystem.getBottomSheetPadding(context),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Handle bar
-          Container(
-            margin: const EdgeInsets.symmetric(vertical: 12),
-            width: 40,
-            height: 4,
-            decoration: BoxDecoration(
-              color: AppThemeSystem.grey300,
-              borderRadius: BorderRadius.circular(2),
-            ),
-          ),
-
-          // Header
-          Padding(
-            padding: EdgeInsets.symmetric(
-              horizontal: AppThemeSystem.getHorizontalPadding(context),
-            ),
-            child: Row(
+            Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text('Filtres', style: context.h5),
+                Text(
+                  'Recherches récentes',
+                  style: context.textStyle(
+                    FontSizeType.h5,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
                 TextButton(
-                  onPressed: () {
-                    controller.resetFilters();
-                    Get.back();
-                  },
+                  onPressed: controller.clearHistory,
                   child: Text(
-                    'Réinitialiser',
+                    'Effacer tout',
                     style: context.textStyle(
                       FontSizeType.body2,
                       color: AppThemeSystem.primaryColor,
@@ -862,254 +310,560 @@ class _FiltersBottomSheet extends StatelessWidget {
                 ),
               ],
             ),
-          ),
+            const SizedBox(height: 12),
+            ...controller.searchHistory.map((query) => InkWell(
+                onTap: () => controller.performSearch(query),
+                borderRadius: BorderRadius.circular(12),
+                child: Container(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: isDark
+                        ? AppThemeSystem.darkCardColor
+                        : Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: isDark
+                          ? AppThemeSystem.grey800
+                          : AppThemeSystem.grey200,
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.history_rounded,
+                        color: AppThemeSystem.grey500,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          query,
+                          style: context.textStyle(FontSizeType.body1),
+                        ),
+                      ),
+                      Icon(
+                        Icons.north_west_rounded,
+                        color: AppThemeSystem.grey400,
+                        size: 16,
+                      ),
+                    ],
+                  ),
+                ),
+              )),
+          ],
+        ),
+      );
+    });
+  }
 
-          const Divider(),
-
-          // Filters content
-          Flexible(
-            child: SingleChildScrollView(
-              padding: EdgeInsets.symmetric(
-                horizontal: AppThemeSystem.getHorizontalPadding(context),
+  /// État initial (suggestions)
+  Widget _buildInitialState(BuildContext context, bool isDark) {
+    return Center(
+      child: SingleChildScrollView(
+        padding: EdgeInsets.all(AppThemeSystem.getHorizontalPadding(context)),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(32),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    AppThemeSystem.primaryColor.withValues(alpha: 0.1),
+                    AppThemeSystem.tertiaryColor.withValues(alpha: 0.1),
+                  ],
+                ),
+                shape: BoxShape.circle,
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              child: Icon(
+                Icons.search_rounded,
+                size: 64,
+                color: AppThemeSystem.primaryColor,
+              ),
+            ),
+            const SizedBox(height: 24),
+            Text(
+              'Recherchez des produits',
+              style: context.textStyle(
+                FontSizeType.h4,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Trouvez ce que vous cherchez parmi\ndes milliers de produits',
+              textAlign: TextAlign.center,
+              style: context.textStyle(
+                FontSizeType.body2,
+                color: AppThemeSystem.grey600,
+              ),
+            ),
+            const SizedBox(height: 32),
+            // Suggestions de recherche
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              alignment: WrapAlignment.center,
+              children: [
+                'Vêtements',
+                'Électronique',
+                'Chaussures',
+                'Accessoires',
+              ].map((tag) {
+                return InkWell(
+                  onTap: () {
+                    controller.searchTextController.text = tag;
+                    controller.searchQuery.value = tag;
+                  },
+                  borderRadius: BorderRadius.circular(20),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
+                    decoration: BoxDecoration(
+                      color: isDark
+                          ? AppThemeSystem.grey800
+                          : AppThemeSystem.grey100,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: isDark
+                            ? AppThemeSystem.grey700
+                            : AppThemeSystem.grey300,
+                      ),
+                    ),
+                    child: Text(
+                      tag,
+                      style: context.textStyle(FontSizeType.body2),
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// État vide (aucun résultat)
+  Widget _buildEmptyState(BuildContext context, bool isDark) {
+    return Center(
+      child: SingleChildScrollView(
+        padding: EdgeInsets.all(AppThemeSystem.getHorizontalPadding(context)),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(32),
+              decoration: BoxDecoration(
+                color: isDark
+                    ? AppThemeSystem.grey800
+                    : AppThemeSystem.grey100,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.search_off_rounded,
+                size: 64,
+                color: AppThemeSystem.grey500,
+              ),
+            ),
+            const SizedBox(height: 24),
+            Text(
+              'Aucun résultat trouvé',
+              style: context.textStyle(
+                FontSizeType.h4,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Essayez avec des mots-clés différents\nou parcourez les catégories',
+              textAlign: TextAlign.center,
+              style: context.textStyle(
+                FontSizeType.body2,
+                color: AppThemeSystem.grey600,
+              ),
+            ),
+            const SizedBox(height: 24),
+            ElevatedButton.icon(
+              onPressed: controller.clearSearch,
+              icon: const Icon(Icons.refresh_rounded),
+              label: const Text('Nouvelle recherche'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppThemeSystem.primaryColor,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 12,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Résultats de recherche
+  Widget _buildResults(BuildContext context, bool isDark) {
+    return NotificationListener<ScrollNotification>(
+      onNotification: (scrollInfo) {
+        if (scrollInfo.metrics.pixels >= scrollInfo.metrics.maxScrollExtent - 200) {
+          controller.loadMore();
+        }
+        return true;
+      },
+      child: CustomScrollView(
+        slivers: [
+          // En-tête des résultats
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: EdgeInsets.all(AppThemeSystem.getHorizontalPadding(context)),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  // Prix
-                  Text('Plage de prix', style: context.subtitle1),
-                  SizedBox(height: AppThemeSystem.getElementSpacing(context)),
-                  Obx(
-                    () => RangeSlider(
-                      values: RangeValues(
-                        controller.minPrice.value,
-                        controller.maxPrice.value,
-                      ),
-                      min: 0,
-                      max: 1000000,
-                      divisions: 100,
-                      activeColor: AppThemeSystem.primaryColor,
-                      labels: RangeLabels(
-                        '${controller.minPrice.value.toStringAsFixed(0)} FCFA',
-                        '${controller.maxPrice.value.toStringAsFixed(0)} FCFA',
-                      ),
-                      onChanged: (values) {
-                        controller.setPriceRange(values.start, values.end);
-                      },
-                    ),
-                  ),
-                  Obx(
-                    () => Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          '${controller.minPrice.value.toStringAsFixed(0)} FCFA',
-                          style: context.caption,
+                  Obx(() => Text(
+                        '${controller.searchResults.length} produit${controller.searchResults.length > 1 ? 's' : ''}',
+                        style: context.textStyle(
+                          FontSizeType.body1,
+                          fontWeight: FontWeight.w600,
                         ),
-                        Text(
-                          '${controller.maxPrice.value.toStringAsFixed(0)} FCFA',
-                          style: context.caption,
-                        ),
-                      ],
+                      )),
+                  // Bouton tri (optionnel)
+                  IconButton(
+                    icon: Icon(
+                      Icons.tune_rounded,
+                      color: AppThemeSystem.primaryColor,
                     ),
+                    onPressed: () => _showFiltersBottomSheet(context, isDark),
                   ),
-
-                  SizedBox(height: AppThemeSystem.getSectionSpacing(context)),
-
-                  // Localisation
-                  Text('Localisation', style: context.subtitle1),
-                  SizedBox(height: AppThemeSystem.getElementSpacing(context)),
-                  Obx(
-                    () => Wrap(
-                      spacing: AppThemeSystem.getElementSpacing(context),
-                      runSpacing: AppThemeSystem.getElementSpacing(context),
-                      children: controller.cities.map((city) {
-                        final isSelected =
-                            controller.selectedLocation.value == city;
-                        return ChoiceChip(
-                          label: Text(city),
-                          selected: isSelected,
-                          onSelected: (selected) {
-                            controller.selectLocation(city);
-                          },
-                          selectedColor: AppThemeSystem.primaryColor,
-                          labelStyle: context.textStyle(
-                            FontSizeType.body2,
-                            color: isSelected
-                                ? AppThemeSystem.whiteColor
-                                : AppThemeSystem.getPrimaryTextColor(context),
-                          ),
-                        );
-                      }).toList(),
-                    ),
-                  ),
-
-                  SizedBox(height: AppThemeSystem.getSectionSpacing(context)),
-
-                  // État/Condition
-                  Text('État du produit', style: context.subtitle1),
-                  SizedBox(height: AppThemeSystem.getElementSpacing(context)),
-                  Obx(
-                    () => Wrap(
-                      spacing: AppThemeSystem.getElementSpacing(context),
-                      runSpacing: AppThemeSystem.getElementSpacing(context),
-                      children: [
-                        ChoiceChip(
-                          label: const Text('Tous'),
-                          selected: controller.selectedCondition.value == null,
-                          onSelected: (selected) {
-                            controller.selectCondition(null);
-                          },
-                          selectedColor: AppThemeSystem.primaryColor,
-                          labelStyle: context.textStyle(
-                            FontSizeType.body2,
-                            color: controller.selectedCondition.value == null
-                                ? AppThemeSystem.whiteColor
-                                : AppThemeSystem.getPrimaryTextColor(context),
-                          ),
-                        ),
-                        ...ProductCondition.values.map((condition) {
-                          final isSelected =
-                              controller.selectedCondition.value == condition;
-                          return ChoiceChip(
-                            label: Text(condition.label),
-                            selected: isSelected,
-                            onSelected: (selected) {
-                              controller.selectCondition(condition);
-                            },
-                            selectedColor: AppThemeSystem.primaryColor,
-                            labelStyle: context.textStyle(
-                              FontSizeType.body2,
-                              color: isSelected
-                                  ? AppThemeSystem.whiteColor
-                                  : AppThemeSystem.getPrimaryTextColor(context),
-                            ),
-                          );
-                        }),
-                      ],
-                    ),
-                  ),
-
-                  SizedBox(height: AppThemeSystem.getSectionSpacing(context)),
                 ],
               ),
             ),
           ),
 
-          // Apply button
-          Padding(
-            padding: EdgeInsets.all(
-              AppThemeSystem.getHorizontalPadding(context),
+          // Grille de produits
+          SliverPadding(
+            padding: EdgeInsets.symmetric(
+              horizontal: AppThemeSystem.getHorizontalPadding(context),
             ),
-            child: SizedBox(
-              width: double.infinity,
-              height: AppThemeSystem.getButtonHeight(context),
-              child: ElevatedButton(
-                onPressed: () => Get.back(),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppThemeSystem.primaryColor,
-                  foregroundColor: AppThemeSystem.whiteColor,
-                ),
-                child: Text(
-                  'Appliquer les filtres',
-                  style: context.button,
-                ),
+            sliver: SliverGrid(
+              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount:
+                    AppThemeSystem.getDeviceType(context) == DeviceType.mobile
+                        ? 2
+                        : 3,
+                childAspectRatio: 0.75,
+                crossAxisSpacing: 12,
+                mainAxisSpacing: 12,
               ),
+              delegate: SliverChildBuilderDelegate(
+                (context, index) {
+                  final product = controller.searchResults[index];
+                  return _buildProductCard(context, isDark, product);
+                },
+                childCount: controller.searchResults.length,
+              ),
+            ),
+          ),
+
+          // Loading more indicator
+          Obx(() {
+            if (controller.isLoading.value && controller.searchResults.isNotEmpty) {
+              return SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Center(
+                    child: CircularProgressIndicator(
+                      color: AppThemeSystem.primaryColor,
+                    ),
+                  ),
+                ),
+              );
+            }
+            return const SliverToBoxAdapter(child: SizedBox.shrink());
+          }),
+
+          // Espacement en bas
+          SliverToBoxAdapter(
+            child: SizedBox(
+              height: AppThemeSystem.getVerticalPadding(context) * 2,
             ),
           ),
         ],
       ),
     );
   }
-}
 
-// ================================
-// BOTTOM SHEET DU TRI
-// ================================
+  /// Card de produit
+  Widget _buildProductCard(
+    BuildContext context,
+    bool isDark,
+    Map<String, dynamic> product,
+  ) {
+    final primaryImage = product['primary_image']?.toString();
+    final name = product['name']?.toString() ?? 'Produit';
+    final formattedPrice = product['formatted_price']?.toString() ?? '';
+    final location = product['location']?.toString() ?? '';
 
-class _SortBottomSheet extends StatelessWidget {
-  final search.SearchController controller;
-
-  const _SortBottomSheet({required this.controller});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: AppThemeSystem.getSurfaceColor(context),
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      padding: EdgeInsets.only(
-        bottom: AppThemeSystem.getBottomSheetPadding(context),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Handle bar
-          Container(
-            margin: const EdgeInsets.symmetric(vertical: 12),
-            width: 40,
-            height: 4,
-            decoration: BoxDecoration(
-              color: AppThemeSystem.grey300,
-              borderRadius: BorderRadius.circular(2),
-            ),
+    return GestureDetector(
+      onTap: () => controller.onProductTap(product),
+      child: Container(
+        decoration: BoxDecoration(
+          color: isDark ? AppThemeSystem.darkCardColor : Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: isDark
+                ? AppThemeSystem.grey800
+                : AppThemeSystem.grey200,
           ),
-
-          // Header
-          Padding(
-            padding: EdgeInsets.symmetric(
-              horizontal: AppThemeSystem.getHorizontalPadding(context),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.05),
+              blurRadius: 10,
+              offset: const Offset(0, 2),
             ),
-            child: Row(
-              children: [
-                Text('Trier par', style: context.h5),
-              ],
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Image
+            Expanded(
+              child: ClipRRect(
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(16),
+                  topRight: Radius.circular(16),
+                ),
+                child: primaryImage != null && primaryImage.isNotEmpty
+                    ? Image.network(
+                        primaryImage,
+                        width: double.infinity,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) => _buildPlaceholder(),
+                      )
+                    : _buildPlaceholder(),
+              ),
             ),
-          ),
 
-          const Divider(),
-
-          // Sort options
-          Obx(
-            () => Column(
-              children: search.SortOption.values.map((option) {
-                final isSelected = controller.selectedSortOption.value == option;
-                return ListTile(
-                  leading: Icon(
-                    option.icon,
-                    color: isSelected
-                        ? AppThemeSystem.primaryColor
-                        : AppThemeSystem.getSecondaryTextColor(context),
-                  ),
-                  title: Text(
-                    option.label,
+            // Infos
+            Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    name,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
                     style: context.textStyle(
-                      FontSizeType.body1,
-                      fontWeight:
-                          isSelected ? FontWeight.w600 : FontWeight.normal,
-                      color: isSelected
-                          ? AppThemeSystem.primaryColor
-                          : AppThemeSystem.getPrimaryTextColor(context),
+                      FontSizeType.body2,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
-                  trailing: isSelected
-                      ? const Icon(
-                          Icons.check,
-                          color: AppThemeSystem.primaryColor,
-                        )
-                      : null,
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppThemeSystem.primaryColor.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      formattedPrice,
+                      style: context.textStyle(
+                        FontSizeType.body2,
+                        fontWeight: FontWeight.bold,
+                        color: AppThemeSystem.primaryColor,
+                      ),
+                    ),
+                  ),
+                  if (location.isNotEmpty) ...[
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.location_on_outlined,
+                          size: 14,
+                          color: AppThemeSystem.grey600,
+                        ),
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: Text(
+                            location,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: context.textStyle(
+                              FontSizeType.caption,
+                              color: AppThemeSystem.grey600,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPlaceholder() {
+    return Container(
+      width: double.infinity,
+      color: AppThemeSystem.grey200,
+      child: Icon(
+        Icons.image_outlined,
+        size: 40,
+        color: AppThemeSystem.grey400,
+      ),
+    );
+  }
+
+  /// Affiche la modal de filtres
+  void _showFiltersBottomSheet(BuildContext context, bool isDark) {
+    Get.bottomSheet(
+      Container(
+        decoration: BoxDecoration(
+          color: isDark ? AppThemeSystem.darkCardColor : Colors.white,
+          borderRadius: const BorderRadius.only(
+            topLeft: Radius.circular(24),
+            topRight: Radius.circular(24),
+          ),
+        ),
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Filtres',
+                  style: context.textStyle(
+                    FontSizeType.h5,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.close_rounded),
+                  onPressed: () => Get.back(),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+
+            // Options de tri
+            Text(
+              'Trier par',
+              style: context.textStyle(
+                FontSizeType.body1,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Obx(() => Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: search_ctrl.SortOption.values.map((option) {
+                final isSelected = controller.selectedSortOption.value == option;
+                return InkWell(
                   onTap: () {
                     controller.selectSortOption(option);
                     Get.back();
                   },
+                  borderRadius: BorderRadius.circular(20),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 10,
+                    ),
+                    decoration: BoxDecoration(
+                      gradient: isSelected
+                          ? LinearGradient(
+                              colors: [
+                                AppThemeSystem.primaryColor,
+                                AppThemeSystem.tertiaryColor,
+                              ],
+                            )
+                          : null,
+                      color: isSelected
+                          ? null
+                          : isDark
+                              ? AppThemeSystem.grey800
+                              : AppThemeSystem.grey200,
+                      borderRadius: BorderRadius.circular(20),
+                      border: isSelected
+                          ? null
+                          : Border.all(
+                              color: isDark
+                                  ? AppThemeSystem.grey700
+                                  : AppThemeSystem.grey300,
+                            ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          option.icon,
+                          size: 16,
+                          color: isSelected
+                              ? Colors.white
+                              : AppThemeSystem.getPrimaryTextColor(context),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          option.label,
+                          style: context.textStyle(
+                            FontSizeType.body2,
+                            fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                            color: isSelected
+                                ? Colors.white
+                                : AppThemeSystem.getPrimaryTextColor(context),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 );
               }).toList(),
-            ),
-          ),
+            )),
 
-          SizedBox(height: AppThemeSystem.getElementSpacing(context)),
-        ],
+            const SizedBox(height: 24),
+
+            // Bouton réinitialiser
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: () {
+                  controller.resetFilters();
+                  Get.back();
+                },
+                icon: const Icon(Icons.refresh_rounded),
+                label: const Text('Réinitialiser les filtres'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppThemeSystem.primaryColor,
+                  side: BorderSide(color: AppThemeSystem.primaryColor),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                ),
+              ),
+            ),
+
+            SizedBox(height: MediaQuery.of(context).padding.bottom),
+          ],
+        ),
       ),
+      isDismissible: true,
+      enableDrag: true,
     );
   }
 }

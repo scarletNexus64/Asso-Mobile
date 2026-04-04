@@ -111,6 +111,7 @@ class WelcomerView extends GetView<WelcomerController> {
                       onChanged: (phone) {
                         controller.phoneNumber.value = phone.completeNumber;
                         controller.countryCode.value = phone.countryCode;
+                        controller.rawPhone.value = phone.number;
                       },
                       style: context.textStyle(FontSizeType.body1),
                     ),
@@ -118,29 +119,45 @@ class WelcomerView extends GetView<WelcomerController> {
                     SizedBox(height: AppThemeSystem.getElementSpacing(context)),
 
                     // Bouton principal "Créer mon compte"
-                    SizedBox(
-                      width: double.infinity,
-                      height: AppThemeSystem.getButtonHeight(context),
-                      child: ElevatedButton(
-                        onPressed: controller.createAccountWithPhone,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppThemeSystem.primaryColor,
-                          foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: context.borderRadius(BorderRadiusType.medium),
+                    Obx(() {
+                      final isLoading = controller.isLoading.value;
+                      final isValid = controller.isPhoneValid.value;
+
+                      return SizedBox(
+                        width: double.infinity,
+                        height: AppThemeSystem.getButtonHeight(context),
+                        child: ElevatedButton(
+                          onPressed: (isValid && !isLoading) ? controller.createAccountWithPhone : null,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppThemeSystem.primaryColor,
+                            foregroundColor: Colors.white,
+                            disabledBackgroundColor: AppThemeSystem.grey300,
+                            disabledForegroundColor: AppThemeSystem.grey600,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: context.borderRadius(BorderRadiusType.medium),
+                            ),
+                            elevation: 2,
                           ),
-                          elevation: 2,
+                          child: isLoading
+                              ? SizedBox(
+                                  height: 20,
+                                  width: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                  ),
+                                )
+                              : Text(
+                                  'Créer mon compte',
+                                  style: context.textStyle(
+                                    FontSizeType.button,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.white,
+                                  ),
+                                ),
                         ),
-                        child: Text(
-                          'Créer mon compte',
-                          style: context.textStyle(
-                            FontSizeType.button,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ),
-                    ),
+                      );
+                    }),
 
                     SizedBox(height: AppThemeSystem.getSectionSpacing(context)),
 

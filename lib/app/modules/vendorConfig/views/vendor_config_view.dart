@@ -151,7 +151,9 @@ class VendorConfigView extends GetView<VendorConfigController> {
                 SizedBox(height: context.elementSpacing),
                 Obx(() {
                   return GestureDetector(
-                    onTap: controller.pickProfileImage,
+                    onTap: controller.isPickingProfileImage.value
+                        ? null
+                        : controller.pickProfileImage,
                     child: Container(
                       width: 140,
                       height: 140,
@@ -170,18 +172,40 @@ class VendorConfigView extends GetView<VendorConfigController> {
                           ),
                         ],
                       ),
-                      child: controller.profileImage.value != null
-                          ? ClipOval(
-                              child: Image.file(
-                                controller.profileImage.value!,
-                                fit: BoxFit.cover,
+                      child: controller.isPickingProfileImage.value
+                          ? Center(
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  CircularProgressIndicator(
+                                    strokeWidth: 3,
+                                    valueColor: AlwaysStoppedAnimation<Color>(
+                                      AppThemeSystem.primaryColor,
+                                    ),
+                                  ),
+                                  SizedBox(height: 8),
+                                  Text(
+                                    'Chargement...',
+                                    style: context.caption.copyWith(
+                                      color: AppThemeSystem.primaryColor,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ],
                               ),
                             )
-                          : Icon(
-                              Icons.add_a_photo,
-                              color: AppThemeSystem.primaryColor,
-                              size: 48,
-                            ),
+                          : controller.profileImage.value != null
+                              ? ClipOval(
+                                  child: Image.file(
+                                    controller.profileImage.value!,
+                                    fit: BoxFit.cover,
+                                  ),
+                                )
+                              : Icon(
+                                  Icons.add_a_photo,
+                                  color: AppThemeSystem.primaryColor,
+                                  size: 48,
+                                ),
                     ),
                   );
                 }),
@@ -485,7 +509,9 @@ class VendorConfigView extends GetView<VendorConfigController> {
                 SizedBox(height: context.elementSpacing),
                 Obx(() {
                   return GestureDetector(
-                    onTap: controller.pickShopLogo,
+                    onTap: controller.isPickingShopLogo.value
+                        ? null
+                        : controller.pickShopLogo,
                     child: Container(
                       width: 140,
                       height: 140,
@@ -504,19 +530,41 @@ class VendorConfigView extends GetView<VendorConfigController> {
                           ),
                         ],
                       ),
-                      child: controller.shopLogo.value != null
-                          ? ClipRRect(
-                              borderRadius: context.borderRadius(BorderRadiusType.large),
-                              child: Image.file(
-                                controller.shopLogo.value!,
-                                fit: BoxFit.cover,
+                      child: controller.isPickingShopLogo.value
+                          ? Center(
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  CircularProgressIndicator(
+                                    strokeWidth: 3,
+                                    valueColor: AlwaysStoppedAnimation<Color>(
+                                      AppThemeSystem.primaryColor,
+                                    ),
+                                  ),
+                                  SizedBox(height: 8),
+                                  Text(
+                                    'Chargement...',
+                                    style: context.caption.copyWith(
+                                      color: AppThemeSystem.primaryColor,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ],
                               ),
                             )
-                          : Icon(
-                              Icons.store,
-                              color: AppThemeSystem.primaryColor,
-                              size: 48,
-                            ),
+                          : controller.shopLogo.value != null
+                              ? ClipRRect(
+                                  borderRadius: context.borderRadius(BorderRadiusType.large),
+                                  child: Image.file(
+                                    controller.shopLogo.value!,
+                                    fit: BoxFit.cover,
+                                  ),
+                                )
+                              : Icon(
+                                  Icons.store,
+                                  color: AppThemeSystem.primaryColor,
+                                  size: 48,
+                                ),
                     ),
                   );
                 }),
@@ -708,11 +756,28 @@ class VendorConfigView extends GetView<VendorConfigController> {
           SizedBox(height: context.sectionSpacing),
 
           // Catégories
-          Text(
-            'Secteurs d\'activité *',
-            style: context.subtitle1.copyWith(
-              fontWeight: FontWeight.w600,
-            ),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Secteurs d\'activité *',
+                  style: context.subtitle1.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              // Refresh button si erreur
+              Obx(() {
+                if (controller.categoriesLoadError.value.isNotEmpty) {
+                  return IconButton(
+                    icon: Icon(Icons.refresh, size: 20),
+                    onPressed: controller.refreshCategories,
+                    tooltip: 'Recharger les catégories',
+                  );
+                }
+                return SizedBox.shrink();
+              }),
+            ],
           ),
           SizedBox(height: context.elementSpacing * 0.5),
           Text(
@@ -722,34 +787,129 @@ class VendorConfigView extends GetView<VendorConfigController> {
             ),
           ),
           SizedBox(height: context.elementSpacing),
-          Obx(() => Wrap(
-                spacing: 10,
-                runSpacing: 10,
-                children: controller.categories.map((category) {
-                  final isSelected = controller.selectedCategories.contains(category);
-                  return FilterChip(
-                    label: Text(category),
-                    selected: isSelected,
-                    onSelected: (selected) {
-                      controller.toggleCategory(category);
-                    },
-                    selectedColor: AppThemeSystem.primaryColor,
-                    checkmarkColor: Colors.white,
-                    backgroundColor: context.surfaceColor,
-                    side: BorderSide(
-                      color: isSelected
-                          ? AppThemeSystem.primaryColor
-                          : context.borderColor,
-                      width: isSelected ? 2 : 1,
+
+          // État de chargement, erreur ou catégories
+          Obx(() {
+            // Loading state
+            if (controller.isCategoriesLoading.value) {
+              return Container(
+                padding: EdgeInsets.all(context.verticalPadding),
+                child: Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      CircularProgressIndicator(),
+                      SizedBox(height: context.elementSpacing),
+                      Text(
+                        'Chargement des catégories...',
+                        style: context.caption.copyWith(
+                          color: context.secondaryTextColor,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }
+
+            // Error state
+            if (controller.categoriesLoadError.value.isNotEmpty) {
+              return Container(
+                padding: EdgeInsets.all(context.verticalPadding),
+                decoration: BoxDecoration(
+                  color: AppThemeSystem.errorColor.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: AppThemeSystem.errorColor.withValues(alpha: 0.3),
+                  ),
+                ),
+                child: Column(
+                  children: [
+                    Icon(
+                      Icons.error_outline,
+                      color: AppThemeSystem.errorColor,
+                      size: 32,
                     ),
-                    labelStyle: context.body2.copyWith(
-                      color: isSelected ? Colors.white : context.primaryTextColor,
-                      fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                    SizedBox(height: context.elementSpacing * 0.5),
+                    Text(
+                      controller.categoriesLoadError.value,
+                      style: context.body2.copyWith(
+                        color: AppThemeSystem.errorColor,
+                      ),
+                      textAlign: TextAlign.center,
                     ),
-                    padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  );
-                }).toList(),
-              )),
+                    SizedBox(height: context.elementSpacing),
+                    ElevatedButton.icon(
+                      onPressed: controller.refreshCategories,
+                      icon: Icon(Icons.refresh, size: 18),
+                      label: Text('Réessayer'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppThemeSystem.errorColor,
+                        foregroundColor: Colors.white,
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }
+
+            // Categories loaded - display chips
+            if (controller.categories.isEmpty) {
+              return Container(
+                padding: EdgeInsets.all(context.verticalPadding),
+                child: Text(
+                  'Aucune catégorie disponible',
+                  style: context.body2.copyWith(
+                    color: context.secondaryTextColor,
+                  ),
+                ),
+              );
+            }
+
+            return Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              children: controller.categories.map((category) {
+                final isSelected = controller.selectedCategories.contains(category.name);
+                return FilterChip(
+                  label: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(category.name),
+                      if (category.productsCount != null && category.productsCount! > 0)
+                        Padding(
+                          padding: EdgeInsets.only(left: 6),
+                          child: Text(
+                            '(${category.productsCount})',
+                            style: context.caption.copyWith(
+                              color: isSelected ? Colors.white70 : context.secondaryTextColor,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                  selected: isSelected,
+                  onSelected: (selected) {
+                    controller.toggleCategory(category.name);
+                  },
+                  selectedColor: AppThemeSystem.primaryColor,
+                  checkmarkColor: Colors.white,
+                  backgroundColor: context.surfaceColor,
+                  side: BorderSide(
+                    color: isSelected
+                        ? AppThemeSystem.primaryColor
+                        : context.borderColor,
+                    width: isSelected ? 2 : 1,
+                  ),
+                  labelStyle: context.body2.copyWith(
+                    color: isSelected ? Colors.white : context.primaryTextColor,
+                    fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                  ),
+                  padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                );
+              }).toList(),
+            );
+          }),
 
           SizedBox(height: context.verticalPadding * 2),
         ],

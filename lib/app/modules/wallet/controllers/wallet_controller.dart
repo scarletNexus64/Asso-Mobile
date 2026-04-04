@@ -1,549 +1,725 @@
-import 'package:flutter/material.dart';
+import 'dart:async';
 import 'package:get/get.dart';
-import '../models/wallet_models.dart';
+
+import '../../../data/models/wallet_model.dart';
+import '../../../data/services/wallet_service.dart';
+import '../../../data/services/fcm_service.dart';
+import '../../../data/providers/storage_service.dart';
 
 class WalletController extends GetxController {
-  // État de chargement
-  final RxBool isLoading = false.obs;
+  final WalletService _walletService = Get.find<WalletService>();
 
-  // Statistiques du wallet
-  final Rx<WalletStats?> walletStats = Rx<WalletStats?>(null);
+  // FCM Service (optionnel - si disponible)
+  FcmService? _fcmService;
+  StreamSubscription? _fcmSubscription;
 
-  // Liste complète des transactions
-  final RxList<Transaction> allTransactions = <Transaction>[].obs;
+  // États réactifs
+  final isLoading = true.obs;
+  final isLoadingTransactions = false.obs;
+  final isProcessingPayment = false.obs;
 
-  // Liste filtrée des transactions
-  final RxList<Transaction> filteredTransactions = <Transaction>[].obs;
+  // Données du wallet
+  final wallet = Rxn<WalletModel>();
+  final transactions = <WalletTransactionModel>[].obs;
 
-  // Période de filtre sélectionnée
-  final Rx<FilterPeriod> selectedPeriod = FilterPeriod.month.obs;
+  // Soldes de retrait séparés par provider
+  final freemopayBalance = 0.0.obs;
+  final paypalBalance = 0.0.obs;
+  final totalWithdrawableBalance = 0.0.obs;
 
-  // Type de transaction filtré
-  final Rx<TransactionType?> selectedType = Rx<TransactionType?>(null);
+  // Pagination des transactions
+  final currentPage = 1.obs;
+  final lastPage = 1.obs;
+  final totalTransactions = 0.obs;
+  final perPage = 20.obs;
 
-  // Contrôleur pour le montant de retrait
-  final TextEditingController withdrawalAmountController =
-      TextEditingController();
+  // Filtres
+  final selectedType = Rxn<String>(); // credit, debit, refund, bonus, adjustment
 
-  // Méthode de retrait sélectionnée
-  final Rx<WithdrawalMethod> selectedWithdrawalMethod =
-      WithdrawalMethod.mobileMoney.obs;
+  // Messages
+  final errorMessage = ''.obs;
+  final successMessage = ''.obs;
+
+  // Getter pour le numéro de téléphone de l'utilisateur
+  String? get userPhone {
+    try {
+      final user = StorageService.getUser();
+      return user?.phone;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  // Getter pour compter les transactions en attente (pending)
+  int get pendingTransactionsCount {
+    return transactions.where((tx) => tx.status == 'pending').length;
+  }
 
   @override
   void onInit() {
     super.onInit();
-    loadWalletData();
 
-    // Écouter les changements de filtres
-    ever(selectedPeriod, (_) => applyFilters());
-    ever(selectedType, (_) => applyFilters());
+    // Charger les données uniquement si l'utilisateur est connecté
+    if (StorageService.isAuthenticated) {
+      loadWallet();
+      loadTransactions(); // Charger l'historique dès l'ouverture
+      loadWithdrawalBalances(); // Charger les soldes de retrait
+
+      // NOTE: Deposit polling is no longer needed!
+      // The backend now processes deposits asynchronously using:
+      // - Background jobs that check FreeMoPay API every 30 seconds
+      // - FCM notifications sent to user when payment completes
+      // Users no longer wait on a screen - they receive a notification instead
+
+      // Setup FCM listener pour auto-refresh quand notification reçue
+      _setupFcmListener();
+    } else {
+      // Mode invité - arrêter le chargement
+      isLoading.value = false;
+    }
   }
 
   @override
   void onClose() {
-    withdrawalAmountController.dispose();
+    // Annuler la subscription FCM
+    _fcmSubscription?.cancel();
     super.onClose();
   }
 
-  /// Charge les données du wallet
-  Future<void> loadWalletData() async {
-    isLoading.value = true;
+  /// Configure l'écoute des notifications FCM pour le wallet
+  void _setupFcmListener() {
     try {
-      await Future.delayed(const Duration(milliseconds: 500));
+      _fcmService = Get.find<FcmService>();
 
-      // Générer des données de test
-      allTransactions.value = _generateMockTransactions();
+      // Écouter les notifications de wallet
+      _fcmSubscription = _fcmService?.walletNotificationStream.listen((data) {
+        print('[WalletController] FCM wallet notification received: $data');
 
-      // Calculer les statistiques
-      walletStats.value = _calculateStats();
+        final type = data['type'] as String?;
 
-      // Appliquer les filtres
-      applyFilters();
+        if (type == 'wallet_credit') {
+          // Dépôt réussi
+          print('[WalletController] Deposit completed - refreshing wallet');
+          refresh();
+
+          Get.snackbar(
+            '💰 Dépôt réussi',
+            'Votre dépôt de ${data['amount']} FCFA a été confirmé.',
+            backgroundColor: Get.theme.colorScheme.primary,
+            colorText: Get.theme.colorScheme.onPrimary,
+            duration: const Duration(seconds: 4),
+          );
+        } else if (type == 'wallet_credit_failed') {
+          // Dépôt échoué
+          print('[WalletController] Deposit failed - refreshing wallet');
+          refresh();
+
+          Get.snackbar(
+            '❌ Dépôt échoué',
+            data['reason'] as String? ?? 'Le dépôt a échoué',
+            backgroundColor: Get.theme.colorScheme.error,
+            colorText: Get.theme.colorScheme.onError,
+            duration: const Duration(seconds: 5),
+          );
+        } else if (type == 'wallet_withdrawal_completed') {
+          // Retrait réussi
+          print('[WalletController] Withdrawal completed - refreshing wallet');
+          refresh();
+
+          Get.snackbar(
+            '💸 Retrait effectué',
+            'Votre retrait de ${data['amount']} FCFA a été envoyé.',
+            backgroundColor: Get.theme.colorScheme.primary,
+            colorText: Get.theme.colorScheme.onPrimary,
+            duration: const Duration(seconds: 4),
+          );
+        } else if (type == 'wallet_withdrawal_failed') {
+          // Retrait échoué (avec remboursement automatique)
+          print('[WalletController] Withdrawal failed - refreshing wallet');
+          refresh();
+
+          Get.snackbar(
+            '⚠️ Retrait échoué',
+            'Votre retrait a échoué. Le montant a été remboursé dans votre wallet.',
+            backgroundColor: Get.theme.colorScheme.error,
+            colorText: Get.theme.colorScheme.onError,
+            duration: const Duration(seconds: 5),
+          );
+        }
+      });
+
+      print('[WalletController] FCM listener setup complete');
     } catch (e) {
-      Get.snackbar(
-        'Erreur',
-        'Impossible de charger les données du wallet',
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
-      );
+      print('[WalletController] FCM service not available: $e');
+      // FCM is optional - app still works without it
+    }
+  }
+
+  /// Charge les données du wallet (solde et stats)
+  Future<void> loadWallet() async {
+    isLoading.value = true;
+    errorMessage.value = '';
+
+    try {
+      final result = await _walletService.getWalletStats();
+
+      if (result != null) {
+        wallet.value = result;
+      } else {
+        errorMessage.value = 'Impossible de charger le wallet';
+      }
+    } catch (e) {
+      print('[WalletController] Error loading wallet: $e');
+      errorMessage.value = 'Erreur lors du chargement du wallet';
     } finally {
       isLoading.value = false;
     }
   }
 
-  /// Applique les filtres sur les transactions
-  void applyFilters() {
-    var transactions = allTransactions.toList();
-
-    // Filtre par période
-    final startDate = selectedPeriod.value.startDate;
-    transactions =
-        transactions.where((t) => t.date.isAfter(startDate)).toList();
-
-    // Filtre par type
-    if (selectedType.value != null) {
-      transactions =
-          transactions.where((t) => t.type == selectedType.value).toList();
+  /// Charge l'historique des transactions
+  Future<void> loadTransactions({bool loadMore = false}) async {
+    if (loadMore) {
+      if (currentPage.value >= lastPage.value) return;
+      currentPage.value++;
+    } else {
+      currentPage.value = 1;
+      isLoadingTransactions.value = true;
     }
 
-    // Trier par date (plus récent en premier)
-    transactions.sort((a, b) => b.date.compareTo(a.date));
-
-    filteredTransactions.value = transactions;
-  }
-
-  /// Calcule les statistiques
-  WalletStats _calculateStats() {
-    final completedTransactions = allTransactions
-        .where((t) => t.status == TransactionStatus.completed)
-        .toList();
-
-    final totalEarnings = completedTransactions
-        .where((t) => t.type.isCredit)
-        .fold(0.0, (sum, t) => sum + t.amount);
-
-    final totalWithdrawals = completedTransactions
-        .where((t) => t.type == TransactionType.withdrawal)
-        .fold(0.0, (sum, t) => sum + t.amount);
-
-    final pendingAmount = allTransactions
-        .where((t) => t.status == TransactionStatus.pending)
-        .fold(0.0, (sum, t) => sum + t.amount);
-
-    final balance = totalEarnings - totalWithdrawals;
-
-    // Générer les gains journaliers pour les 30 derniers jours
-    final dailyEarnings = _calculateDailyEarnings();
-
-    return WalletStats(
-      balance: balance,
-      totalEarnings: totalEarnings,
-      totalWithdrawals: totalWithdrawals,
-      pendingAmount: pendingAmount,
-      totalTransactions: allTransactions.length,
-      dailyEarnings: dailyEarnings,
-    );
-  }
-
-  /// Calcule les gains journaliers
-  List<DailyEarnings> _calculateDailyEarnings() {
-    final Map<String, DailyEarnings> earningsMap = {};
-    final now = DateTime.now();
-
-    // Initialiser les 30 derniers jours avec 0
-    for (int i = 29; i >= 0; i--) {
-      final date = DateTime(now.year, now.month, now.day).subtract(Duration(days: i));
-      final key = '${date.year}-${date.month}-${date.day}';
-      earningsMap[key] = DailyEarnings(
-        date: date,
-        amount: 0,
-        transactionCount: 0,
+    try {
+      final result = await _walletService.getTransactionHistory(
+        page: currentPage.value,
+        perPage: perPage.value,
+        type: selectedType.value,
       );
+
+      final List<WalletTransactionModel> newTransactions =
+          result['transactions'] as List<WalletTransactionModel>;
+
+      if (loadMore) {
+        transactions.addAll(newTransactions);
+      } else {
+        transactions.value = newTransactions;
+      }
+
+      lastPage.value = result['last_page'] as int;
+      totalTransactions.value = result['total'] as int;
+    } catch (e) {
+      print('[WalletController] Error loading transactions: $e');
+      errorMessage.value = 'Erreur lors du chargement des transactions';
+    } finally {
+      isLoadingTransactions.value = false;
     }
+  }
 
-    // Ajouter les ventes complétées
-    for (final transaction in allTransactions) {
-      if (transaction.type == TransactionType.sale &&
-          transaction.status == TransactionStatus.completed) {
-        final date = transaction.date;
-        final key = '${date.year}-${date.month}-${date.day}';
+  /// Filtre les transactions par type
+  void filterByType(String? type) {
+    selectedType.value = type;
+    loadTransactions();
+  }
 
-        if (earningsMap.containsKey(key)) {
-          final current = earningsMap[key]!;
-          earningsMap[key] = DailyEarnings(
-            date: current.date,
-            amount: current.amount + transaction.amount,
-            transactionCount: current.transactionCount + 1,
-          );
+  /// Rafraîchit les données (pull to refresh)
+  Future<void> refresh() async {
+    await Future.wait([
+      loadWallet(),
+      loadTransactions(),
+      loadWithdrawalBalances(),
+    ]);
+  }
+
+  /// Initie une recharge du wallet
+  /// Retourne l'URL de paiement si succès
+  /// phoneNumber: requis pour freemopay
+  Future<Map<String, dynamic>> initiateRecharge({
+    required double amount,
+    required String paymentMethod, // 'freemopay' ou 'paypal'
+    String? phoneNumber, // Requis pour freemopay
+  }) async {
+    isProcessingPayment.value = true;
+    errorMessage.value = '';
+    successMessage.value = '';
+
+    try {
+      final result = await _walletService.rechargeWallet(
+        amount: amount,
+        paymentMethod: paymentMethod,
+        phoneNumber: phoneNumber,
+      );
+
+      if (result['success'] == true) {
+        successMessage.value = result['message'] ?? 'Recharge initiée avec succès';
+
+        // Si c'est FreeMoPay et que le wallet est déjà crédité, rafraîchir
+        if (paymentMethod == 'freemopay' && result['status'] == 'completed') {
+          await Future.wait([
+            loadWallet(),
+            loadWithdrawalBalances(),
+          ]);
+        }
+
+        return result;
+      } else {
+        errorMessage.value = result['message'] ?? 'Échec de l\'initiation de la recharge';
+        return {'success': false, 'message': errorMessage.value};
+      }
+    } catch (e) {
+      print('[WalletController] Error initiating recharge: $e');
+      errorMessage.value = 'Erreur lors de l\'initiation de la recharge';
+      return {'success': false, 'message': errorMessage.value};
+    } finally {
+      isProcessingPayment.value = false;
+    }
+  }
+
+  /// Vérifie le statut d'un paiement avec polling
+  /// maxAttempts: nombre max de tentatives (défaut 120 = 6 minutes avec interval 3s)
+  /// pollInterval: intervalle entre les tentatives en secondes (défaut 3s)
+  Future<Map<String, dynamic>> pollPaymentStatus({
+    required int paymentId,
+    int maxAttempts = 120,
+    int pollInterval = 3,
+    Function(String status)? onStatusUpdate,
+  }) async {
+    int attempts = 0;
+
+    while (attempts < maxAttempts) {
+      try {
+        // Attendre l'intervalle avant de vérifier (sauf pour la première tentative)
+        if (attempts > 0) {
+          await Future.delayed(Duration(seconds: pollInterval));
+        }
+
+        final result = await _walletService.checkPaymentStatus(paymentId);
+
+        if (result['success'] == true) {
+          final status = result['status'] as String?;
+
+          // Notifier du changement de statut
+          if (onStatusUpdate != null && status != null) {
+            onStatusUpdate(status);
+          }
+
+          // Si le paiement est complété
+          if (status == 'completed') {
+            // Rafraîchir le solde et les soldes de retrait
+            await Future.wait([
+              loadWallet(),
+              loadWithdrawalBalances(),
+            ]);
+            return {
+              'success': true,
+              'status': 'completed',
+              'message': 'Paiement réussi',
+              ...result,
+            };
+          }
+
+          // Si le paiement a échoué
+          if (status == 'failed') {
+            return {
+              'success': false,
+              'status': 'failed',
+              'message': result['failure_reason'] ?? 'Le paiement a échoué',
+              ...result,
+            };
+          }
+
+          // Si le paiement a été annulé
+          if (status == 'cancelled') {
+            return {
+              'success': false,
+              'status': 'cancelled',
+              'message': 'Le paiement a été annulé',
+              ...result,
+            };
+          }
+
+          // Sinon le paiement est encore pending, continuer le polling
+          attempts++;
+        } else {
+          // Erreur lors de la vérification, continuer le polling
+          attempts++;
+        }
+      } catch (e) {
+        print('[WalletController] Error polling payment status: $e');
+        attempts++;
+
+        // Si trop d'erreurs consécutives, abandonner
+        if (attempts >= 15) {
+          return {
+            'success': false,
+            'status': 'error',
+            'message': 'Impossible de vérifier le statut du paiement',
+          };
         }
       }
     }
 
-    return earningsMap.values.toList()
-      ..sort((a, b) => a.date.compareTo(b.date));
+    // Timeout atteint
+    return {
+      'success': false,
+      'status': 'timeout',
+      'message': 'Le délai de vérification a expiré. Vérifiez votre wallet plus tard.',
+    };
   }
 
-  /// Génère des transactions de test
-  List<Transaction> _generateMockTransactions() {
-    final List<Transaction> transactions = [];
-    final now = DateTime.now();
-
-    // Ventes
-    for (int i = 0; i < 30; i++) {
-      transactions.add(Transaction(
-        id: 'TXN${1000 + i}',
-        type: TransactionType.sale,
-        amount: 15000 + (i * 500),
-        date: now.subtract(Duration(days: i)),
-        description: 'Vente commande #CMD${1000 + i}',
-        status: TransactionStatus.completed,
-        orderId: 'CMD${1000 + i}',
-      ));
+  /// Vérifie le statut d'un paiement (appel unique)
+  /// Utilisé par la page d'attente USSD pour vérifier périodiquement
+  Future<Map<String, dynamic>> checkPaymentStatus(int paymentId) async {
+    try {
+      return await _walletService.checkPaymentStatus(paymentId);
+    } catch (e) {
+      print('[WalletController] Error checking payment status: $e');
+      return {
+        'success': false,
+        'message': 'Erreur lors de la vérification du statut',
+      };
     }
-
-    // Retraits
-    transactions.add(Transaction(
-      id: 'TXN2000',
-      type: TransactionType.withdrawal,
-      amount: 50000,
-      date: now.subtract(const Duration(days: 5)),
-      description: 'Retrait vers Mobile Money',
-      status: TransactionStatus.completed,
-      reference: 'WD2000',
-    ));
-
-    transactions.add(Transaction(
-      id: 'TXN2001',
-      type: TransactionType.withdrawal,
-      amount: 30000,
-      date: now.subtract(const Duration(days: 15)),
-      description: 'Retrait vers compte bancaire',
-      status: TransactionStatus.completed,
-      reference: 'WD2001',
-    ));
-
-    // Retrait en attente
-    transactions.add(Transaction(
-      id: 'TXN2002',
-      type: TransactionType.withdrawal,
-      amount: 25000,
-      date: now.subtract(const Duration(days: 1)),
-      description: 'Retrait en cours de traitement',
-      status: TransactionStatus.pending,
-      reference: 'WD2002',
-    ));
-
-    // Commissions
-    transactions.add(Transaction(
-      id: 'TXN3000',
-      type: TransactionType.commission,
-      amount: 2500,
-      date: now.subtract(const Duration(days: 3)),
-      description: 'Commission plateforme',
-      status: TransactionStatus.completed,
-    ));
-
-    return transactions;
   }
 
-  /// Demande un retrait
-  Future<void> requestWithdrawal() async {
-    final amountText = withdrawalAmountController.text.trim();
-
-    if (amountText.isEmpty) {
-      Get.snackbar(
-        'Erreur',
-        'Veuillez entrer un montant',
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
-      );
-      return;
+  /// Vérifie si l'utilisateur peut payer un montant
+  Future<Map<String, dynamic>> checkCanPay(double amount) async {
+    try {
+      final result = await _walletService.canPayWithWallet(amount);
+      return result;
+    } catch (e) {
+      print('[WalletController] Error checking payment ability: $e');
+      return {
+        'can_pay': false,
+        'current_balance': wallet.value?.currentBalance ?? 0.0,
+        'required_amount': amount,
+        'missing_amount': amount - (wallet.value?.currentBalance ?? 0.0),
+        'message': 'Erreur lors de la vérification',
+      };
     }
+  }
 
-    final amount = double.tryParse(amountText);
-    if (amount == null || amount <= 0) {
-      Get.snackbar(
-        'Erreur',
-        'Montant invalide',
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
-      );
-      return;
-    }
-
-    final stats = walletStats.value;
-    if (stats == null) return;
-
-    if (amount > stats.availableBalance) {
-      Get.snackbar(
-        'Erreur',
-        'Solde insuffisant. Disponible: ${stats.availableBalance.toStringAsFixed(0)} XAF',
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
-      );
-      return;
-    }
-
-    // Montant minimum
-    if (amount < 5000) {
-      Get.snackbar(
-        'Erreur',
-        'Le montant minimum de retrait est de 5 000 XAF',
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
-      );
-      return;
-    }
+  /// Effectue un paiement avec le wallet
+  /// IMPORTANT: Cette méthode nécessite maintenant le paramètre paymentProvider
+  Future<bool> payWithWallet({
+    required double amount,
+    required String description,
+    required String referenceType,
+    required int referenceId,
+    required String paymentProvider, // 'freemopay' ou 'paypal'
+  }) async {
+    isProcessingPayment.value = true;
+    errorMessage.value = '';
+    successMessage.value = '';
 
     try {
-      isLoading.value = true;
-
-      // TODO: Appel API pour demander le retrait
-      await Future.delayed(const Duration(milliseconds: 500));
-
-      withdrawalAmountController.clear();
-      Get.back(); // Fermer le formulaire
-
-      Get.snackbar(
-        'Succès',
-        'Votre demande de retrait de ${amount.toStringAsFixed(0)} XAF a été envoyée',
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: Colors.green,
-        colorText: Colors.white,
+      final result = await _walletService.payWithWallet(
+        amount: amount,
+        description: description,
+        referenceType: referenceType,
+        referenceId: referenceId,
+        paymentProvider: paymentProvider,
       );
 
-      // Recharger les données
-      await loadWalletData();
+      if (result['success'] == true) {
+        successMessage.value = result['message'] ?? 'Paiement effectué avec succès';
+
+        // Rafraîchir le wallet et les soldes de retrait après paiement
+        await Future.wait([
+          loadWallet(),
+          loadWithdrawalBalances(),
+        ]);
+
+        return true;
+      } else {
+        errorMessage.value = result['message'] ?? 'Échec du paiement';
+        return false;
+      }
     } catch (e) {
-      Get.snackbar(
-        'Erreur',
-        'Impossible de traiter votre demande',
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
-      );
+      print('[WalletController] Error paying with wallet: $e');
+      errorMessage.value = 'Erreur lors du paiement';
+      return false;
     } finally {
-      isLoading.value = false;
+      isProcessingPayment.value = false;
     }
   }
 
-  /// Affiche le formulaire de retrait
-  void showWithdrawalForm() {
-    Get.bottomSheet(
-      _WithdrawalFormSheet(controller: this),
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-    );
-  }
+  /// Initie un paiement PayPal natif
+  Future<Map<String, dynamic>> initiateNativePayPalPayment({
+    required double amount,
+  }) async {
+    isProcessingPayment.value = true;
+    errorMessage.value = '';
+    successMessage.value = '';
 
-  /// Obtient la couleur selon le type de transaction
-  Color getTransactionColor(TransactionType type) {
-    switch (type) {
-      case TransactionType.sale:
-        return const Color(0xFF4CAF50); // Vert
-      case TransactionType.withdrawal:
-        return const Color(0xFFF44336); // Rouge
-      case TransactionType.refund:
-        return const Color(0xFF2196F3); // Bleu
-      case TransactionType.commission:
-        return const Color(0xFFFF9800); // Orange
+    try {
+      final result = await _walletService.createNativePayPalOrder(amount: amount);
+
+      if (result['success'] == true) {
+        successMessage.value = 'Ordre PayPal créé avec succès';
+        return result;
+      } else {
+        errorMessage.value = result['message'] ?? 'Échec de la création de l\'ordre PayPal';
+        return {'success': false, 'message': errorMessage.value};
+      }
+    } catch (e) {
+      print('[WalletController] Error initiating native PayPal payment: $e');
+      errorMessage.value = 'Erreur lors de la création de l\'ordre PayPal';
+      return {'success': false, 'message': errorMessage.value};
+    } finally {
+      isProcessingPayment.value = false;
     }
   }
-}
 
-/// Formulaire de retrait en bottom sheet
-class _WithdrawalFormSheet extends StatelessWidget {
-  final WalletController controller;
+  /// Capture un paiement PayPal natif après approbation
+  Future<Map<String, dynamic>> captureNativePayPalPayment({
+    required int paymentId,
+    required String orderId,
+  }) async {
+    isProcessingPayment.value = true;
+    errorMessage.value = '';
+    successMessage.value = '';
 
-  const _WithdrawalFormSheet({required this.controller});
+    try {
+      final result = await _walletService.captureNativePayPalOrder(
+        paymentId: paymentId,
+        orderId: orderId,
+      );
 
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.only(top: 100),
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      padding: EdgeInsets.only(
-        left: 24,
-        right: 24,
-        top: 24,
-        bottom: MediaQuery.of(context).viewInsets.bottom + 24,
-      ),
-      child: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                const Text(
-                  'Demande de retrait',
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const Spacer(),
-                IconButton(
-                  onPressed: () => Get.back(),
-                  icon: const Icon(Icons.close),
-                ),
-              ],
-            ),
-            const SizedBox(height: 24),
-            Obx(() {
-              final stats = controller.walletStats.value;
-              if (stats == null) return const SizedBox.shrink();
+      if (result['success'] == true) {
+        successMessage.value = result['message'] ?? 'Paiement effectué avec succès';
 
-              return Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF58A3A).withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.account_balance_wallet, size: 32),
-                    const SizedBox(width: 16),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'Solde disponible',
-                          style: TextStyle(fontSize: 12),
-                        ),
-                        Text(
-                          '${stats.availableBalance.toStringAsFixed(0)} XAF',
-                          style: const TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              );
-            }),
-            const SizedBox(height: 24),
-            const Text(
-              'Montant à retirer',
-              style: TextStyle(fontWeight: FontWeight.w600),
-            ),
-            const SizedBox(height: 8),
-            TextField(
-              controller: controller.withdrawalAmountController,
-              keyboardType: TextInputType.number,
-              decoration: InputDecoration(
-                hintText: 'Ex: 50000',
-                suffixText: 'XAF',
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            const Text(
-              'Méthode de retrait',
-              style: TextStyle(fontWeight: FontWeight.w600),
-            ),
-            const SizedBox(height: 8),
-            Obx(() => Column(
-              children: [
-                _buildMethodTile(
-                  WithdrawalMethod.mobileMoney,
-                  controller.selectedWithdrawalMethod.value ==
-                      WithdrawalMethod.mobileMoney,
-                  () => controller.selectedWithdrawalMethod.value =
-                      WithdrawalMethod.mobileMoney,
-                ),
-                const SizedBox(height: 8),
-                _buildMethodTile(
-                  WithdrawalMethod.bankTransfer,
-                  controller.selectedWithdrawalMethod.value ==
-                      WithdrawalMethod.bankTransfer,
-                  () => controller.selectedWithdrawalMethod.value =
-                      WithdrawalMethod.bankTransfer,
-                ),
-              ],
-            )),
-            const SizedBox(height: 24),
-            SizedBox(
-              width: double.infinity,
-              child: Obx(() => ElevatedButton(
-                onPressed: controller.isLoading.value
-                    ? null
-                    : controller.requestWithdrawal,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFF58A3A),
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-                child: controller.isLoading.value
-                    ? const SizedBox(
-                        height: 20,
-                        width: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          valueColor:
-                              AlwaysStoppedAnimation<Color>(Colors.white),
-                        ),
-                      )
-                    : const Text(
-                        'Demander le retrait',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-              )),
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              'Montant minimum: 5 000 XAF\nDélai de traitement: 24-48h',
-              style: TextStyle(
-                fontSize: 12,
-                color: Colors.grey,
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
-      ),
-    );
+        // Rafraîchir le wallet et les soldes de retrait après paiement
+        await Future.wait([
+          loadWallet(),
+          loadWithdrawalBalances(),
+        ]);
+
+        return result;
+      } else {
+        errorMessage.value = result['message'] ?? 'Échec de la capture du paiement';
+        return {'success': false, 'message': errorMessage.value};
+      }
+    } catch (e) {
+      print('[WalletController] Error capturing native PayPal payment: $e');
+      errorMessage.value = 'Erreur lors de la capture du paiement';
+      return {'success': false, 'message': errorMessage.value};
+    } finally {
+      isProcessingPayment.value = false;
+    }
   }
 
-  Widget _buildMethodTile(
-    WithdrawalMethod method,
-    bool isSelected,
-    VoidCallback onTap,
-  ) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          border: Border.all(
-            color: isSelected ? const Color(0xFFF58A3A) : Colors.grey.shade300,
-            width: isSelected ? 2 : 1,
-          ),
-          borderRadius: BorderRadius.circular(12),
-          color: isSelected
-              ? const Color(0xFFF58A3A).withValues(alpha: 0.1)
-              : Colors.transparent,
-        ),
-        child: Row(
-          children: [
-            Text(
-              method.icon,
-              style: const TextStyle(fontSize: 24),
-            ),
-            const SizedBox(width: 12),
-            Text(
-              method.label,
-              style: TextStyle(
-                fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-              ),
-            ),
-            const Spacer(),
-            if (isSelected)
-              const Icon(
-                Icons.check_circle,
-                color: Color(0xFFF58A3A),
-              ),
-          ],
-        ),
-      ),
-    );
+  /// Getter pour le solde actuel
+  double get currentBalance => wallet.value?.currentBalance ?? 0.0;
+
+  /// Getter pour le solde formaté
+  String get formattedBalance => wallet.value?.formattedBalance ?? '0 FCFA';
+
+  /// Vérifie si le wallet a un solde suffisant
+  bool hasSufficientBalance(double amount) {
+    return currentBalance >= amount;
+  }
+
+  /// Efface les messages d'erreur et de succès
+  void clearMessages() {
+    errorMessage.value = '';
+    successMessage.value = '';
+  }
+
+  // ============================================
+  // MÉTHODES DE RETRAIT
+  // ============================================
+
+  /// Charge les soldes disponibles pour retrait
+  Future<void> loadWithdrawalBalances() async {
+    try {
+      final result = await _walletService.getWithdrawalBalances();
+
+      if (result['success'] == true) {
+        // Parse safely - handle both string and numeric responses
+        freemopayBalance.value = _parseBalance(result['freemopay_balance']);
+        paypalBalance.value = _parseBalance(result['paypal_balance']);
+        totalWithdrawableBalance.value = _parseBalance(result['total_balance']);
+      }
+    } catch (e) {
+      print('[WalletController] Error loading withdrawal balances: $e');
+    }
+  }
+
+  /// Parse balance value safely (handles both string and numeric types)
+  double _parseBalance(dynamic value) {
+    if (value == null) return 0.0;
+    if (value is double) return value;
+    if (value is int) return value.toDouble();
+    if (value is String) return double.tryParse(value) ?? 0.0;
+    return 0.0;
+  }
+
+  /// Récupère les soldes disponibles pour retrait
+  Future<Map<String, dynamic>> getWithdrawalBalances() async {
+    try {
+      return await _walletService.getWithdrawalBalances();
+    } catch (e) {
+      print('[WalletController] Error getting withdrawal balances: $e');
+      return {
+        'success': false,
+        'message': 'Erreur lors de la récupération des soldes',
+      };
+    }
+  }
+
+  /// Initie un retrait FreeMoPay
+  Future<Map<String, dynamic>> initiateFreeMoPayWithdrawal({
+    required double amount,
+    required String paymentMethod, // 'om' ou 'momo'
+    required String phoneNumber,
+    String? notes,
+  }) async {
+    isProcessingPayment.value = true;
+    errorMessage.value = '';
+    successMessage.value = '';
+
+    try {
+      final result = await _walletService.initiateFreeMoPayWithdrawal(
+        amount: amount,
+        paymentMethod: paymentMethod,
+        phoneNumber: phoneNumber,
+        notes: notes,
+      );
+
+      if (result['success'] == true) {
+        successMessage.value = result['message'] ?? 'Retrait initié avec succès';
+        // Rafraîchir le solde et les soldes de retrait
+        await Future.wait([
+          loadWallet(),
+          loadWithdrawalBalances(),
+        ]);
+        return result;
+      } else {
+        errorMessage.value = result['message'] ?? 'Échec de l\'initiation du retrait';
+        return result;
+      }
+    } catch (e) {
+      print('[WalletController] Error initiating FreeMoPay withdrawal: $e');
+      errorMessage.value = 'Erreur lors de l\'initiation du retrait';
+      return {'success': false, 'message': errorMessage.value};
+    } finally {
+      isProcessingPayment.value = false;
+    }
+  }
+
+  /// Initie un retrait PayPal Payout
+  Future<Map<String, dynamic>> initiatePayPalWithdrawal({
+    required double amount,
+    required String paypalEmail,
+    String? notes,
+  }) async {
+    isProcessingPayment.value = true;
+    errorMessage.value = '';
+    successMessage.value = '';
+
+    try {
+      final result = await _walletService.initiatePayPalWithdrawal(
+        amount: amount,
+        paypalEmail: paypalEmail,
+        notes: notes,
+      );
+
+      if (result['success'] == true) {
+        successMessage.value = result['message'] ?? 'Retrait PayPal initié avec succès';
+        // Rafraîchir le solde et les soldes de retrait
+        await Future.wait([
+          loadWallet(),
+          loadWithdrawalBalances(),
+        ]);
+        return result;
+      } else {
+        errorMessage.value = result['message'] ?? 'Échec de l\'initiation du retrait PayPal';
+        return result;
+      }
+    } catch (e) {
+      print('[WalletController] Error initiating PayPal withdrawal: $e');
+      errorMessage.value = 'Erreur lors de l\'initiation du retrait PayPal';
+      return {'success': false, 'message': errorMessage.value};
+    } finally {
+      isProcessingPayment.value = false;
+    }
+  }
+
+  /// Méthode wrapper générique pour initier un retrait
+  /// Provider: 'freemopay' ou 'paypal'
+  Future<Map<String, dynamic>> initiateWithdrawal({
+    required String provider,
+    required double amount,
+    String? paymentMethod, // Pour FreeMoPay: 'om' ou 'momo'
+    String? phoneNumber, // Pour FreeMoPay
+    String? paypalEmail, // Pour PayPal
+    String? notes,
+  }) async {
+    if (provider == 'freemopay') {
+      if (paymentMethod == null || phoneNumber == null) {
+        return {
+          'success': false,
+          'message': 'Méthode de paiement et numéro de téléphone requis pour FreeMoPay',
+        };
+      }
+      return await initiateFreeMoPayWithdrawal(
+        amount: amount,
+        paymentMethod: paymentMethod,
+        phoneNumber: phoneNumber,
+        notes: notes,
+      );
+    } else if (provider == 'paypal') {
+      if (paypalEmail == null) {
+        return {
+          'success': false,
+          'message': 'Email PayPal requis',
+        };
+      }
+      return await initiatePayPalWithdrawal(
+        amount: amount,
+        paypalEmail: paypalEmail,
+        notes: notes,
+      );
+    } else {
+      return {
+        'success': false,
+        'message': 'Provider invalide: $provider',
+      };
+    }
+  }
+
+  /// Vérifie le statut d'un retrait
+  Future<Map<String, dynamic>> checkWithdrawalStatus(int withdrawalId) async {
+    try {
+      return await _walletService.checkWithdrawalStatus(withdrawalId);
+    } catch (e) {
+      print('[WalletController] Error checking withdrawal status: $e');
+      return {
+        'success': false,
+        'message': 'Erreur lors de la vérification du statut',
+      };
+    }
+  }
+
+  /// Récupère l'historique des retraits
+  Future<Map<String, dynamic>> getWithdrawalHistory({
+    int page = 1,
+    int perPage = 20,
+    String? provider,
+    String? status,
+  }) async {
+    try {
+      return await _walletService.getWithdrawalHistory(
+        page: page,
+        perPage: perPage,
+        provider: provider,
+        status: status,
+      );
+    } catch (e) {
+      print('[WalletController] Error getting withdrawal history: $e');
+      return {
+        'withdrawals': [],
+        'current_page': 1,
+        'last_page': 1,
+        'total': 0,
+        'per_page': perPage,
+      };
+    }
   }
 }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
 
 /// Système de theming automatique et responsive pour Estuaire Emploi
 /// Gère automatiquement les thèmes sombre/clair et toutes les tailles d'écran
@@ -952,4 +953,193 @@ extension ElevationExtension on BuildContext {
   /// Élévation responsive
   double elevation(ElevationType type) =>
       AppThemeSystem.getElevation(this, type);
+}
+
+// ================================
+// DIALOGS SYSTÈME
+// ================================
+
+/// Helper class for system dialogs
+class AppDialogs {
+  /// Affiche un dialog demandant à l'utilisateur de se connecter
+  static void showLoginRequiredDialog(
+    BuildContext context, {
+    String? title,
+    String? message,
+    String? featureName,
+    VoidCallback? onLoginPressed,
+  }) {
+    final defaultTitle = title ?? 'Connexion requise';
+    final defaultMessage = message ??
+        (featureName != null
+            ? 'Pour accéder à $featureName, vous devez d\'abord vous connecter à votre compte.'
+            : 'Cette fonctionnalité nécessite une connexion. Veuillez vous connecter pour continuer.');
+
+    Get.dialog(
+      Dialog(
+        backgroundColor: AppThemeSystem.getSurfaceColor(context),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(
+            AppThemeSystem.getBorderRadius(context, BorderRadiusType.large),
+          ),
+        ),
+        child: Padding(
+          padding: EdgeInsets.all(AppThemeSystem.getHorizontalPadding(context)),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Icône
+              Container(
+                width: 80,
+                height: 80,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      AppThemeSystem.primaryColor,
+                      AppThemeSystem.tertiaryColor,
+                    ],
+                  ),
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppThemeSystem.primaryColor.withValues(alpha: 0.3),
+                      blurRadius: 16,
+                      offset: const Offset(0, 8),
+                    ),
+                  ],
+                ),
+                child: const Icon(
+                  Icons.lock_person_rounded,
+                  color: Colors.white,
+                  size: 40,
+                ),
+              ),
+
+              SizedBox(height: AppThemeSystem.getElementSpacing(context) * 1.5),
+
+              // Titre
+              Text(
+                defaultTitle,
+                style: context.textStyle(
+                  FontSizeType.h4,
+                  fontWeight: FontWeight.bold,
+                ),
+                textAlign: TextAlign.center,
+              ),
+
+              SizedBox(height: AppThemeSystem.getElementSpacing(context)),
+
+              // Message
+              Text(
+                defaultMessage,
+                style: context.textStyle(
+                  FontSizeType.body2,
+                  color: context.secondaryTextColor,
+                  height: 1.5,
+                ),
+                textAlign: TextAlign.center,
+              ),
+
+              SizedBox(height: AppThemeSystem.getSectionSpacing(context)),
+
+              // Boutons
+              Row(
+                children: [
+                  // Bouton Se connecter
+                  Expanded(
+                    flex: 2,
+                    child: SizedBox(
+                      height: AppThemeSystem.getButtonHeight(context),
+                      child: ElevatedButton(
+                        onPressed: onLoginPressed ??
+                            () {
+                              Get.back();
+                              Get.toNamed('/login');
+                            },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppThemeSystem.primaryColor,
+                          foregroundColor: Colors.white,
+                          elevation: 2,
+                          shadowColor:
+                              AppThemeSystem.primaryColor.withValues(alpha: 0.4),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(
+                              AppThemeSystem.getBorderRadius(
+                                context,
+                                BorderRadiusType.medium,
+                              ),
+                            ),
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(Icons.login_rounded, size: 20),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Se connecter',
+                              style: context.textStyle(
+                                FontSizeType.button,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+      barrierDismissible: true,
+    );
+  }
+
+  /// Affiche un snackbar demandant à l'utilisateur de se connecter (version compacte)
+  static void showLoginRequiredSnackbar({
+    String? message,
+    String? featureName,
+    VoidCallback? onLoginPressed,
+  }) {
+    final defaultMessage = message ??
+        (featureName != null
+            ? 'Connectez-vous pour accéder à $featureName'
+            : 'Connexion requise pour cette fonctionnalité');
+
+    Get.snackbar(
+      'Connexion requise',
+      defaultMessage,
+      snackPosition: SnackPosition.BOTTOM,
+      backgroundColor: AppThemeSystem.primaryColor,
+      colorText: Colors.white,
+      icon: const Icon(
+        Icons.lock_person_rounded,
+        color: Colors.white,
+      ),
+      duration: const Duration(seconds: 4),
+      margin: const EdgeInsets.all(16),
+      borderRadius: 12,
+      mainButton: TextButton(
+        onPressed: onLoginPressed ??
+            () {
+              Get.back();
+              Get.toNamed('/login');
+            },
+        child: Text(
+          'Se connecter',
+          style: TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+            fontSize: 14,
+          ),
+        ),
+      ),
+    );
+  }
 }

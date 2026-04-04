@@ -51,6 +51,18 @@ dependencies:
   permission_handler: ^11.3.1
   geolocator: ^13.0.2
   dotted_border: ^2.1.0
+  url_launcher: ^6.2.5
+  shimmer: ^3.0.0
+  path_provider: ^2.1.4
+  path: ^1.9.0
+  cached_network_image: ^3.3.1
+  webview_flutter: ^4.13.1
+  # WebSocket natif pour Reverb
+  web_socket_channel: ^3.0.1
+  firebase_core: ^3.10.0
+  firebase_messaging: ^15.2.0
+  flutter_local_notifications: ^18.0.1
+  device_info_plus: ^11.2.0
 
 dev_dependencies:
   flutter_test:
