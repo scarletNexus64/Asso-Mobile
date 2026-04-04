@@ -1,6 +1,7 @@
 import '../providers/api_provider.dart';
 import '../providers/wallet_service.dart' as wallet_provider;
 import '../models/wallet_model.dart';
+import '../../core/values/constants.dart';
 
 /// Injectable wallet service that wraps the static provider
 class WalletService {
@@ -352,8 +353,7 @@ class WalletService {
   /// Check payment status (for recharge polling)
   Future<Map<String, dynamic>> checkPaymentStatus(int paymentId) async {
     try {
-      // This endpoint needs to be added to the backend
-      final response = await ApiProvider.get('/v1/wallet/payment-status/$paymentId');
+      final response = await ApiProvider.get('${AppConstants.walletPaymentStatusUrl}/$paymentId');
 
       if (response.success && response.data != null) {
         // Extract the actual data from the response
@@ -384,9 +384,8 @@ class WalletService {
     required double amount,
   }) async {
     try {
-      // This endpoint needs to be added to the backend
       final response = await ApiProvider.post(
-        '/v1/wallet/paypal/create-order',
+        AppConstants.walletPayPalCreateNativeOrderUrl,
         body: {'amount': amount},
       );
 
@@ -417,9 +416,8 @@ class WalletService {
     required String orderId,
   }) async {
     try {
-      // This endpoint needs to be added to the backend
       final response = await ApiProvider.post(
-        '/v1/wallet/paypal/capture-order',
+        AppConstants.walletPayPalCaptureNativeOrderUrl,
         body: {
           'payment_id': paymentId,
           'order_id': orderId,

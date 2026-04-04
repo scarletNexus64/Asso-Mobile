@@ -181,36 +181,6 @@ class WelcomerView extends GetView<WelcomerController> {
 
                     SizedBox(height: AppThemeSystem.getSectionSpacing(context)),
 
-                    // Boutons Google et Apple (compacts, côte à côte ou empilés selon l'espace)
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _buildCompactButton(
-                            context,
-                            onPressed: controller.continueWithGoogle,
-                            icon: Icons.g_mobiledata_rounded,
-                            label: 'Google',
-                            backgroundColor: Colors.white,
-                            textColor: AppThemeSystem.grey800,
-                            borderColor: AppThemeSystem.grey300,
-                          ),
-                        ),
-                        SizedBox(width: 12),
-                        Expanded(
-                          child: _buildCompactButton(
-                            context,
-                            onPressed: controller.continueWithApple,
-                            icon: Icons.apple_rounded,
-                            label: 'Apple',
-                            backgroundColor: const Color(0xFF8BC34A),
-                            textColor: Colors.white,
-                          ),
-                        ),
-                      ],
-                    ),
-
-                    SizedBox(height: AppThemeSystem.getSectionSpacing(context)),
-
                     // Lien "Continuer en tant qu'invité"
                     TextButton(
                       onPressed: controller.continueAsGuest,

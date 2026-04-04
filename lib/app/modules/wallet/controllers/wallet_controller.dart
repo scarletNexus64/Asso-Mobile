@@ -584,7 +584,15 @@ class WalletController extends GetxController {
 
       if (result['success'] == true) {
         successMessage.value = result['message'] ?? 'Retrait initié avec succès';
-        // Rafraîchir le solde et les soldes de retrait
+
+        // ⚠️ CRITIQUE: Mettre à jour le solde IMMÉDIATEMENT avec la valeur retournée
+        // Le backend a déjà débité le solde, il faut refléter ça côté frontend
+        if (result['data'] != null && result['data']['new_balance'] != null) {
+          freemopayBalance.value = _parseBalance(result['data']['new_balance']);
+          print('[WalletController] ✅ Balance updated immediately: ${freemopayBalance.value} FCFA');
+        }
+
+        // Rafraîchir le solde complet et les soldes de retrait en arrière-plan
         await Future.wait([
           loadWallet(),
           loadWithdrawalBalances(),
@@ -622,7 +630,15 @@ class WalletController extends GetxController {
 
       if (result['success'] == true) {
         successMessage.value = result['message'] ?? 'Retrait PayPal initié avec succès';
-        // Rafraîchir le solde et les soldes de retrait
+
+        // ⚠️ CRITIQUE: Mettre à jour le solde IMMÉDIATEMENT avec la valeur retournée
+        // Le backend a déjà débité le solde, il faut refléter ça côté frontend
+        if (result['data'] != null && result['data']['new_balance'] != null) {
+          paypalBalance.value = _parseBalance(result['data']['new_balance']);
+          print('[WalletController] ✅ PayPal balance updated immediately: ${paypalBalance.value} FCFA');
+        }
+
+        // Rafraîchir le solde complet et les soldes de retrait en arrière-plan
         await Future.wait([
           loadWallet(),
           loadWithdrawalBalances(),

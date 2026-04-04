@@ -3,12 +3,15 @@ import 'package:get/get.dart';
 
 import '../controllers/wallet_controller.dart';
 import '../../../core/utils/app_theme_system.dart';
+import '../../../core/controllers/app_config_controller.dart';
 
 class WithdrawWalletView extends GetView<WalletController> {
   const WithdrawWalletView({super.key});
 
   @override
   Widget build(BuildContext context) {
+    final appConfig = Get.find<AppConfigController>();
+
     return Scaffold(
       backgroundColor: context.backgroundColor,
       appBar: AppBar(
@@ -575,6 +578,7 @@ class WithdrawWalletView extends GetView<WalletController> {
   }
 
   void _showModernFreeMoPayBottomSheet(BuildContext context) {
+    final appConfig = Get.find<AppConfigController>();
     final formKey = GlobalKey<FormState>();
     final amountController = TextEditingController();
     final phoneController = TextEditingController();
@@ -915,8 +919,8 @@ class WithdrawWalletView extends GetView<WalletController> {
                           return 'Veuillez entrer un montant';
                         }
                         final amount = double.tryParse(value);
-                        if (amount == null || amount < 50) {
-                          return 'Montant minimum : 50 FCFA';
+                        if (amount == null || amount < appConfig.minWithdrawalAmount) {
+                          return 'Montant minimum : ${appConfig.minWithdrawalAmount.toStringAsFixed(0)} FCFA';
                         }
                         if (amount > controller.freemopayBalance.value) {
                           return 'Solde insuffisant';

@@ -3,6 +3,8 @@ import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 
 import '../../../core/utils/app_theme_system.dart';
+import '../../../core/controllers/app_config_controller.dart';
+import '../../../routes/app_pages.dart';
 import '../controllers/wallet_controller.dart';
 
 /// Bottom sheet pour initier un retrait depuis FreeMoPay ou PayPal
@@ -47,7 +49,8 @@ class _WithdrawalBottomSheetState extends State<WithdrawalBottomSheet> {
   String? _selectedPaymentMethod; // 'om' ou 'momo' pour freemopay
   bool _isProcessing = false;
 
-  final walletController = Get.find<WalletController>();
+  WalletController get walletController => Get.find<WalletController>();
+  AppConfigController get appConfig => Get.find<AppConfigController>();
 
   @override
   void dispose() {
@@ -64,7 +67,7 @@ class _WithdrawalBottomSheetState extends State<WithdrawalBottomSheet> {
   String get title => isFreeMoPay ? 'Retrait Mobile Money' : 'Retrait PayPal';
   String get providerLabel => isFreeMoPay ? 'FreeMoPay' : 'PayPal';
 
-  double get minAmount => isFreeMoPay ? 500.0 : 1000.0;
+  double get minAmount => appConfig.minWithdrawalAmount;
 
   @override
   Widget build(BuildContext context) {
@@ -181,6 +184,7 @@ class _WithdrawalBottomSheetState extends State<WithdrawalBottomSheet> {
                       return 'Veuillez entrer un montant';
                     }
                     final amount = double.tryParse(value);
+                    print('Validating amount: $minAmount, available: ${widget.availableBalance}, entered: $amount');
                     if (amount == null || amount < minAmount) {
                       return 'Le montant minimum est de ${minAmount.toStringAsFixed(0)} FCFA';
                     }
@@ -515,7 +519,10 @@ class _WithdrawalBottomSheetState extends State<WithdrawalBottomSheet> {
       if (!mounted) return;
 
       if (result['success'] == true) {
+        // Fermer le bottom sheet
         Get.back(result: true);
+
+        // Afficher un message de succès
         Get.snackbar(
           'Succès',
           result['message'] ?? 'Retrait initié avec succès',
@@ -523,6 +530,12 @@ class _WithdrawalBottomSheetState extends State<WithdrawalBottomSheet> {
           colorText: AppThemeSystem.whiteColor,
           duration: const Duration(seconds: 3),
         );
+
+        // Rafraîchir le wallet et naviguer vers l'historique
+        await walletController.refresh();
+
+        // Naviguer vers l'historique pour voir le retrait en pending
+        Get.toNamed(Routes.WALLET_HISTORY);
       } else {
         Get.snackbar(
           'Erreur',

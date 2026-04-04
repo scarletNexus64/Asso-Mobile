@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:get/get.dart';
+import '../providers/device_token_provider.dart';
 
 /// Service FCM pour gérer les notifications push
 /// Utilisé principalement pour les notifications de wallet (dépôts/retraits)
@@ -30,8 +31,11 @@ class FcmService extends GetxService {
     // Écouter les messages FCM
     _setupMessageHandlers();
 
-    // Récupérer le token FCM
+    // Récupérer et enregistrer le token FCM
     await _getToken();
+
+    // Configurer le rafraîchissement automatique du token
+    setupTokenRefresh();
 
     print('[FCM] FCM Service initialized');
     return this;
@@ -184,11 +188,20 @@ class FcmService extends GetxService {
       final token = await _firebaseMessaging.getToken();
       print('[FCM] FCM Token: $token');
 
-      // TODO: Envoyer ce token au backend via l'API
-      // await ApiService.post('/device-tokens', {
-      //   'token': token,
-      //   'platform': Platform.isIOS ? 'ios' : 'android',
-      // });
+      // Envoyer le token au backend
+      if (token != null) {
+        try {
+          final response = await DeviceTokenProvider.registerToken(token);
+          if (response.success) {
+            print('[FCM] ✅ Token registered successfully on backend');
+          } else {
+            print('[FCM] ⚠️ Failed to register token: ${response.message}');
+          }
+        } catch (e) {
+          print('[FCM] ⚠️ Error sending token to backend: $e');
+          // Ne pas bloquer si l'envoi au backend échoue
+        }
+      }
 
       return token;
     } catch (e) {
@@ -204,14 +217,20 @@ class FcmService extends GetxService {
 
   /// Rafraîchir le token FCM
   void setupTokenRefresh() {
-    _firebaseMessaging.onTokenRefresh.listen((newToken) {
+    _firebaseMessaging.onTokenRefresh.listen((newToken) async {
       print('[FCM] Token refreshed: $newToken');
 
-      // TODO: Mettre à jour le token sur le backend
-      // await ApiService.put('/device-tokens', {
-      //   'token': newToken,
-      //   'platform': Platform.isIOS ? 'ios' : 'android',
-      // });
+      // Mettre à jour le token sur le backend
+      try {
+        final response = await DeviceTokenProvider.registerToken(newToken);
+        if (response.success) {
+          print('[FCM] ✅ Refreshed token registered successfully');
+        } else {
+          print('[FCM] ⚠️ Failed to register refreshed token: ${response.message}');
+        }
+      } catch (e) {
+        print('[FCM] ⚠️ Error sending refreshed token to backend: $e');
+      }
     });
   }
 

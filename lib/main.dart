@@ -8,6 +8,7 @@ import 'firebase_options.dart';
 
 import 'app/routes/app_pages.dart';
 import 'app/core/utils/app_theme_system.dart';
+import 'app/core/controllers/app_config_controller.dart';
 import 'app/data/services/websocket_service.dart';
 import 'app/data/services/firebase_messaging_service.dart';
 import 'app/modules/notification/controllers/notification_controller.dart';
@@ -41,6 +42,11 @@ void main() async {
   // Initialiser le WebSocketService comme service global
   Get.put(WebSocketService(), permanent: true);
   print('✅ WebSocketService initialized');
+
+  // Initialiser AppConfigController pour charger les paramètres de l'app
+  final appConfigController = Get.put(AppConfigController(), permanent: true);
+  await appConfigController.loadSettings(); // Attendre le chargement des settings
+  print('✅ AppConfigController initialized and settings loaded');
 
   // Initialiser les données de formatage de dates pour les locales
   await initializeDateFormatting('fr_FR', null);

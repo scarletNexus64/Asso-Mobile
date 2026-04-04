@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 
+import '../../../core/controllers/app_config_controller.dart';
 import '../../../routes/app_pages.dart';
 import '../controllers/wallet_controller.dart';
 import 'paypal_native_webview.dart';
@@ -12,10 +13,10 @@ class RechargeWalletView extends GetView<WalletController> {
 
   @override
   Widget build(BuildContext context) {
+    final appConfig = Get.find<AppConfigController>();
     final amountController = TextEditingController();
     final phoneController = TextEditingController();
     final selectedPaymentMethod = 'orange'.obs; // Default to Orange Money
-
 
     return Scaffold(
       backgroundColor: AppThemeSystem.getBackgroundColor(context),
@@ -39,7 +40,7 @@ class RechargeWalletView extends GetView<WalletController> {
                 gradient: LinearGradient(
                   colors: [
                     AppThemeSystem.primaryColor,
-                    AppThemeSystem.primaryColor.withOpacity(0.85)
+                    AppThemeSystem.primaryColor.withOpacity(0.85),
                   ],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
@@ -56,14 +57,16 @@ class RechargeWalletView extends GetView<WalletController> {
                     ),
                   ),
                   const SizedBox(height: 8),
-                  Obx(() => Text(
-                        controller.formattedBalance,
-                        style: const TextStyle(
-                          color: AppThemeSystem.whiteColor,
-                          fontSize: 28,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      )),
+                  Obx(
+                    () => Text(
+                      controller.formattedBalance,
+                      style: const TextStyle(
+                        color: AppThemeSystem.whiteColor,
+                        fontSize: 28,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -73,9 +76,7 @@ class RechargeWalletView extends GetView<WalletController> {
             TextField(
               controller: amountController,
               keyboardType: TextInputType.number,
-              inputFormatters: [
-                FilteringTextInputFormatter.digitsOnly,
-              ],
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
               decoration: InputDecoration(
                 labelText: 'Veillez renseigner le montant (FCFA)',
                 hintText: 'Ex: 5000',
@@ -118,54 +119,57 @@ class RechargeWalletView extends GetView<WalletController> {
             const SizedBox(height: 16),
 
             // Payment method logos in grid
-            Obx(() => Wrap(
-                  alignment: WrapAlignment.center,
-                  spacing: 16,
-                  runSpacing: 16,
-                  children: [
-                    _buildPaymentMethodLogo(
-                      imagePath: 'assets/images/orange-money.png',
-                      label: 'Orange Money',
-                      value: 'orange',
-                      groupValue: selectedPaymentMethod.value,
-                      onTap: () => selectedPaymentMethod.value = 'orange',
-                    ),
-                    _buildPaymentMethodLogo(
-                      imagePath: 'assets/images/mtn-money.png',
-                      label: 'MTN Mobile Money',
-                      value: 'mtn',
-                      groupValue: selectedPaymentMethod.value,
-                      onTap: () => selectedPaymentMethod.value = 'mtn',
-                    ),
-                    _buildPaymentMethodLogo(
-                      imagePath: 'assets/images/visa.png',
-                      label: 'Visa',
-                      value: 'visa',
-                      groupValue: selectedPaymentMethod.value,
-                      onTap: () => selectedPaymentMethod.value = 'visa',
-                    ),
-                    _buildPaymentMethodLogo(
-                      imagePath: 'assets/images/mastercard.png',
-                      label: 'Mastercard',
-                      value: 'mastercard',
-                      groupValue: selectedPaymentMethod.value,
-                      onTap: () => selectedPaymentMethod.value = 'mastercard',
-                    ),
-                    _buildPaymentMethodLogo(
-                      imagePath: 'assets/images/paypal.png',
-                      label: 'PayPal',
-                      value: 'paypal',
-                      groupValue: selectedPaymentMethod.value,
-                      onTap: () => selectedPaymentMethod.value = 'paypal',
-                    ),
-                  ],
-                )),
+            Obx(
+              () => Wrap(
+                alignment: WrapAlignment.center,
+                spacing: 16,
+                runSpacing: 16,
+                children: [
+                  _buildPaymentMethodLogo(
+                    imagePath: 'assets/images/orange-money.png',
+                    label: 'Orange Money',
+                    value: 'orange',
+                    groupValue: selectedPaymentMethod.value,
+                    onTap: () => selectedPaymentMethod.value = 'orange',
+                  ),
+                  _buildPaymentMethodLogo(
+                    imagePath: 'assets/images/mtn-money.png',
+                    label: 'MTN Mobile Money',
+                    value: 'mtn',
+                    groupValue: selectedPaymentMethod.value,
+                    onTap: () => selectedPaymentMethod.value = 'mtn',
+                  ),
+                  _buildPaymentMethodLogo(
+                    imagePath: 'assets/images/visa.png',
+                    label: 'Visa',
+                    value: 'visa',
+                    groupValue: selectedPaymentMethod.value,
+                    onTap: () => selectedPaymentMethod.value = 'visa',
+                  ),
+                  _buildPaymentMethodLogo(
+                    imagePath: 'assets/images/mastercard.png',
+                    label: 'Mastercard',
+                    value: 'mastercard',
+                    groupValue: selectedPaymentMethod.value,
+                    onTap: () => selectedPaymentMethod.value = 'mastercard',
+                  ),
+                  _buildPaymentMethodLogo(
+                    imagePath: 'assets/images/paypal.png',
+                    label: 'PayPal',
+                    value: 'paypal',
+                    groupValue: selectedPaymentMethod.value,
+                    onTap: () => selectedPaymentMethod.value = 'paypal',
+                  ),
+                ],
+              ),
+            ),
 
             const SizedBox(height: 16),
 
             // Champ téléphone (visible uniquement pour Orange Money et MTN Mobile Money)
             Obx(() {
-              if (selectedPaymentMethod.value == 'orange' || selectedPaymentMethod.value == 'mtn') {
+              if (selectedPaymentMethod.value == 'orange' ||
+                  selectedPaymentMethod.value == 'mtn') {
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -225,122 +229,129 @@ class RechargeWalletView extends GetView<WalletController> {
             const SizedBox(height: 24),
 
             // Bouton de confirmation
-            Obx(() => SizedBox(
-                  width: double.infinity,
-                  height: 52,
-                  child: ElevatedButton(
-                    onPressed: controller.isProcessingPayment.value
-                        ? null
-                        : () async {
-                            // Validation
-                            if (amountController.text.isEmpty) {
-                              Get.snackbar(
-                                'Erreur',
-                                'Veuillez entrer un montant',
-                                backgroundColor: AppThemeSystem.errorColor,
-                                colorText: AppThemeSystem.whiteColor,
-                              );
-                              return;
-                            }
+            Obx(
+              () => SizedBox(
+                width: double.infinity,
+                height: 52,
+                child: ElevatedButton(
+                  onPressed: controller.isProcessingPayment.value
+                      ? null
+                      : () async {
+                          // Validation
+                          if (amountController.text.isEmpty) {
+                            Get.snackbar(
+                              'Erreur',
+                              'Veuillez entrer un montant',
+                              backgroundColor: AppThemeSystem.errorColor,
+                              colorText: AppThemeSystem.whiteColor,
+                            );
+                            return;
+                          }
 
-                            final amount = double.tryParse(amountController.text);
+                          final amount = double.tryParse(amountController.text);
+                          print(
+                            'Validating amount: $appConfig.minDepositAmount, entered: $amount',
+                          );
+                          if (amount == null ||
+                              amount < appConfig.minDepositAmount) {
+                            Get.snackbar(
+                              'Erreur',
+                              'Le montant minimum est de ${appConfig.minDepositAmount.toStringAsFixed(0)} FCFA',
+                              backgroundColor: AppThemeSystem.errorColor,
+                              colorText: AppThemeSystem.whiteColor,
+                            );
+                            return;
+                          }
 
-                            if (amount == null || amount < 50) {
-                              Get.snackbar(
-                                'Erreur',
-                                'Le montant minimum est de 50 FCFA',
-                                backgroundColor: AppThemeSystem.errorColor,
-                                colorText: AppThemeSystem.whiteColor,
-                              );
-                              return;
-                            }
+                          // Vérifier le numéro de téléphone pour Mobile Money
+                          final isMobileMoney =
+                              selectedPaymentMethod.value == 'orange' ||
+                              selectedPaymentMethod.value == 'mtn';
 
-                            // Vérifier le numéro de téléphone pour Mobile Money
-                            final isMobileMoney = selectedPaymentMethod.value == 'orange' ||
-                                                   selectedPaymentMethod.value == 'mtn';
+                          if (isMobileMoney && phoneController.text.isEmpty) {
+                            Get.snackbar(
+                              'Erreur',
+                              'Veuillez entrer votre numéro de téléphone',
+                              backgroundColor: AppThemeSystem.errorColor,
+                              colorText: AppThemeSystem.whiteColor,
+                            );
+                            return;
+                          }
 
-                            if (isMobileMoney && phoneController.text.isEmpty) {
-                              Get.snackbar(
-                                'Erreur',
-                                'Veuillez entrer votre numéro de téléphone',
-                                backgroundColor: AppThemeSystem.errorColor,
-                                colorText: AppThemeSystem.whiteColor,
-                              );
-                              return;
-                            }
+                          // Initier la recharge
+                          // Pour Mobile Money (Orange/MTN), utiliser FreeMoPay
+                          if (isMobileMoney) {
+                            // Lancer la recharge de manière asynchrone (non-bloquant)
+                            controller.isProcessingPayment.value = true;
 
-                            // Initier la recharge
-                            // Pour Mobile Money (Orange/MTN), utiliser FreeMoPay
-                            if (isMobileMoney) {
-                              // Lancer la recharge de manière asynchrone (non-bloquant)
-                              controller.isProcessingPayment.value = true;
+                            final result = await controller.initiateRecharge(
+                              amount: amount,
+                              paymentMethod: 'freemopay', // Backend service
+                              phoneNumber: phoneController.text.trim(),
+                            );
 
-                              final result = await controller.initiateRecharge(
-                                amount: amount,
-                                paymentMethod: 'freemopay', // Backend service
-                                phoneNumber: phoneController.text.trim(),
-                              );
+                            controller.isProcessingPayment.value = false;
 
-                              controller.isProcessingPayment.value = false;
-
-                              if (result['success'] == true) {
-                                // Afficher le dialogue d'instructions USSD
-                                if (context.mounted) {
-                                  await _showUssdInstructionDialog(
-                                    context,
-                                    amount,
-                                    phoneController.text.trim(),
-                                    selectedPaymentMethod.value,
-                                  );
-                                }
-
-                                // Retourner immédiatement à la page wallet
-                                Get.back(); // Fermer la page de recharge
-
-                                // Rafraîchir le wallet pour afficher la transaction en attente
-                                await controller.refresh();
-                              } else {
-                                // Afficher l'erreur
-                                Get.snackbar(
-                                  'Erreur',
-                                  result['message'] ?? 'Erreur lors de l\'initiation du paiement',
-                                  backgroundColor: AppThemeSystem.errorColor,
-                                  colorText: AppThemeSystem.whiteColor,
+                            if (result['success'] == true) {
+                              // Afficher le dialogue d'instructions USSD
+                              if (context.mounted) {
+                                await _showUssdInstructionDialog(
+                                  context,
+                                  amount,
+                                  phoneController.text.trim(),
+                                  selectedPaymentMethod.value,
                                 );
                               }
-                              return;
-                            }
 
-                            // Pour les cartes (Visa/MasterCard) et PayPal, utiliser le paiement natif PayPal
-                            if (context.mounted) {
-                              _handleNativePayPalPayment(context, amount);
+                              // Retourner immédiatement à la page wallet
+                              Get.back(); // Fermer la page de recharge
+
+                              // Rafraîchir le wallet pour afficher la transaction en attente
+                              await controller.refresh();
+                            } else {
+                              // Afficher l'erreur
+                              Get.snackbar(
+                                'Erreur',
+                                result['message'] ??
+                                    'Erreur lors de l\'initiation du paiement',
+                                backgroundColor: AppThemeSystem.errorColor,
+                                colorText: AppThemeSystem.whiteColor,
+                              );
                             }
-                          },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppThemeSystem.primaryColor,
-                      foregroundColor: AppThemeSystem.whiteColor,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
+                            return;
+                          }
+
+                          // Pour les cartes (Visa/MasterCard) et PayPal, utiliser le paiement natif PayPal
+                          if (context.mounted) {
+                            _handleNativePayPalPayment(context, amount);
+                          }
+                        },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppThemeSystem.primaryColor,
+                    foregroundColor: AppThemeSystem.whiteColor,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
                     ),
-                    child: controller.isProcessingPayment.value
-                        ? const SizedBox(
-                            height: 24,
-                            width: 24,
-                            child: CircularProgressIndicator(
-                              color: AppThemeSystem.whiteColor,
-                              strokeWidth: 2,
-                            ),
-                          )
-                        : const Text(
-                            'Continuer',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
                   ),
-                )),
+                  child: controller.isProcessingPayment.value
+                      ? const SizedBox(
+                          height: 24,
+                          width: 24,
+                          child: CircularProgressIndicator(
+                            color: AppThemeSystem.whiteColor,
+                            strokeWidth: 2,
+                          ),
+                        )
+                      : const Text(
+                          'Continuer',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                ),
+              ),
+            ),
 
             const SizedBox(height: 16),
 
@@ -469,7 +480,9 @@ class RechargeWalletView extends GetView<WalletController> {
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: 11,
-                    fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                    fontWeight: isSelected
+                        ? FontWeight.bold
+                        : FontWeight.normal,
                     color: isSelected
                         ? AppThemeSystem.primaryColor
                         : AppThemeSystem.getSecondaryTextColor(context),
@@ -486,10 +499,15 @@ class RechargeWalletView extends GetView<WalletController> {
   }
 
   /// Gère le paiement PayPal natif avec WebView
-  Future<void> _handleNativePayPalPayment(BuildContext context, double amount) async {
+  Future<void> _handleNativePayPalPayment(
+    BuildContext context,
+    double amount,
+  ) async {
     try {
       // Étape 1: Créer l'ordre PayPal côté backend
-      final orderResult = await controller.initiateNativePayPalPayment(amount: amount);
+      final orderResult = await controller.initiateNativePayPalPayment(
+        amount: amount,
+      );
 
       if (orderResult['success'] != true) {
         Get.snackbar(
@@ -589,30 +607,24 @@ class RechargeWalletView extends GetView<WalletController> {
     String phoneNumber,
     String paymentMethod,
   ) async {
-    final providerName = paymentMethod == 'orange' ? 'Orange Money' : 'MTN Mobile Money';
+    final providerName = paymentMethod == 'orange'
+        ? 'Orange Money'
+        : 'MTN Mobile Money';
     final providerEmoji = paymentMethod == 'orange' ? '(OM)' : '(MTN)';
 
     return showDialog(
       context: context,
       barrierDismissible: false, // Force l'utilisateur à cliquer sur "Compris"
       builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Row(
           children: [
-            Text(
-              providerEmoji,
-              style: const TextStyle(fontSize: 24),
-            ),
+            Text(providerEmoji, style: const TextStyle(fontSize: 24)),
             const SizedBox(width: 12),
             const Expanded(
               child: Text(
                 'Paiement initié',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
             ),
           ],
@@ -624,10 +636,7 @@ class RechargeWalletView extends GetView<WalletController> {
             children: [
               Text(
                 'Un code USSD a été envoyé sur le numéro :',
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Colors.grey[700],
-                ),
+                style: TextStyle(fontSize: 14, color: Colors.grey[700]),
               ),
               const SizedBox(height: 8),
               Container(
@@ -744,10 +753,7 @@ class RechargeWalletView extends GetView<WalletController> {
               ),
               child: const Text(
                 'Compris',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                ),
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
               ),
             ),
           ),

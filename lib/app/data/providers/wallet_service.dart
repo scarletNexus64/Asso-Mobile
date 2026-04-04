@@ -79,7 +79,7 @@ class WalletService {
     final data = <String, dynamic>{
       'amount': amount,
       'payment_method': paymentMethod,
-      'phone_number': phoneNumber,
+      'phone': phoneNumber,
     };
     if (notes != null) data['notes'] = notes;
 

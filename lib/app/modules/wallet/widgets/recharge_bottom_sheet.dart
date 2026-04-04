@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 
 import '../../../core/utils/app_theme_system.dart';
+import '../../../core/controllers/app_config_controller.dart';
 import '../../../routes/app_pages.dart';
 import '../controllers/wallet_controller.dart';
 
@@ -29,7 +30,8 @@ class RechargeBottomSheet extends StatefulWidget {
 
 class _RechargeBottomSheetState extends State<RechargeBottomSheet> {
   int _currentStep = 1; // 1 = choix méthode, 2 = formulaire
-  String? _selectedMethod; // 'om', 'momo', 'visa', 'mastercard', 'paypal', 'crypto'
+  String?
+  _selectedMethod; // 'om', 'momo', 'visa', 'mastercard', 'paypal', 'crypto'
 
   final _formKey = GlobalKey<FormState>();
   final _amountController = TextEditingController();
@@ -41,7 +43,9 @@ class _RechargeBottomSheetState extends State<RechargeBottomSheet> {
   final _emailController = TextEditingController();
 
   bool _isProcessing = false;
-  final walletController = Get.find<WalletController>();
+
+  WalletController get walletController => Get.find<WalletController>();
+  AppConfigController get appConfig => Get.find<AppConfigController>();
 
   @override
   void dispose() {
@@ -111,7 +115,10 @@ class _RechargeBottomSheetState extends State<RechargeBottomSheet> {
                             ? 'Recharger mon wallet'
                             : 'Montant à recharger',
                         style: TextStyle(
-                          fontSize: AppThemeSystem.getFontSize(context, FontSizeType.h4),
+                          fontSize: AppThemeSystem.getFontSize(
+                            context,
+                            FontSizeType.h4,
+                          ),
                           fontWeight: FontWeight.bold,
                           color: AppThemeSystem.getPrimaryTextColor(context),
                         ),
@@ -203,7 +210,9 @@ class _RechargeBottomSheetState extends State<RechargeBottomSheet> {
                   color: _currentStep >= 1
                       ? AppThemeSystem.getPrimaryTextColor(context)
                       : AppThemeSystem.getSecondaryTextColor(context),
-                  fontWeight: _currentStep == 1 ? FontWeight.w600 : FontWeight.normal,
+                  fontWeight: _currentStep == 1
+                      ? FontWeight.w600
+                      : FontWeight.normal,
                 ),
               ),
             ],
@@ -243,7 +252,9 @@ class _RechargeBottomSheetState extends State<RechargeBottomSheet> {
                 color: _currentStep >= 2
                     ? AppThemeSystem.getPrimaryTextColor(context)
                     : AppThemeSystem.getSecondaryTextColor(context),
-                fontWeight: _currentStep == 2 ? FontWeight.w600 : FontWeight.normal,
+                fontWeight: _currentStep == 2
+                    ? FontWeight.w600
+                    : FontWeight.normal,
               ),
             ),
           ],
@@ -386,11 +397,7 @@ class _RechargeBottomSheetState extends State<RechargeBottomSheet> {
                     // Fallback si l'image n'existe pas
                     return Container(
                       color: color.withValues(alpha: 0.1),
-                      child: Icon(
-                        Icons.payment,
-                        color: color,
-                        size: 24,
-                      ),
+                      child: Icon(Icons.payment, color: color, size: 24),
                     );
                   },
                 ),
@@ -424,7 +431,10 @@ class _RechargeBottomSheetState extends State<RechargeBottomSheet> {
             ),
             if (isComingSoon)
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
                 decoration: BoxDecoration(
                   color: AppThemeSystem.infoColor.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(8),
@@ -486,8 +496,11 @@ class _RechargeBottomSheetState extends State<RechargeBottomSheet> {
                 return 'Veuillez entrer un montant';
               }
               final amount = double.tryParse(value);
-              if (amount == null || amount < 100) {
-                return 'Le montant minimum est de 100 FCFA';
+              print(
+                'Validating amount: $appConfig.minDepositAmount, entered: $amount',
+              );
+              if (amount == null || amount < appConfig.minDepositAmount) {
+                return 'Le montant minimum est de ${appConfig.minDepositAmount.toStringAsFixed(0)} FCFA';
               }
               return null;
             },
@@ -551,9 +564,7 @@ class _RechargeBottomSheetState extends State<RechargeBottomSheet> {
           prefixIcon: const Icon(Icons.phone),
           filled: true,
           fillColor: AppThemeSystem.getSurfaceColor(context),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
         ),
         validator: (value) {
           if (value == null || value.isEmpty) {
@@ -575,7 +586,11 @@ class _RechargeBottomSheetState extends State<RechargeBottomSheet> {
         ),
         child: Row(
           children: [
-            const Icon(Icons.info_outline, color: AppThemeSystem.infoColor, size: 20),
+            const Icon(
+              Icons.info_outline,
+              color: AppThemeSystem.infoColor,
+              size: 20,
+            ),
             const SizedBox(width: 12),
             Expanded(
               child: Text(
@@ -603,9 +618,7 @@ class _RechargeBottomSheetState extends State<RechargeBottomSheet> {
           prefixIcon: const Icon(Icons.person),
           filled: true,
           fillColor: AppThemeSystem.getSurfaceColor(context),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
         ),
         validator: (value) {
           if (value == null || value.isEmpty) {
@@ -628,9 +641,7 @@ class _RechargeBottomSheetState extends State<RechargeBottomSheet> {
           prefixIcon: const Icon(Icons.credit_card),
           filled: true,
           fillColor: AppThemeSystem.getSurfaceColor(context),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
         ),
         validator: (value) {
           if (value == null || value.isEmpty) {
@@ -720,9 +731,7 @@ class _RechargeBottomSheetState extends State<RechargeBottomSheet> {
           prefixIcon: const Icon(Icons.email),
           filled: true,
           fillColor: AppThemeSystem.getSurfaceColor(context),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
         ),
         validator: (value) {
           if (value == null || value.isEmpty) {
@@ -846,30 +855,24 @@ class _RechargeBottomSheetState extends State<RechargeBottomSheet> {
     String phoneNumber,
     String paymentMethod,
   ) async {
-    final providerName = paymentMethod == 'orange' ? 'Orange Money' : 'MTN Mobile Money';
+    final providerName = paymentMethod == 'orange'
+        ? 'Orange Money'
+        : 'MTN Mobile Money';
     final providerEmoji = paymentMethod == 'orange' ? '(OM)' : '(MTN)';
 
     return showDialog(
       context: context,
       barrierDismissible: false, // Force l'utilisateur à cliquer sur "Compris"
       builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Row(
           children: [
-            Text(
-              providerEmoji,
-              style: const TextStyle(fontSize: 24),
-            ),
+            Text(providerEmoji, style: const TextStyle(fontSize: 24)),
             const SizedBox(width: 12),
             const Expanded(
               child: Text(
                 'Paiement initié',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
             ),
           ],
@@ -881,10 +884,7 @@ class _RechargeBottomSheetState extends State<RechargeBottomSheet> {
             children: [
               Text(
                 'Un code USSD a été envoyé sur le numéro :',
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Colors.grey[700],
-                ),
+                style: TextStyle(fontSize: 14, color: Colors.grey[700]),
               ),
               const SizedBox(height: 8),
               Container(
@@ -1001,10 +1001,7 @@ class _RechargeBottomSheetState extends State<RechargeBottomSheet> {
               ),
               child: const Text(
                 'Compris',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                ),
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
               ),
             ),
           ),

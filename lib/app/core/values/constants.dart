@@ -68,6 +68,9 @@ class AppConstants {
   static const String walletWithdrawPaypalUrl = '/v1/wallet/withdraw/paypal';
   static const String walletWithdrawalsUrl = '/v1/wallet/withdrawals';
   static const String walletWithdrawalStatusUrl = '/v1/wallet/withdrawal-status';
+  static const String walletPaymentStatusUrl = '/v1/wallet/payment-status';
+  static const String walletPayPalCreateNativeOrderUrl = '/v1/wallet/paypal/create-native-order';
+  static const String walletPayPalCaptureNativeOrderUrl = '/v1/wallet/paypal/capture-native-order';
 
   // Product creation
   static const String createProductUrl = '/v1/products';
