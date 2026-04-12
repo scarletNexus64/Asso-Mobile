@@ -310,6 +310,7 @@ class AuthService {
   static Future<ApiResponse> logout() async {
     developer.log('========== LOGOUT ==========', name: 'AuthService');
 
+    // Le backend supprime automatiquement tous les tokens FCM lors du logout
     final response = await ApiProvider.post(AppConstants.logoutUrl);
 
     developer.log(

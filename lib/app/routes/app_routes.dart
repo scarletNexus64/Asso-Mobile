@@ -31,6 +31,7 @@ abstract class Routes {
   static const ORDER_MANAGEMENT = _Paths.ORDER_MANAGEMENT;
   static const STORE_MANAGEMENT = _Paths.STORE_MANAGEMENT;
   static const SHIP_CONFIG = _Paths.SHIP_CONFIG;
+  static const DELIVERY_CHECK = _Paths.DELIVERY_CHECK;
   static const MY_ORDER = _Paths.MY_ORDER;
   static const HELP = _Paths.HELP;
   static const FAQ = _Paths.FAQ;
@@ -72,6 +73,7 @@ abstract class _Paths {
   static const ORDER_MANAGEMENT = '/order-management';
   static const STORE_MANAGEMENT = '/store-management';
   static const SHIP_CONFIG = '/ship-config';
+  static const DELIVERY_CHECK = '/delivery-check';
   static const MY_ORDER = '/my-order';
   static const HELP = '/help';
   static const FAQ = '/faq';

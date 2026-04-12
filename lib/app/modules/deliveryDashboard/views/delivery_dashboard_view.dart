@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import '../../../core/utils/app_theme_system.dart';
 import '../controllers/delivery_dashboard_controller.dart';
 import '../models/delivery_models.dart';
+import '../../shipConfig/models/sync_models.dart';
 
 class DeliveryDashboardView extends GetView<DeliveryDashboardController> {
   const DeliveryDashboardView({super.key});
@@ -23,6 +24,9 @@ class DeliveryDashboardView extends GetView<DeliveryDashboardController> {
             children: [
               // Map Section
               _buildMapSection(context),
+
+              // Company Info
+              _buildCompanySection(context),
 
               // Stats & Wallet
               _buildStatsSection(context),
@@ -55,9 +59,10 @@ class DeliveryDashboardView extends GetView<DeliveryDashboardController> {
             }
 
             return FlutterMap(
+              mapController: controller.mapController,
               options: MapOptions(
                 initialCenter: position,
-                initialZoom: 13.0,
+                initialZoom: 14.0,
               ),
               children: [
                 TileLayer(
@@ -85,7 +90,31 @@ class DeliveryDashboardView extends GetView<DeliveryDashboardController> {
             );
           }),
 
-          // Bouton ONLINE/OFFLINE
+          // Bouton retour (en haut à gauche)
+          Positioned(
+            top: 16,
+            left: 16,
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.1),
+                    blurRadius: 4,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: IconButton(
+                icon: const Icon(Icons.home, size: 20),
+                onPressed: () => Get.offAllNamed('/home'),
+                tooltip: 'Retour à l\'accueil',
+              ),
+            ),
+          ),
+
+          // Bouton ONLINE/OFFLINE (en haut à droite)
           Positioned(
             top: 16,
             right: 16,
@@ -130,31 +159,391 @@ class DeliveryDashboardView extends GetView<DeliveryDashboardController> {
                 )),
           ),
 
-          // Bouton retour
+          // Sélecteur de zone (en bas de la carte)
           Positioned(
-            top: 16,
+            bottom: 8,
             left: 16,
-            child: Container(
-              decoration: BoxDecoration(
-                color: Colors.white,
-                shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.1),
-                    blurRadius: 4,
-                    offset: const Offset(0, 2),
+            right: 16,
+            child: Obx(() {
+              if (controller.deliveryZones.isEmpty) {
+                return const SizedBox.shrink();
+              }
+
+              // Si une seule zone, afficher juste le nom
+              if (controller.deliveryZones.length == 1) {
+                return Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.15),
+                        blurRadius: 10,
+                        offset: const Offset(0, 3),
+                      ),
+                    ],
                   ),
-                ],
-              ),
-              child: IconButton(
-                icon: const Icon(Icons.arrow_back_ios, size: 20),
-                onPressed: () => Get.back(),
-              ),
-            ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: AppThemeSystem.primaryColor.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Icon(
+                          Icons.warehouse,
+                          size: 20,
+                          color: AppThemeSystem.primaryColor,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              'Dépôt actuel',
+                              style: context.caption.copyWith(
+                                color: context.secondaryTextColor,
+                                fontSize: 10,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              controller.selectedZone.value?.name ?? '',
+                              style: TextStyle(
+                                color: AppThemeSystem.primaryColor,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }
+
+              // Si plusieurs zones, afficher un sélecteur élégant
+              return Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.15),
+                      blurRadius: 10,
+                      offset: const Offset(0, 3),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: AppThemeSystem.primaryColor.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Icon(
+                            Icons.warehouse,
+                            size: 18,
+                            color: AppThemeSystem.primaryColor,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Text(
+                          'Sélectionner un dépôt',
+                          style: context.caption.copyWith(
+                            color: context.secondaryTextColor,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: AppThemeSystem.grey100,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: DropdownButton<DeliveryZone>(
+                        value: controller.selectedZone.value,
+                        isExpanded: true,
+                        underline: const SizedBox.shrink(),
+                        icon: Icon(
+                          Icons.expand_more,
+                          color: AppThemeSystem.primaryColor,
+                        ),
+                        style: TextStyle(
+                          color: AppThemeSystem.primaryColor,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                        ),
+                        dropdownColor: Colors.white,
+                        items: controller.deliveryZones.map((zone) {
+                          return DropdownMenuItem<DeliveryZone>(
+                            value: zone,
+                            child: Row(
+                              children: [
+                                Icon(
+                                  Icons.location_on,
+                                  size: 16,
+                                  color: zone == controller.selectedZone.value
+                                      ? AppThemeSystem.primaryColor
+                                      : context.secondaryTextColor,
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    zone.name,
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: zone == controller.selectedZone.value
+                                          ? FontWeight.bold
+                                          : FontWeight.normal,
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        }).toList(),
+                        onChanged: (zone) {
+                          if (zone != null) {
+                            controller.selectZone(zone);
+                          }
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }),
           ),
         ],
       ),
     );
+  }
+
+  /// Section entreprise
+  Widget _buildCompanySection(BuildContext context) {
+    return Obx(() {
+      final companyData = controller.company.value;
+      if (companyData == null) return const SizedBox.shrink();
+
+      return Container(
+        margin: EdgeInsets.symmetric(
+          horizontal: context.horizontalPadding,
+          vertical: 12,
+        ),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [
+              AppThemeSystem.primaryColor,
+              AppThemeSystem.primaryColor.withValues(alpha: 0.8),
+            ],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: context.borderRadius(BorderRadiusType.medium),
+          boxShadow: [
+            BoxShadow(
+              color: AppThemeSystem.primaryColor.withValues(alpha: 0.3),
+              blurRadius: 8,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            // Logo de l'entreprise
+            if (companyData.logo != null && companyData.logo!.isNotEmpty)
+              Container(
+                width: 60,
+                height: 60,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: context.borderRadius(BorderRadiusType.small),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.1),
+                      blurRadius: 4,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: ClipRRect(
+                  borderRadius: context.borderRadius(BorderRadiusType.small),
+                  child: Image.network(
+                    companyData.logo!,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) {
+                      return Icon(
+                        Icons.business,
+                        size: 30,
+                        color: AppThemeSystem.primaryColor,
+                      );
+                    },
+                  ),
+                ),
+              )
+            else
+              Container(
+                width: 60,
+                height: 60,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: context.borderRadius(BorderRadiusType.small),
+                ),
+                child: Icon(
+                  Icons.business,
+                  size: 30,
+                  color: AppThemeSystem.primaryColor,
+                ),
+              ),
+
+            const SizedBox(width: 16),
+
+            // Infos de l'entreprise
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Vous livrez pour',
+                    style: context.caption.copyWith(
+                      color: Colors.white.withValues(alpha: 0.9),
+                      fontSize: 11,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    companyData.name,
+                    style: context.h6.copyWith(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  if (companyData.description != null &&
+                      companyData.description!.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      companyData.description!,
+                      style: context.caption.copyWith(
+                        color: Colors.white.withValues(alpha: 0.8),
+                        fontSize: 11,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ],
+              ),
+            ),
+
+            // Actions de droite
+            Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                // Badge actif
+                if (companyData.isActive)
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppThemeSystem.successColor,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          width: 6,
+                          height: 6,
+                          decoration: const BoxDecoration(
+                            color: Colors.white,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          'Actif',
+                          style: context.caption.copyWith(
+                            color: Colors.white,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                const SizedBox(height: 8),
+
+                // Bouton de désynchronisation
+                GestureDetector(
+                  onTap: controller.unsyncProfile,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.2),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.3),
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.logout,
+                          size: 14,
+                          color: Colors.white.withValues(alpha: 0.9),
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          'Se désynchroniser',
+                          style: context.caption.copyWith(
+                            color: Colors.white.withValues(alpha: 0.9),
+                            fontSize: 10,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      );
+    });
   }
 
   /// Section statistiques

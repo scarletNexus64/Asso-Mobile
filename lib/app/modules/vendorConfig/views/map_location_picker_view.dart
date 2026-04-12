@@ -6,15 +6,18 @@ import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../../../core/utils/app_theme_system.dart';
+import '../../../data/models/deliverer_model.dart';
 
 class MapLocationPickerView extends StatefulWidget {
   final LatLng? initialPosition;
   final String? initialAddress;
+  final List<DelivererModel>? deliveryPartners;
 
   const MapLocationPickerView({
     super.key,
     this.initialPosition,
     this.initialAddress,
+    this.deliveryPartners,
   });
 
   @override
@@ -26,16 +29,96 @@ class _MapLocationPickerViewState extends State<MapLocationPickerView> {
   late LatLng selectedPosition;
   String selectedAddress = '';
   bool isLoading = false;
+  bool showDeliveryPartners = true; // Toggle pour afficher/masquer les partenaires
 
   // Recherche
   final TextEditingController searchController = TextEditingController();
   List<Map<String, dynamic>> searchResults = [];
   bool isSearching = false;
 
+  // Selected deliverer for info display
+  DelivererModel? selectedDeliverer;
+
+  // Calculer le centre et le zoom pour voir tous les marqueurs
+  LatLng _calculateCenter() {
+    if (widget.deliveryPartners == null || widget.deliveryPartners!.isEmpty) {
+      return widget.initialPosition ?? const LatLng(4.0511, 9.7679);
+    }
+
+    // Calculer le centre entre tous les partenaires
+    double sumLat = 0;
+    double sumLng = 0;
+    int count = widget.deliveryPartners!.length;
+
+    for (var partner in widget.deliveryPartners!) {
+      sumLat += partner.zone.latitude;
+      sumLng += partner.zone.longitude;
+    }
+
+    return LatLng(sumLat / count, sumLng / count);
+  }
+
+  double _calculateZoom() {
+    if (widget.deliveryPartners == null || widget.deliveryPartners!.isEmpty) {
+      return 15.0;
+    }
+
+    // Trouver les limites (bbox) de tous les marqueurs
+    double minLat = widget.deliveryPartners!.first.zone.latitude;
+    double maxLat = widget.deliveryPartners!.first.zone.latitude;
+    double minLng = widget.deliveryPartners!.first.zone.longitude;
+    double maxLng = widget.deliveryPartners!.first.zone.longitude;
+
+    for (var partner in widget.deliveryPartners!) {
+      if (partner.zone.latitude < minLat) minLat = partner.zone.latitude;
+      if (partner.zone.latitude > maxLat) maxLat = partner.zone.latitude;
+      if (partner.zone.longitude < minLng) minLng = partner.zone.longitude;
+      if (partner.zone.longitude > maxLng) maxLng = partner.zone.longitude;
+    }
+
+    // Calculer la distance approximative
+    double latDiff = maxLat - minLat;
+    double lngDiff = maxLng - minLng;
+    double maxDiff = latDiff > lngDiff ? latDiff : lngDiff;
+
+    print('🔍 ZOOM CALCULATION:');
+    print('  └─ Lat range: $minLat to $maxLat (diff: $latDiff)');
+    print('  └─ Lng range: $minLng to $maxLng (diff: $lngDiff)');
+    print('  └─ Max diff: $maxDiff');
+
+    // Zoom adapté selon la distance
+    if (maxDiff > 0.5) return 9.0;   // Très grande zone
+    if (maxDiff > 0.2) return 10.0;  // Grande zone
+    if (maxDiff > 0.1) return 11.0;  // Zone moyenne
+    if (maxDiff > 0.05) return 12.0; // Petite zone
+    return 13.0; // Très petite zone
+  }
+
   @override
   void initState() {
     super.initState();
     mapController = MapController();
+
+    print('');
+    print('========================================');
+    print('🗺️ MAP LOCATION PICKER: INIT');
+    print('========================================');
+    print('📍 Initial Position: ${widget.initialPosition}');
+    print('📌 Initial Address: ${widget.initialAddress}');
+    print('🚚 Delivery Partners Count: ${widget.deliveryPartners?.length ?? 0}');
+
+    if (widget.deliveryPartners != null && widget.deliveryPartners!.isNotEmpty) {
+      print('📋 Delivery Partners:');
+      for (var partner in widget.deliveryPartners!) {
+        print('  ├─ ${partner.name}');
+        print('  │  └─ Zone: ${partner.zone.name}');
+        print('  │  └─ Position: (${partner.zone.latitude}, ${partner.zone.longitude})');
+      }
+    } else {
+      print('⚠️ No delivery partners provided!');
+    }
+    print('========================================');
+
     // Position initiale : soit celle passée en paramètre, soit Douala par défaut
     selectedPosition = widget.initialPosition ?? const LatLng(4.0511, 9.7679);
     selectedAddress = widget.initialAddress ?? '';
@@ -271,11 +354,26 @@ class _MapLocationPickerViewState extends State<MapLocationPickerView> {
           ),
         ),
         actions: [
+          // Toggle pour afficher/masquer les partenaires
+          if (widget.deliveryPartners != null && widget.deliveryPartners!.isNotEmpty)
+            IconButton(
+              icon: Icon(
+                showDeliveryPartners ? Icons.visibility : Icons.visibility_off,
+                color: AppThemeSystem.primaryColor,
+              ),
+              tooltip: showDeliveryPartners ? 'Masquer les partenaires' : 'Afficher les partenaires',
+              onPressed: () {
+                setState(() {
+                  showDeliveryPartners = !showDeliveryPartners;
+                });
+              },
+            ),
           IconButton(
             icon: Icon(
               Icons.my_location,
               color: AppThemeSystem.primaryColor,
             ),
+            tooltip: 'Ma position actuelle',
             onPressed: _getCurrentLocation,
           ),
         ],
@@ -286,8 +384,8 @@ class _MapLocationPickerViewState extends State<MapLocationPickerView> {
           FlutterMap(
             mapController: mapController,
             options: MapOptions(
-              initialCenter: selectedPosition,
-              initialZoom: 15.0,
+              initialCenter: _calculateCenter(),
+              initialZoom: _calculateZoom(),
               minZoom: 5.0,
               maxZoom: 18.0,
               onTap: _onMapTap,
@@ -300,16 +398,110 @@ class _MapLocationPickerViewState extends State<MapLocationPickerView> {
               ),
               MarkerLayer(
                 markers: [
+                  // Marqueur de la position sélectionnée (ma boutique)
                   Marker(
                     width: 80.0,
                     height: 80.0,
                     point: selectedPosition,
-                    child: const Icon(
-                      Icons.location_pin,
-                      color: Colors.red,
-                      size: 50,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: Colors.red,
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: const Text(
+                            'Ma boutique',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        const Icon(
+                          Icons.location_pin,
+                          color: Colors.red,
+                          size: 50,
+                        ),
+                      ],
                     ),
                   ),
+                  // Marqueurs des partenaires de livraison
+                  if (showDeliveryPartners && widget.deliveryPartners != null)
+                    ...widget.deliveryPartners!.asMap().entries.map((entry) {
+                      final index = entry.key;
+                      final deliverer = entry.value;
+
+                      print('🚚 Adding marker for: ${deliverer.name} at (${deliverer.zone.latitude}, ${deliverer.zone.longitude})');
+
+                      return Marker(
+                        width: 100.0,
+                        height: 100.0,
+                        point: LatLng(
+                          deliverer.zone.latitude,
+                          deliverer.zone.longitude,
+                        ),
+                        child: GestureDetector(
+                          onTap: () {
+                            print('📍 Marker tapped: ${deliverer.name}');
+                            setState(() {
+                              selectedDeliverer = deliverer;
+                            });
+                          },
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              // Badge avec numéro
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: AppThemeSystem.primaryColor,
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: Text(
+                                  '#${index + 1}',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              // Icône du livreur
+                              Container(
+                                width: 50,
+                                height: 50,
+                                decoration: BoxDecoration(
+                                  color: AppThemeSystem.primaryColor,
+                                  shape: BoxShape.circle,
+                                  border: Border.all(
+                                    color: Colors.white,
+                                    width: 3,
+                                  ),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withValues(alpha: 0.3),
+                                      blurRadius: 8,
+                                      offset: const Offset(0, 3),
+                                    ),
+                                  ],
+                                ),
+                                child: const Icon(
+                                  Icons.local_shipping,
+                                  color: Colors.white,
+                                  size: 28,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    }),
                 ],
               ),
             ],
@@ -428,6 +620,259 @@ class _MapLocationPickerViewState extends State<MapLocationPickerView> {
               ),
             ),
 
+          // Légende des marqueurs (en bas à gauche)
+          if (widget.deliveryPartners != null && widget.deliveryPartners!.isNotEmpty && showDeliveryPartners)
+            Positioned(
+              bottom: 200,
+              left: 10,
+              child: Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.15),
+                      blurRadius: 10,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.info_outline,
+                          size: 16,
+                          color: AppThemeSystem.primaryColor,
+                        ),
+                        const SizedBox(width: 6),
+                        const Text(
+                          'Légende',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black87,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    // Ma boutique
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.location_pin,
+                          color: Colors.red,
+                          size: 20,
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          'Ma boutique',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: Colors.grey[700],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    // Livreurs
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          width: 20,
+                          height: 20,
+                          decoration: BoxDecoration(
+                            color: AppThemeSystem.primaryColor,
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: Colors.white,
+                              width: 2,
+                            ),
+                          ),
+                          child: const Icon(
+                            Icons.local_shipping,
+                            color: Colors.white,
+                            size: 10,
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          'Partenaires (${widget.deliveryPartners!.length})',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: Colors.grey[700],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+          // Info card for selected deliverer
+          if (selectedDeliverer != null)
+            Positioned(
+              top: 90,
+              left: 10,
+              right: 10,
+              child: Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: AppThemeSystem.primaryColor.withValues(alpha: 0.3),
+                    width: 2,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppThemeSystem.primaryColor.withValues(alpha: 0.2),
+                      blurRadius: 15,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Row(
+                      children: [
+                        // Icône avec gradient
+                        Container(
+                          width: 50,
+                          height: 50,
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: [
+                                AppThemeSystem.primaryColor,
+                                AppThemeSystem.primaryColor.withValues(alpha: 0.7),
+                              ],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            ),
+                            borderRadius: BorderRadius.circular(12),
+                            boxShadow: [
+                              BoxShadow(
+                                color: AppThemeSystem.primaryColor.withValues(alpha: 0.3),
+                                blurRadius: 8,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: const Icon(
+                            Icons.local_shipping,
+                            color: Colors.white,
+                            size: 28,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                selectedDeliverer!.name,
+                                style: const TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.black87,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: AppThemeSystem.primaryColor.withValues(alpha: 0.1),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Text(
+                                  selectedDeliverer!.zone.name,
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w600,
+                                    color: AppThemeSystem.primaryColor,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        IconButton(
+                          icon: Icon(
+                            Icons.close,
+                            color: Colors.grey[600],
+                          ),
+                          onPressed: () {
+                            setState(() {
+                              selectedDeliverer = null;
+                            });
+                          },
+                        ),
+                      ],
+                    ),
+                    if (selectedDeliverer!.description != null &&
+                        selectedDeliverer!.description!.isNotEmpty) ...[
+                      const SizedBox(height: 12),
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: Colors.grey[100],
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          selectedDeliverer!.description!,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey[700],
+                            height: 1.4,
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 12),
+                    // Contact info
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: AppThemeSystem.primaryColor.withValues(alpha: 0.05),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.phone,
+                            size: 16,
+                            color: AppThemeSystem.primaryColor,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            selectedDeliverer!.phone,
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.grey[800],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
           // Panneau d'information en bas
           Positioned(
             bottom: 0,
@@ -454,46 +899,110 @@ class _MapLocationPickerViewState extends State<MapLocationPickerView> {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Titre
-                    Text(
-                      'Position sélectionnée',
-                      style: context.subtitle1.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
+                    // Titre avec info
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            'Position de ma boutique',
+                            style: context.subtitle1.copyWith(
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                        if (widget.deliveryPartners != null && widget.deliveryPartners!.isNotEmpty)
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: AppThemeSystem.primaryColor.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.local_shipping,
+                                  size: 12,
+                                  color: AppThemeSystem.primaryColor,
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  '${widget.deliveryPartners!.length} partenaires',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w600,
+                                    color: AppThemeSystem.primaryColor,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                      ],
                     ),
                     SizedBox(height: context.elementSpacing * 0.5),
 
-                    // Adresse ou coordonnées
-                    Container(
-                      padding: EdgeInsets.all(context.horizontalPadding * 0.75),
-                      decoration: BoxDecoration(
-                        color: AppThemeSystem.primaryColor.withValues(alpha: 0.1),
-                        borderRadius: context.borderRadius(BorderRadiusType.medium),
-                        border: Border.all(
-                          color: AppThemeSystem.primaryColor.withValues(alpha: 0.3),
-                        ),
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(
-                            Icons.location_on,
-                            color: AppThemeSystem.primaryColor,
-                            size: 20,
+                    // Message d'aide
+                    if (selectedAddress.isEmpty)
+                      Container(
+                        padding: EdgeInsets.all(context.horizontalPadding * 0.75),
+                        decoration: BoxDecoration(
+                          color: Colors.blue.withValues(alpha: 0.1),
+                          borderRadius: context.borderRadius(BorderRadiusType.medium),
+                          border: Border.all(
+                            color: Colors.blue.withValues(alpha: 0.3),
                           ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              selectedAddress.isEmpty
-                                  ? 'Appuyez sur la carte pour sélectionner'
-                                  : selectedAddress,
-                              style: context.body2.copyWith(
-                                color: context.primaryTextColor,
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.touch_app,
+                              color: Colors.blue,
+                              size: 20,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Appuyez sur la carte pour choisir l\'emplacement de votre boutique',
+                                style: context.body2.copyWith(
+                                  color: Colors.blue[700],
+                                  fontSize: 12,
+                                ),
                               ),
                             ),
+                          ],
+                        ),
+                      )
+                    else
+                      // Adresse ou coordonnées
+                      Container(
+                        padding: EdgeInsets.all(context.horizontalPadding * 0.75),
+                        decoration: BoxDecoration(
+                          color: AppThemeSystem.successColor.withValues(alpha: 0.1),
+                          borderRadius: context.borderRadius(BorderRadiusType.medium),
+                          border: Border.all(
+                            color: AppThemeSystem.successColor.withValues(alpha: 0.3),
                           ),
-                        ],
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.check_circle,
+                              color: AppThemeSystem.successColor,
+                              size: 20,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                selectedAddress,
+                                style: context.body2.copyWith(
+                                  color: context.primaryTextColor,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
 
                     SizedBox(height: context.elementSpacing),
 

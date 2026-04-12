@@ -18,15 +18,17 @@ class WebSocketService extends GetxService {
   // Streams pour broadcaster les événements
   final _messageStream = StreamController<MessageModel>.broadcast();
   final _typingStream = StreamController<Map<String, dynamic>>.broadcast();
-  final _onlineStatusStream = StreamController<Map<String, dynamic>>.broadcast();
+  final _onlineStatusStream =
+      StreamController<Map<String, dynamic>>.broadcast();
 
   Stream<MessageModel> get messageStream => _messageStream.stream;
   Stream<Map<String, dynamic>> get typingStream => _typingStream.stream;
-  Stream<Map<String, dynamic>> get onlineStatusStream => _onlineStatusStream.stream;
+  Stream<Map<String, dynamic>> get onlineStatusStream =>
+      _onlineStatusStream.stream;
 
   // Configuration Reverb (Laravel)
   static const String appKey = '9r0idxmfd6d9lc9e055h';
-  static const String host = '10.202.205.28';
+  static const String host = '10.30.89.28';
   static const int wsPort = 8080;
 
   // Channels actifs
@@ -48,7 +50,9 @@ class WebSocketService extends GetxService {
       }
 
       // Connexion WebSocket Pusher/Reverb
-      final uri = Uri.parse('ws://$host:$wsPort/app/$appKey?protocol=7&client=dart&version=1.0.0');
+      final uri = Uri.parse(
+        'ws://$host:$wsPort/app/$appKey?protocol=7&client=dart&version=1.0.0',
+      );
 
       print('🔌 [WebSocket] Attempting to connect to: $uri');
       _channel = WebSocketChannel.connect(uri);
@@ -66,7 +70,9 @@ class WebSocketService extends GetxService {
         },
       );
 
-      print('🔌 [WebSocket] Stream listener attached, waiting for connection_established...');
+      print(
+        '🔌 [WebSocket] Stream listener attached, waiting for connection_established...',
+      );
     } catch (e) {
       print('❌ [WebSocket] Error initializing: $e');
     }
@@ -166,10 +172,7 @@ class WebSocketService extends GetxService {
       // Envoyer la demande d'abonnement
       final subscribeMessage = jsonEncode({
         'event': 'pusher:subscribe',
-        'data': {
-          'channel': channelName,
-          'auth': auth,
-        },
+        'data': {'channel': channelName, 'auth': auth},
       });
 
       _channel!.sink.add(subscribeMessage);
@@ -194,9 +197,7 @@ class WebSocketService extends GetxService {
     try {
       final unsubscribeMessage = jsonEncode({
         'event': 'pusher:unsubscribe',
-        'data': {
-          'channel': channelName,
-        },
+        'data': {'channel': channelName},
       });
 
       _channel!.sink.add(unsubscribeMessage);
@@ -234,10 +235,7 @@ class WebSocketService extends GetxService {
 
       final subscribeMessage = jsonEncode({
         'event': 'pusher:subscribe',
-        'data': {
-          'channel': channelName,
-          'auth': auth,
-        },
+        'data': {'channel': channelName, 'auth': auth},
       });
 
       _channel!.sink.add(subscribeMessage);
@@ -275,10 +273,7 @@ class WebSocketService extends GetxService {
           'Content-Type': 'application/x-www-form-urlencoded',
           'Accept': 'application/json',
         },
-        body: {
-          'socket_id': _socketId!,
-          'channel_name': channelName,
-        },
+        body: {'socket_id': _socketId!, 'channel_name': channelName},
       );
 
       if (response.statusCode == 200) {
@@ -287,7 +282,9 @@ class WebSocketService extends GetxService {
         print('✅ Channel authenticated successfully');
         return auth;
       } else {
-        print('❌ Authentication failed: ${response.statusCode} - ${response.body}');
+        print(
+          '❌ Authentication failed: ${response.statusCode} - ${response.body}',
+        );
         return '$appKey:auth-failed';
       }
     } catch (e) {

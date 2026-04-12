@@ -21,4 +21,18 @@ class DeliveryService {
   static Future<ApiResponse> completeDelivery(int orderId) async {
     return await ApiProvider.post('/v1/delivery/$orderId/complete', body: {});
   }
+
+  /// Check if delivery is available at a location
+  static Future<ApiResponse> checkDeliveryAvailability({
+    required double latitude,
+    required double longitude,
+  }) async {
+    return await ApiProvider.post(
+      '/v1/delivery/check-availability',
+      body: {
+        'latitude': latitude,
+        'longitude': longitude,
+      },
+    );
+  }
 }

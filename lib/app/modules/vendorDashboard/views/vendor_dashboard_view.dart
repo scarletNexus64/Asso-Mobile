@@ -32,7 +32,15 @@ class VendorDashboardView extends GetView<VendorDashboardController> {
               Icons.arrow_back_ios,
               color: context.primaryTextColor,
             ),
-            onPressed: () => Get.back(),
+            onPressed: () {
+              // Vérifier si on peut retourner en arrière
+              if (Navigator.of(context).canPop()) {
+                Get.back();
+              } else {
+                // Si pas de page précédente, retourner à Home
+                Get.offAllNamed('/home');
+              }
+            },
           ),
           title: Text(
             'Dashboard Vendeur',

@@ -30,8 +30,7 @@ class DeviceTokenProvider {
   /// Supprimer un device token par sa valeur
   static Future<ApiResponse> deleteToken(String token) async {
     try {
-      // Utiliser POST au lieu de DELETE car DELETE ne supporte pas de body
-      return await ApiProvider.post(
+      return await ApiProvider.delete(
         '${AppConstants.deviceTokensUrl}/by-token/delete',
         body: {'token': token},
       );

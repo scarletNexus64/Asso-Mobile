@@ -8,6 +8,8 @@ import '../modules/chatdetail/bindings/chatdetail_binding.dart';
 import '../modules/chatdetail/views/chatdetail_view.dart';
 import '../modules/completeProfile/bindings/complete_profile_binding.dart';
 import '../modules/completeProfile/views/complete_profile_view.dart';
+import '../modules/deliveryCheck/bindings/delivery_check_binding.dart';
+import '../modules/deliveryCheck/views/delivery_check_view.dart';
 import '../modules/deliveryDashboard/bindings/delivery_dashboard_binding.dart';
 import '../modules/deliveryDashboard/views/delivery_dashboard_view.dart';
 import '../modules/faq/bindings/faq_binding.dart';
@@ -213,6 +215,11 @@ class AppPages {
       name: _Paths.SHIP_CONFIG,
       page: () => const ShipConfigView(),
       binding: ShipConfigBinding(),
+    ),
+    GetPage(
+      name: _Paths.DELIVERY_CHECK,
+      page: () => const DeliveryCheckView(),
+      binding: DeliveryCheckBinding(),
     ),
     GetPage(
       name: _Paths.MY_ORDER,

@@ -75,8 +75,16 @@ class UserModel {
       referralCode: json['referral_code'] as String?,
       companyName: json['company_name'] as String?,
       companyLogo: json['company_logo'] as String?,
-      totalEarnings: json['total_earnings'] != null ? (json['total_earnings'] as num).toDouble() : null,
-      pendingEarnings: json['pending_earnings'] != null ? (json['pending_earnings'] as num).toDouble() : null,
+      totalEarnings: json['total_earnings'] != null
+          ? (json['total_earnings'] is String
+              ? double.tryParse(json['total_earnings'])
+              : (json['total_earnings'] as num).toDouble())
+          : null,
+      pendingEarnings: json['pending_earnings'] != null
+          ? (json['pending_earnings'] is String
+              ? double.tryParse(json['pending_earnings'])
+              : (json['pending_earnings'] as num).toDouble())
+          : null,
       deliverySerialNumber: json['delivery_serial_number'] as String?,
       createdAt: json['created_at'] as String? ?? DateTime.now().toIso8601String(),
     );

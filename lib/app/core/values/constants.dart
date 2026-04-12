@@ -5,8 +5,8 @@ class AppConstants {
   static const String appVersion = '1.0.0';
 
   // API Configuration
-  //  // 10.202.205.28 maps to host localhost from Android emulator
-  static const String baseUrl = 'http://10.202.205.28:8001/api';
+  //  // 10.144.156.28 maps to host localhost from Android emulator
+  static const String baseUrl = 'http://10.30.89.28:8001/api';
   static const Duration apiTimeout = Duration(seconds: 30);
 
   // Storage Keys
@@ -57,20 +57,34 @@ class AppConstants {
   static const String deliveryPendingUrl = '/v1/delivery/pending';
   static const String deliveryActiveUrl = '/v1/delivery/active';
 
+  // Deliverer sync
+  static const String delivererVerifySyncCodeUrl =
+      '/v1/deliverer/verify-sync-code';
+  static const String delivererSyncProfileUrl = '/v1/deliverer/sync-profile';
+  static const String delivererUnsyncProfileUrl = '/v1/deliverer/unsync-profile';
+
+  // Delivery partners (for vendor map)
+  static const String deliveryPartnersUrl = '/v1/delivery/partners';
+
   // Wallet
   static const String walletUrl = '/v1/wallet';
   static const String walletTransactionsUrl = '/v1/wallet/transactions';
   static const String walletRechargeUrl = '/v1/wallet/recharge';
   static const String walletCanPayUrl = '/v1/wallet/can-pay';
   static const String walletPayUrl = '/v1/wallet/pay';
-  static const String walletWithdrawalBalancesUrl = '/v1/wallet/withdrawal-balances';
-  static const String walletWithdrawFreemopayUrl = '/v1/wallet/withdraw/freemopay';
+  static const String walletWithdrawalBalancesUrl =
+      '/v1/wallet/withdrawal-balances';
+  static const String walletWithdrawFreemopayUrl =
+      '/v1/wallet/withdraw/freemopay';
   static const String walletWithdrawPaypalUrl = '/v1/wallet/withdraw/paypal';
   static const String walletWithdrawalsUrl = '/v1/wallet/withdrawals';
-  static const String walletWithdrawalStatusUrl = '/v1/wallet/withdrawal-status';
+  static const String walletWithdrawalStatusUrl =
+      '/v1/wallet/withdrawal-status';
   static const String walletPaymentStatusUrl = '/v1/wallet/payment-status';
-  static const String walletPayPalCreateNativeOrderUrl = '/v1/wallet/paypal/create-native-order';
-  static const String walletPayPalCaptureNativeOrderUrl = '/v1/wallet/paypal/capture-native-order';
+  static const String walletPayPalCreateNativeOrderUrl =
+      '/v1/wallet/paypal/create-native-order';
+  static const String walletPayPalCaptureNativeOrderUrl =
+      '/v1/wallet/paypal/capture-native-order';
 
   // Product creation
   static const String createProductUrl = '/v1/products';

@@ -11,7 +11,11 @@ import '../../../routes/app_pages.dart';
 import '../../../data/providers/vendor_service.dart';
 import '../../../data/providers/storage_service.dart';
 import '../../../data/providers/category_service.dart';
+import '../../../data/providers/delivery_service.dart';
+import '../../../data/providers/deliverer_service.dart';
 import '../../../data/models/category_model.dart';
+import '../../../data/models/deliverer_model.dart';
+import '../../../core/utils/app_theme_system.dart';
 import '../views/map_location_picker_view.dart';
 
 class VendorConfigController extends GetxController {
@@ -44,12 +48,19 @@ class VendorConfigController extends GetxController {
   final shopLocation = ''.obs;
   final shopLatitude = 0.0.obs;
   final shopLongitude = 0.0.obs;
+  final isDeliveryAvailable = false.obs;
+  final isCheckingDeliveryAvailability = false.obs;
+  final deliveryAvailabilityMessage = ''.obs;
 
   // Categories
   final selectedCategories = <String>[].obs; // Category names selected
   final RxList<CategoryModel> categories = <CategoryModel>[].obs; // Full category objects from API
   final isCategoriesLoading = false.obs;
   final categoriesLoadError = ''.obs;
+
+  // Delivery Partners (for map display)
+  final RxList<DelivererModel> deliveryPartners = <DelivererModel>[].obs;
+  final isLoadingDeliveryPartners = false.obs;
 
   // Validation
   final isLoading = false.obs;
@@ -61,6 +72,7 @@ class VendorConfigController extends GetxController {
     super.onInit();
     _requestLocationPermission();
     _loadCategories();
+    _loadDeliveryPartners();
   }
 
   /// Charge les catégories depuis l'API
@@ -121,6 +133,40 @@ class VendorConfigController extends GetxController {
       CategoryModel(id: 0, name: 'Services', slug: 'services'),
     ];
     print('  └─ Fallback: ${categories.length} categories');
+  }
+
+  /// Charge les partenaires de livraison depuis l'API
+  Future<void> _loadDeliveryPartners() async {
+    print('');
+    print('========================================');
+    print('🚚 VENDOR CONFIG: Load Delivery Partners START');
+    print('========================================');
+
+    isLoadingDeliveryPartners.value = true;
+
+    try {
+      print('🌐 VENDOR CONFIG: Fetching delivery partners from API...');
+      final loadedPartners = await DelivererService.getDeliveryPartners();
+
+      deliveryPartners.value = loadedPartners;
+      print('✅ VENDOR CONFIG: Delivery partners loaded successfully');
+      print('  └─ Total: ${loadedPartners.length}');
+      for (var partner in loadedPartners) {
+        print('  └─ ${partner.name} - ${partner.zone.name} (${partner.zone.latitude}, ${partner.zone.longitude})');
+      }
+
+      isLoadingDeliveryPartners.value = false;
+      print('========================================');
+    } catch (e, stackTrace) {
+      print('💥 VENDOR CONFIG: Delivery partners load failed!');
+      print('  └─ Error: $e');
+      print('  └─ Stack Trace:');
+      print(stackTrace.toString().split('\n').take(3).join('\n'));
+
+      deliveryPartners.value = [];
+      isLoadingDeliveryPartners.value = false;
+      print('========================================');
+    }
   }
 
   @override
@@ -475,6 +521,13 @@ class VendorConfigController extends GetxController {
       return false;
     }
 
+    if (!isDeliveryAvailable.value) {
+      // Normalement ce cas ne devrait jamais arriver car on vérifie avant de sauvegarder
+      // Mais on garde ce check comme filet de sécurité
+      _showNoDeliveryServiceDialog();
+      return false;
+    }
+
     if (selectedCategories.isEmpty) {
       Get.snackbar(
         'Catégorie requise',
@@ -538,8 +591,147 @@ class VendorConfigController extends GetxController {
     shopLocation.value = address;
   }
 
+  /// Vérifie si la livraison est disponible à une position donnée
+  Future<void> checkDeliveryAvailability(double latitude, double longitude) async {
+    print('');
+    print('========================================');
+    print('🚚 VENDOR CONFIG: Checking delivery availability');
+    print('========================================');
+    print('  └─ Latitude: $latitude');
+    print('  └─ Longitude: $longitude');
+
+    isCheckingDeliveryAvailability.value = true;
+    deliveryAvailabilityMessage.value = '';
+
+    try {
+      final response = await DeliveryService.checkDeliveryAvailability(
+        latitude: latitude,
+        longitude: longitude,
+      );
+
+      print('📥 VENDOR CONFIG: Delivery availability response received');
+      print('  └─ Success: ${response.success}');
+      print('  └─ Status Code: ${response.statusCode}');
+      print('  └─ Message: ${response.message}');
+
+      if (response.success && response.data != null) {
+        final available = response.data!['available'] as bool? ?? false;
+        final message = response.data!['message'] as String? ?? '';
+
+        isDeliveryAvailable.value = available;
+        deliveryAvailabilityMessage.value = message;
+
+        print('');
+        print('🔔 DELIVERY AVAILABILITY RESULT:');
+        print('  ├─ Available: $available');
+        print('  ├─ Message: $message');
+        print('  └─ isDeliveryAvailable.value is now: ${isDeliveryAvailable.value}');
+
+        if (available) {
+          print('✅ VENDOR CONFIG: Delivery is available');
+          final nearestZone = response.data!['nearest_zone'];
+          if (nearestZone != null) {
+            print('  └─ Nearest zone: ${nearestZone['name']}');
+            print('  └─ Distance: ${nearestZone['distance']} km');
+          }
+        } else {
+          print('❌ VENDOR CONFIG: Delivery is NOT available');
+          print('  └─ This will keep the "Finaliser" button DISABLED!');
+        }
+      } else {
+        isDeliveryAvailable.value = false;
+        deliveryAvailabilityMessage.value = response.message;
+
+        print('⚠️ VENDOR CONFIG: API returned error');
+        print('  └─ Message: ${response.message}');
+      }
+    } catch (e, stackTrace) {
+      print('💥 VENDOR CONFIG: Exception caught during delivery check!');
+      print('  └─ Error: $e');
+      print('  └─ Stack Trace:');
+      print(stackTrace.toString().split('\n').take(3).join('\n'));
+
+      isDeliveryAvailable.value = false;
+      deliveryAvailabilityMessage.value = 'Erreur lors de la vérification';
+    } finally {
+      isCheckingDeliveryAvailability.value = false;
+      print('========================================');
+    }
+  }
+
   /// Ouvre la carte pour sélectionner la position
   Future<void> openMapPicker() async {
+    print('');
+    print('========================================');
+    print('🗺️ VENDOR CONFIG: Opening Map Picker');
+    print('========================================');
+    print('  └─ Delivery Partners Available: ${deliveryPartners.length}');
+    print('  └─ Is Loading Partners: ${isLoadingDeliveryPartners.value}');
+
+    // Afficher un loader
+    Get.dialog(
+      WillPopScope(
+        onWillPop: () async => false, // Empêcher de fermer en appuyant sur retour
+        child: Center(
+          child: Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const CircularProgressIndicator(
+                  valueColor: AlwaysStoppedAnimation<Color>(
+                    AppThemeSystem.primaryColor,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'Chargement de la carte...',
+                  style: Get.textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                if (isLoadingDeliveryPartners.value) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    'Récupération des partenaires de livraison...',
+                    style: Get.textTheme.bodySmall?.copyWith(
+                      color: Colors.grey[600],
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ),
+      barrierDismissible: false,
+    );
+
+      // Attendre que les partenaires soient chargés si nécessaire
+      if (deliveryPartners.isNotEmpty) {
+        print('📋 Partners to display on map:');
+        for (var partner in deliveryPartners) {
+          print('  ├─ ${partner.name} (${partner.zone.name})');
+          print('  │  └─ Position: (${partner.zone.latitude}, ${partner.zone.longitude})');
+        }
+      } else if (isLoadingDeliveryPartners.value) {
+        print('⏳ Partners are still loading... waiting...');
+        // Attendre que les partenaires soient chargés (max 5 secondes)
+        int waitCount = 0;
+        while (isLoadingDeliveryPartners.value && waitCount < 10) {
+          await Future.delayed(const Duration(milliseconds: 500));
+          waitCount++;
+        }
+        print('  └─ After wait, partners count: ${deliveryPartners.length}');
+      } else {
+        print('⚠️ No partners loaded and not loading!');
+      }
+      print('========================================');
+
     try {
       // Préparer la position initiale
       LatLng? initialPosition;
@@ -564,27 +756,244 @@ class VendorConfigController extends GetxController {
         }
       }
 
-      // Ouvrir la carte
+      // Fermer le loader
+      Get.back();
+
+      // Petit délai pour une transition fluide
+      await Future.delayed(const Duration(milliseconds: 100));
+
+      // Ouvrir la carte avec les partenaires de livraison
       final result = await Get.to<Map<String, dynamic>>(
         () => MapLocationPickerView(
           initialPosition: initialPosition,
           initialAddress: shopLocation.value.isEmpty ? null : shopLocation.value,
+          deliveryPartners: deliveryPartners.toList(),
         ),
       );
 
       // Si l'utilisateur a confirmé une position
       if (result != null) {
-        shopLatitude.value = result['latitude'] as double;
-        shopLongitude.value = result['longitude'] as double;
-        shopLocation.value = result['address'] as String;
+        final latitude = result['latitude'] as double;
+        final longitude = result['longitude'] as double;
+        final address = result['address'] as String;
+
+        // Afficher un loader de vérification
+        Get.dialog(
+          PopScope(
+            canPop: false,
+            child: Center(
+              child: Container(
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  color: Get.theme.scaffoldBackgroundColor,
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const CircularProgressIndicator(),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Vérification de la zone de livraison...',
+                      style: Get.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Veuillez patienter',
+                      style: Get.textTheme.bodyMedium?.copyWith(
+                        color: Get.theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          barrierDismissible: false,
+        );
+
+        print('');
+        print('🎯 USER SELECTED POSITION:');
+        print('  ├─ Latitude: $latitude');
+        print('  ├─ Longitude: $longitude');
+        print('  └─ Address: $address');
+        print('');
+        print('🔍 Now checking delivery availability for this position...');
+
+        // Vérifier si la livraison est disponible
+        await checkDeliveryAvailability(latitude, longitude);
+
+        // Fermer le loader
+        Get.back();
+
+        print('');
+        print('📋 AFTER DELIVERY CHECK:');
+        print('  ├─ isDeliveryAvailable: ${isDeliveryAvailable.value}');
+        print('  └─ Will show dialog: ${!isDeliveryAvailable.value}');
+
+        // Si la livraison n'est pas disponible, afficher le popup bloquant
+        if (!isDeliveryAvailable.value) {
+          print('⚠️ Showing NO DELIVERY dialog (user must choose another position)');
+          await _showNoDeliveryServiceDialog();
+        } else {
+          print('✅ Position SAVED! Button "Finaliser" should now be enabled');
+          // Sauvegarder la position uniquement si la zone est disponible
+          shopLatitude.value = latitude;
+          shopLongitude.value = longitude;
+          shopLocation.value = address;
+        }
       }
     } catch (e) {
+      // Fermer le loader si ouvert
+      if (Get.isDialogOpen == true) {
+        Get.back();
+      }
+
       Get.snackbar(
         'Erreur',
         'Impossible d\'ouvrir la carte',
         snackPosition: SnackPosition.BOTTOM,
       );
     }
+  }
+
+  /// Affiche un dialog bloquant informant qu'il n'y a pas de service de livraison dans la zone
+  Future<void> _showNoDeliveryServiceDialog() async {
+    return Get.dialog(
+      PopScope(
+        canPop: false, // Empêcher la fermeture par back button
+        child: AlertDialog(
+          title: Row(
+            children: [
+              Icon(
+                Icons.error_outline,
+                color: Get.theme.colorScheme.error,
+                size: 32,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  'Zone non desservie',
+                  style: Get.textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: Get.theme.colorScheme.error,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Désolé, l\'emplacement de votre boutique est en dehors des zones de livraison disponibles.',
+                style: Get.textTheme.bodyLarge?.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'Pour créer une boutique sur Asso, vous devez choisir un emplacement dans une zone où nous avons des partenaires de livraison actifs.',
+                style: Get.textTheme.bodyMedium?.copyWith(
+                  color: Get.theme.colorScheme.onSurface.withValues(alpha: 0.7),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Get.theme.colorScheme.primary.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: Get.theme.colorScheme.primary.withValues(alpha: 0.3),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.info_outline,
+                      size: 20,
+                      color: Get.theme.colorScheme.primary,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Nous travaillons pour étendre nos services à plus de zones.',
+                        style: Get.textTheme.bodySmall?.copyWith(
+                          color: Get.theme.colorScheme.primary,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            // Bouton principal : Modifier mon emplacement
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: () {
+                  Get.back(); // Fermer le dialog
+                  openMapPicker(); // Rouvrir la carte pour choisir un autre emplacement
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Get.theme.colorScheme.primary,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                icon: const Icon(Icons.edit_location),
+                label: const Text(
+                  'Modifier mon emplacement',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            // Bouton secondaire : Retour à l'accueil
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: () {
+                  Get.back(); // Fermer le dialog
+                  Get.offAllNamed(Routes.HOME); // Retourner au home
+                },
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Get.theme.colorScheme.error,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  side: BorderSide(
+                    color: Get.theme.colorScheme.error.withValues(alpha: 0.5),
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                icon: const Icon(Icons.home),
+                label: const Text(
+                  'Retour à l\'accueil',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+      barrierDismissible: false, // Empêcher la fermeture en cliquant en dehors
+    );
   }
 
   /// Soumet la configuration vendeur

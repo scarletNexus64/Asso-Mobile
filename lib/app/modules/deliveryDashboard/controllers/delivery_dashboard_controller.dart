@@ -1,18 +1,21 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart';
 import 'package:get/get.dart';
-import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 import '../models/delivery_models.dart';
+import '../../../data/providers/deliverer_service.dart';
 import '../../../data/providers/vendor_service.dart';
+import '../../shipConfig/models/sync_models.dart';
 
 class DeliveryDashboardController extends GetxController {
+  // Contrôleur de la carte
+  final MapController mapController = MapController();
+
   // Statut du livreur
   final isOnline = false.obs;
 
-  // Position actuelle du livreur
+  // Position actuelle du livreur (basée sur la zone sélectionnée)
   final currentPosition = Rx<LatLng?>(null);
-  StreamSubscription<Position>? _positionStreamSubscription;
 
   // Liste de toutes les demandes
   final allRequests = <DeliveryRequest>[].obs;
@@ -26,94 +29,139 @@ class DeliveryDashboardController extends GetxController {
   // Statistiques
   final stats = Rx<DeliveryStats?>(null);
 
+  // Entreprise du livreur
+  final company = Rx<DelivererCompany?>(null);
+
+  // Zones de livraison (dépôts/entrepôts)
+  final deliveryZones = <DeliveryZone>[].obs;
+  final selectedZone = Rx<DeliveryZone?>(null);
+
   // État de chargement
   final isLoading = false.obs;
+  final isLoadingCompany = false.obs;
 
   @override
   void onInit() {
     super.onInit();
-    _initializeLocation();
+    // Charger d'abord les infos de l'entreprise pour avoir les zones
+    loadCompanyInfo();
     loadDeliveries();
 
     // Écouter les changements de filtre
     ever(selectedStatus, (_) => _applyFilter());
   }
 
-  @override
-  void onClose() {
-    _positionStreamSubscription?.cancel();
-    super.onClose();
-  }
-
-  /// Initialise le suivi de position
-  Future<void> _initializeLocation() async {
+  /// Charge les informations de l'entreprise du livreur
+  Future<void> loadCompanyInfo() async {
+    isLoadingCompany.value = true;
     try {
-      // Obtenir la position actuelle
-      final position = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(
-          accuracy: LocationAccuracy.high,
-        ),
-      );
+      print('🏢 Chargement des infos de l\'entreprise...');
+      final response = await DelivererService.getMyCompany();
 
-      currentPosition.value = LatLng(position.latitude, position.longitude);
+      if (response.success && response.data != null) {
+        final data = response.data!;
 
-      // Démarrer le suivi de position
-      _startLocationTracking();
-    } catch (e) {
-      // Position par défaut (Douala)
-      currentPosition.value = const LatLng(4.0511, 9.7679);
+        if (data['company'] != null) {
+          company.value = DelivererCompany.fromJson(
+            data['company'] as Map<String, dynamic>,
+          );
+          print('✅ Entreprise chargée: ${company.value!.name}');
+
+          // Charger les zones de livraison
+          if (data['company']['zones'] != null) {
+            final zonesData = data['company']['zones'] as List<dynamic>;
+            deliveryZones.value = zonesData
+                .map((zone) => DeliveryZone.fromJson(zone as Map<String, dynamic>))
+                .toList();
+
+            print('  └─ ${deliveryZones.length} zones de livraison chargées');
+
+            // Sélectionner la première zone par défaut
+            if (deliveryZones.isNotEmpty) {
+              selectedZone.value = deliveryZones.first;
+              print('  └─ Zone par défaut: ${selectedZone.value!.name}');
+
+              // Utiliser la position de la première zone comme position par défaut
+              currentPosition.value = LatLng(
+                selectedZone.value!.centerLatitude,
+                selectedZone.value!.centerLongitude,
+              );
+              print('  └─ Position: (${selectedZone.value!.centerLatitude}, ${selectedZone.value!.centerLongitude})');
+            }
+          }
+        } else {
+          print('⚠️  Pas d\'entreprise dans la réponse');
+        }
+      } else {
+        print('⚠️  Erreur API: ${response.message}');
+      }
+    } catch (e, stackTrace) {
+      print('❌ Erreur lors du chargement de l\'entreprise: $e');
+      print('  └─ Stack trace: ${stackTrace.toString().split('\n').take(3).join('\n')}');
+    } finally {
+      isLoadingCompany.value = false;
     }
   }
 
-  /// Démarre le suivi de position
-  void _startLocationTracking() {
-    const locationSettings = LocationSettings(
-      accuracy: LocationAccuracy.high,
-      distanceFilter: 10, // Mise à jour tous les 10 mètres
-    );
-
-    _positionStreamSubscription = Geolocator.getPositionStream(
-      locationSettings: locationSettings,
-    ).listen((Position position) {
-      currentPosition.value = LatLng(position.latitude, position.longitude);
-    });
+  @override
+  void onClose() {
+    super.onClose();
   }
 
   /// Charge les demandes de livraison depuis l'API
   Future<void> loadDeliveries() async {
     isLoading.value = true;
     try {
+      print('🚚 Chargement des livraisons depuis l\'API...');
       final response = await VendorService.getDeliveryDashboard();
 
+      print('  └─ Response success: ${response.success}');
+      print('  └─ Response status: ${response.statusCode}');
+
       if (response.success && response.data != null) {
-        final data = response.data!['data'] ?? response.data!;
+        final data = response.data!;
+
+        print('  └─ Response data keys: ${data.keys}');
+        print('  └─ Deliveries data: ${data['deliveries']}');
+        print('  └─ Stats data: ${data['stats']}');
 
         // Parser les demandes de livraison depuis l'API
-        if (data['requests'] is List) {
-          allRequests.value = _parseDeliveryRequests(data['requests']);
+        if (data['deliveries'] is List) {
+          allRequests.value = _parseDeliveryRequests(data['deliveries']);
+          print('✅ ${allRequests.length} livraisons chargées depuis l\'API');
         } else {
-          // Fallback to mock if no requests in response
-          allRequests.value = _generateMockRequests();
+          // Pas de livraisons, initialiser liste vide
+          allRequests.value = [];
+          print('ℹ️  Aucune livraison trouvée');
+        }
+
+        // Parser les stats si disponibles
+        if (data['stats'] != null) {
+          stats.value = _parseStats(data['stats']);
+        } else {
+          stats.value = _calculateStats();
         }
       } else {
-        // Fallback to mock data if API fails
-        allRequests.value = _generateMockRequests();
+        // Si l'API échoue, initialiser avec liste vide
+        allRequests.value = [];
+        stats.value = _calculateStats();
+        print('⚠️  API failed: ${response.message}');
       }
-
-      // Calculer les statistiques
-      stats.value = _calculateStats();
 
       // Appliquer le filtre
       _applyFilter();
-    } catch (e) {
-      // Fallback to mock data on error
-      allRequests.value = _generateMockRequests();
+    } catch (e, stackTrace) {
+      // En cas d'erreur, initialiser avec liste vide
+      allRequests.value = [];
       stats.value = _calculateStats();
       _applyFilter();
 
+      print('❌ Erreur lors du chargement des livraisons: $e');
+      print('  └─ Stack trace: ${stackTrace.toString().split('\n').take(3).join('\n')}');
+
       Get.snackbar(
         'Erreur',
-        'Impossible de charger les demandes',
+        'Impossible de charger les demandes de livraison',
         snackPosition: SnackPosition.BOTTOM,
         backgroundColor: Colors.red,
         colorText: Colors.white,
@@ -121,6 +169,26 @@ class DeliveryDashboardController extends GetxController {
     } finally {
       isLoading.value = false;
     }
+  }
+
+  /// Parse les statistiques depuis la réponse API
+  DeliveryStats _parseStats(Map<String, dynamic> statsData) {
+    return DeliveryStats(
+      totalDeliveries: statsData['total'] ?? 0,
+      pendingDeliveries: statsData['pending'] ?? 0,
+      inProgressDeliveries: statsData['in_progress'] ?? 0,
+      completedDeliveries: statsData['completed'] ?? 0,
+      cancelledDeliveries: statsData['cancelled'] ?? 0,
+      totalCommissions: (statsData['total_commissions'] is String
+          ? double.tryParse(statsData['total_commissions']) ?? 0.0
+          : (statsData['total_commissions'] ?? 0).toDouble()),
+      todayCommissions: (statsData['today_commissions'] is String
+          ? double.tryParse(statsData['today_commissions']) ?? 0.0
+          : (statsData['today_commissions'] ?? 0).toDouble()),
+      averageRating: (statsData['average_rating'] is String
+          ? double.tryParse(statsData['average_rating']) ?? 0.0
+          : (statsData['average_rating'] ?? 0).toDouble()),
+    );
   }
 
   /// Parse les demandes de livraison depuis la réponse API
@@ -225,71 +293,6 @@ class DeliveryDashboardController extends GetxController {
       todayCommissions: todayCommissions,
       averageRating: 4.7,
     );
-  }
-
-  /// Génère des demandes de test
-  List<DeliveryRequest> _generateMockRequests() {
-    final now = DateTime.now();
-    final List<DeliveryRequest> requests = [];
-
-    // Demandes en attente
-    for (int i = 0; i < 3; i++) {
-      requests.add(DeliveryRequest(
-        id: 'DEL${1000 + i}',
-        orderId: 'CMD${2000 + i}',
-        status: DeliveryStatus.pending,
-        customerName: ['Jean Dupont', 'Marie Martin', 'Paul Dubois'][i],
-        customerPhone: '+237 6${70 + i} 00 00 00',
-        pickupAddress: 'Boutique Centre-ville, Douala',
-        pickupLocation: const LatLng(4.0511, 9.7679),
-        deliveryAddress: ['Akwa, Douala', 'Bonamoussadi, Douala', 'Bonapriso, Douala'][i],
-        deliveryLocation: LatLng(4.05 + (i * 0.01), 9.77 + (i * 0.01)),
-        distance: 3.5 + i,
-        commission: 1500 + (i * 500),
-        requestDate: now.subtract(Duration(minutes: 10 + i * 5)),
-      ));
-    }
-
-    // Demandes en cours
-    for (int i = 0; i < 2; i++) {
-      requests.add(DeliveryRequest(
-        id: 'DEL${2000 + i}',
-        orderId: 'CMD${3000 + i}',
-        status: DeliveryStatus.inProgress,
-        customerName: ['Sophie Laurent', 'Luc Bernard'][i],
-        customerPhone: '+237 6${80 + i} 00 00 00',
-        pickupAddress: 'Boutique Bepanda, Douala',
-        pickupLocation: const LatLng(4.0611, 9.7579),
-        deliveryAddress: ['Kotto, Douala', 'Logbaba, Douala'][i],
-        deliveryLocation: LatLng(4.06 + (i * 0.02), 9.76 + (i * 0.02)),
-        distance: 5.0 + i,
-        commission: 2000 + (i * 500),
-        requestDate: now.subtract(Duration(hours: 1 + i)),
-        acceptedDate: now.subtract(Duration(minutes: 45 + i * 10)),
-      ));
-    }
-
-    // Demandes livrées
-    for (int i = 0; i < 5; i++) {
-      requests.add(DeliveryRequest(
-        id: 'DEL${3000 + i}',
-        orderId: 'CMD${4000 + i}',
-        status: DeliveryStatus.delivered,
-        customerName: 'Client ${i + 1}',
-        customerPhone: '+237 690 00 00 0$i',
-        pickupAddress: 'Boutique Test, Douala',
-        pickupLocation: const LatLng(4.0511, 9.7679),
-        deliveryAddress: 'Adresse livraison $i',
-        deliveryLocation: LatLng(4.05 + (i * 0.01), 9.77 + (i * 0.01)),
-        distance: 4.0 + i,
-        commission: 1800 + (i * 200),
-        requestDate: now.subtract(Duration(days: i + 1, hours: 2)),
-        acceptedDate: now.subtract(Duration(days: i + 1, hours: 1)),
-        deliveredDate: now.subtract(Duration(days: i + 1)),
-      ));
-    }
-
-    return requests;
   }
 
   /// Toggle le statut online/offline
@@ -483,5 +486,106 @@ class DeliveryDashboardController extends GetxController {
   void openWallet() {
     // Réutiliser le wallet créé précédemment
     Get.toNamed('/wallet');
+  }
+
+  /// Change la zone de livraison sélectionnée
+  void selectZone(DeliveryZone zone) {
+    selectedZone.value = zone;
+    final newPosition = LatLng(
+      zone.centerLatitude,
+      zone.centerLongitude,
+    );
+    currentPosition.value = newPosition;
+
+    // Animer la caméra vers la nouvelle position
+    try {
+      mapController.move(newPosition, 14.0);
+
+      // Animation de rotation et zoom pour un effet dynamique
+      Future.delayed(const Duration(milliseconds: 100), () {
+        mapController.rotate(0); // Reset rotation
+      });
+    } catch (e) {
+      print('⚠️ Erreur lors de l\'animation de la caméra: $e');
+    }
+
+    Get.snackbar(
+      'Zone changée',
+      'Vous êtes maintenant à ${zone.name}',
+      snackPosition: SnackPosition.BOTTOM,
+      backgroundColor: Colors.blue,
+      colorText: Colors.white,
+      duration: const Duration(seconds: 2),
+      icon: const Icon(Icons.warehouse, color: Colors.white),
+    );
+  }
+
+  /// Désynchronise le profil du livreur
+  Future<void> unsyncProfile() async {
+    // Demander confirmation
+    final confirmed = await Get.dialog<bool>(
+      AlertDialog(
+        title: const Text('Désynchronisation'),
+        content: const Text(
+          'Êtes-vous sûr de vouloir vous désynchroniser ?\n\n'
+          'Cela supprimera votre rôle de livreur et vous ne pourrez plus recevoir de demandes de livraison.\n\n'
+          'Le code de synchronisation sera libéré et pourra être utilisé par une autre personne.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Get.back(result: false),
+            child: const Text('Annuler'),
+          ),
+          ElevatedButton(
+            onPressed: () => Get.back(result: true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+            ),
+            child: const Text('Désynchroniser'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    try {
+      print('🔴 Désynchronisation en cours...');
+
+      final response = await DelivererService.unsyncProfile();
+
+      if (response.success) {
+        Get.snackbar(
+          'Désynchronisation réussie',
+          'Vous n\'êtes plus livreur',
+          snackPosition: SnackPosition.BOTTOM,
+          backgroundColor: Colors.green,
+          colorText: Colors.white,
+          duration: const Duration(seconds: 3),
+        );
+
+        // Rediriger vers la page d'accueil après un court délai
+        Future.delayed(const Duration(seconds: 1), () {
+          Get.offAllNamed('/home');
+        });
+      } else {
+        Get.snackbar(
+          'Erreur',
+          response.message.isNotEmpty ? response.message : 'Impossible de se désynchroniser',
+          snackPosition: SnackPosition.BOTTOM,
+          backgroundColor: Colors.red,
+          colorText: Colors.white,
+        );
+      }
+    } catch (e) {
+      print('❌ Erreur lors de la désynchronisation: $e');
+      Get.snackbar(
+        'Erreur',
+        'Une erreur est survenue lors de la désynchronisation',
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
+    }
   }
 }

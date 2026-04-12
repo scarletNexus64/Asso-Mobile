@@ -47,7 +47,7 @@ class ShipConfigView extends GetView<ShipConfigController> {
 
             // Titre
             Text(
-              'Synchronisez votre profil',
+              'Devenez Livreur Partenaire',
               style: context.h3.copyWith(
                 fontWeight: FontWeight.bold,
                 color: context.primaryTextColor,
@@ -59,7 +59,7 @@ class ShipConfigView extends GetView<ShipConfigController> {
 
             // Description
             Text(
-              'Vous pourrez commencer à recevoir des demandes de livraison immédiatement.',
+              'Synchronisez votre profil avec votre entreprise de livraison pour commencer à recevoir des demandes.',
               style: context.body1.copyWith(
                 color: context.secondaryTextColor,
                 height: 1.5,
@@ -69,7 +69,7 @@ class ShipConfigView extends GetView<ShipConfigController> {
 
             SizedBox(height: context.sectionSpacing),
 
-            // Carte d'information sur le numéro de série
+            // Carte d'information sur le code de synchronisation
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
@@ -89,7 +89,7 @@ class ShipConfigView extends GetView<ShipConfigController> {
                           borderRadius: context.borderRadius(BorderRadiusType.small),
                         ),
                         child: Icon(
-                          Icons.badge,
+                          Icons.sync_alt,
                           color: AppThemeSystem.primaryColor,
                           size: 24,
                         ),
@@ -97,7 +97,7 @@ class ShipConfigView extends GetView<ShipConfigController> {
                       const SizedBox(width: 12),
                       Expanded(
                         child: Text(
-                          'Numéro de série livreur',
+                          'Code de synchronisation',
                           style: context.h6.copyWith(
                             fontWeight: FontWeight.bold,
                           ),
@@ -107,7 +107,7 @@ class ShipConfigView extends GetView<ShipConfigController> {
                   ),
                   const SizedBox(height: 16),
                   Text(
-                    'Entrez votre numéro de série livreur',
+                    'Entrez le code reçu de votre entreprise de livraison',
                     style: context.body2.copyWith(
                       color: context.secondaryTextColor,
                       fontWeight: FontWeight.w600,
@@ -115,20 +115,21 @@ class ShipConfigView extends GetView<ShipConfigController> {
                   ),
                   const SizedBox(height: 12),
                   TextField(
-                    controller: controller.serialNumberController,
+                    controller: controller.syncCodeController,
                     textAlign: TextAlign.center,
                     style: context.body1.copyWith(
                       fontWeight: FontWeight.bold,
                       fontFamily: 'monospace',
-                      letterSpacing: 1.5,
-                      fontSize: 16,
+                      letterSpacing: 2.0,
+                      fontSize: 18,
                     ),
                     textCapitalization: TextCapitalization.characters,
+                    maxLength: 14,
                     decoration: InputDecoration(
-                      hintText: 'XX-XXXX-XXXX-XXXX-XX',
+                      hintText: 'XXXX-XXXX-XXXX',
                       hintStyle: context.body2.copyWith(
                         fontFamily: 'monospace',
-                        letterSpacing: 1.2,
+                        letterSpacing: 1.5,
                         color: AppThemeSystem.grey400,
                       ),
                       filled: true,
@@ -152,37 +153,7 @@ class ShipConfigView extends GetView<ShipConfigController> {
                         horizontal: 16,
                         vertical: 16,
                       ),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: AppThemeSystem.warningColor.withValues(alpha: 0.1),
-                      borderRadius: context.borderRadius(BorderRadiusType.small),
-                      border: Border.all(
-                        color: AppThemeSystem.warningColor.withValues(alpha: 0.3),
-                      ),
-                    ),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Icon(
-                          Icons.info_outline,
-                          size: 20,
-                          color: AppThemeSystem.warningColor,
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            'Si vous n\'avez pas de numéro de série, contactez le support pour en obtenir un.',
-                            style: context.caption.copyWith(
-                              color: context.secondaryTextColor,
-                              height: 1.4,
-                            ),
-                          ),
-                        ),
-                      ],
+                      counterText: '',
                     ),
                   ),
                 ],
@@ -200,8 +171,12 @@ class ShipConfigView extends GetView<ShipConfigController> {
                         : controller.syncProfileToDelivery,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppThemeSystem.primaryColor,
+                      foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(vertical: 16),
                       disabledBackgroundColor: AppThemeSystem.grey300,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: context.borderRadius(BorderRadiusType.medium),
+                      ),
                     ),
                     icon: controller.isSyncing.value
                         ? const SizedBox(
@@ -213,11 +188,11 @@ class ShipConfigView extends GetView<ShipConfigController> {
                                   AlwaysStoppedAnimation<Color>(Colors.white),
                             ),
                           )
-                        : const Icon(Icons.sync, size: 20),
+                        : const Icon(Icons.sync, size: 22),
                     label: Text(
                       controller.isSyncing.value
-                          ? 'Synchronisation...'
-                          : 'Synchroniser mon profil',
+                          ? 'Synchronisation en cours...'
+                          : 'Activer mon profil livreur',
                       style: const TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w600,

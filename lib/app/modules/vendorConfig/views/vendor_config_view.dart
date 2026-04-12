@@ -753,6 +753,111 @@ class VendorConfigView extends GetView<VendorConfigController> {
             ),
           ),
 
+          SizedBox(height: context.elementSpacing),
+
+          // Statut de la zone de livraison
+          Obx(() {
+            if (controller.shopLocation.value.isNotEmpty &&
+                controller.isCheckingDeliveryAvailability.value) {
+              return Container(
+                padding: EdgeInsets.all(context.verticalPadding),
+                decoration: BoxDecoration(
+                  color: AppThemeSystem.primaryColor.withValues(alpha: 0.1),
+                  borderRadius: context.borderRadius(BorderRadiusType.medium),
+                  border: Border.all(
+                    color: AppThemeSystem.primaryColor.withValues(alpha: 0.3),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(
+                          AppThemeSystem.primaryColor,
+                        ),
+                      ),
+                    ),
+                    SizedBox(width: context.elementSpacing),
+                    Expanded(
+                      child: Text(
+                        'Vérification de la zone de livraison...',
+                        style: context.body2.copyWith(
+                          color: AppThemeSystem.primaryColor,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            } else if (controller.shopLocation.value.isNotEmpty) {
+              if (controller.isDeliveryAvailable.value) {
+                return Container(
+                  padding: EdgeInsets.all(context.verticalPadding),
+                  decoration: BoxDecoration(
+                    color: AppThemeSystem.successColor.withValues(alpha: 0.1),
+                    borderRadius: context.borderRadius(BorderRadiusType.medium),
+                    border: Border.all(
+                      color: AppThemeSystem.successColor.withValues(alpha: 0.3),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.check_circle,
+                        color: AppThemeSystem.successColor,
+                        size: 20,
+                      ),
+                      SizedBox(width: context.elementSpacing),
+                      Expanded(
+                        child: Text(
+                          'Zone de livraison disponible',
+                          style: context.body2.copyWith(
+                            color: AppThemeSystem.successColor,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              } else {
+                return Container(
+                  padding: EdgeInsets.all(context.verticalPadding),
+                  decoration: BoxDecoration(
+                    color: AppThemeSystem.errorColor.withValues(alpha: 0.1),
+                    borderRadius: context.borderRadius(BorderRadiusType.medium),
+                    border: Border.all(
+                      color: AppThemeSystem.errorColor.withValues(alpha: 0.3),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.error,
+                        color: AppThemeSystem.errorColor,
+                        size: 20,
+                      ),
+                      SizedBox(width: context.elementSpacing),
+                      Expanded(
+                        child: Text(
+                          'Hors zone de livraison - Veuillez choisir un autre emplacement',
+                          style: context.body2.copyWith(
+                            color: AppThemeSystem.errorColor,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }
+            }
+            return SizedBox.shrink();
+          }),
+
           SizedBox(height: context.sectionSpacing),
 
           // Catégories
@@ -1032,6 +1137,22 @@ class VendorConfigView extends GetView<VendorConfigController> {
         child: Obx(() {
           final isLoading = controller.isLoading.value;
           final isFirstStep = controller.currentStep.value == 0;
+          final isSecondStep = controller.currentStep.value == 1;
+
+          // Check if all required fields in Step 2 are filled
+          final isStep2Complete = isSecondStep &&
+              controller.shopNameController.text.trim().isNotEmpty &&
+              controller.shopDescriptionController.text.trim().isNotEmpty &&
+              controller.shopLogo.value != null &&
+              controller.shopLocation.value.isNotEmpty &&
+              controller.selectedCategories.isNotEmpty;
+
+          // Button is enabled only if:
+          // - Not loading
+          // - If Step 2: all fields filled AND delivery is available
+          // - If Step 1: proceed normally (will be validated in controller)
+          final isButtonEnabled = !isLoading &&
+              (!isSecondStep || (isStep2Complete && controller.isDeliveryAvailable.value));
 
           return Row(
             children: [
@@ -1067,10 +1188,12 @@ class VendorConfigView extends GetView<VendorConfigController> {
               Expanded(
                 flex: isFirstStep ? 1 : 1,
                 child: ElevatedButton(
-                  onPressed: isLoading ? null : controller.nextStep,
+                  onPressed: isButtonEnabled ? controller.nextStep : null,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppThemeSystem.primaryColor,
                     foregroundColor: Colors.white,
+                    disabledBackgroundColor: context.borderColor,
+                    disabledForegroundColor: context.secondaryTextColor,
                     padding: EdgeInsets.symmetric(
                       vertical: context.verticalPadding * 0.75,
                     ),
@@ -1092,7 +1215,7 @@ class VendorConfigView extends GetView<VendorConfigController> {
                       : Text(
                           isFirstStep ? 'Suivant' : 'Finaliser',
                           style: context.button.copyWith(
-                            color: Colors.white,
+                            color: isButtonEnabled ? Colors.white : context.secondaryTextColor,
                             fontWeight: FontWeight.w600,
                           ),
                         ),

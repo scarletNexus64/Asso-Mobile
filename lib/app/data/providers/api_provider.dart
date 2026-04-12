@@ -134,16 +134,21 @@ class ApiProvider {
   }
 
   /// DELETE request
-  static Future<ApiResponse> delete(String endpoint) async {
+  static Future<ApiResponse> delete(String endpoint, {Map<String, dynamic>? body}) async {
     final uri = _buildUri(endpoint);
     developer.log(
       'DELETE ${uri.toString()}',
       name: 'ApiProvider',
+      error: body != null ? 'With body: ${body.keys.join(", ")}' : 'No body',
     );
 
     try {
       final response = await _client
-          .delete(uri, headers: _headers)
+          .delete(
+            uri,
+            headers: _headers,
+            body: body != null ? jsonEncode(body) : null,
+          )
           .timeout(AppConstants.apiTimeout);
 
       developer.log(

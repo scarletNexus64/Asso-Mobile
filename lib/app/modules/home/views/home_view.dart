@@ -75,7 +75,12 @@ class HomeView extends GetView<HomeController> {
                         icon: Icon(
                           Icons.menu_rounded,
                           color: AppThemeSystem.getPrimaryTextColor(context),
-                          size: 28,
+                          size: deviceType == DeviceType.mobile ? 24 : 28,
+                        ),
+                        padding: EdgeInsets.zero,
+                        constraints: BoxConstraints(
+                          minWidth: deviceType == DeviceType.mobile ? 40 : 48,
+                          minHeight: deviceType == DeviceType.mobile ? 40 : 48,
                         ),
                         onPressed: () {
                           controller.scaffoldKey.currentState?.openDrawer();
@@ -86,10 +91,10 @@ class HomeView extends GetView<HomeController> {
                       Expanded(
                         child: Row(
                           children: [
-                            SizedBox(width: 8),
+                            SizedBox(width: AppThemeSystem.getElementSpacing(context) * 0.3),
                             Container(
-                              width: 40,
-                              height: 40,
+                              width: deviceType == DeviceType.mobile ? 36 : 40,
+                              height: deviceType == DeviceType.mobile ? 36 : 40,
                               decoration: BoxDecoration(
                                 gradient: LinearGradient(
                                   colors: [
@@ -103,17 +108,22 @@ class HomeView extends GetView<HomeController> {
                                 child: Image.asset(
                                   'assets/images/logo.png',
                                   fit: BoxFit.cover,
-                                  width: 40,
-                                  height: 40,
+                                  width: deviceType == DeviceType.mobile ? 36 : 40,
+                                  height: deviceType == DeviceType.mobile ? 36 : 40,
                                 ),
                               ),
                             ),
-                            SizedBox(width: 8),
-                            Text(
-                              'ASSO',
-                              style: context.textStyle(
-                                FontSizeType.body1,
-                                fontWeight: FontWeight.w600,
+                            SizedBox(width: AppThemeSystem.getElementSpacing(context) * 0.4),
+                            Flexible(
+                              child: Text(
+                                'ASSO',
+                                style: context.textStyle(
+                                  deviceType == DeviceType.mobile
+                                    ? FontSizeType.body2
+                                    : FontSizeType.body1,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                                overflow: TextOverflow.ellipsis,
                               ),
                             ),
                           ],
@@ -125,7 +135,7 @@ class HomeView extends GetView<HomeController> {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           // Search icon
-                          _buildIconButton(
+                          _buildCompactIconButton(
                             context: context,
                             icon: Icon(
                               Icons.search_rounded,
@@ -136,28 +146,25 @@ class HomeView extends GetView<HomeController> {
                             },
                           ),
 
-                          SizedBox(width: 4),
-
-                          // Camera icon for image search
-                          _buildIconButton(
-                            context: context,
-                            icon: Icon(
-                              Icons.camera_alt_rounded,
-                              color: AppThemeSystem.getPrimaryTextColor(context),
+                          // Camera icon for image search - hide on very small screens
+                          if (MediaQuery.of(context).size.width > 360)
+                            _buildCompactIconButton(
+                              context: context,
+                              icon: Icon(
+                                Icons.camera_alt_rounded,
+                                color: AppThemeSystem.getPrimaryTextColor(context),
+                              ),
+                              onPressed: () {
+                                Get.snackbar(
+                                  'Recherche par image',
+                                  'Prenez une photo pour rechercher des produits similaires',
+                                  snackPosition: SnackPosition.BOTTOM,
+                                );
+                              },
                             ),
-                            onPressed: () {
-                              Get.snackbar(
-                                'Recherche par image',
-                                'Prenez une photo pour rechercher des produits similaires',
-                                snackPosition: SnackPosition.BOTTOM,
-                              );
-                            },
-                          ),
-
-                          SizedBox(width: 4),
 
                           // Wishlist icon
-                          _buildIconButton(
+                          _buildCompactIconButton(
                             context: context,
                             icon: Icon(
                               Icons.favorite_border_rounded,
@@ -173,13 +180,11 @@ class HomeView extends GetView<HomeController> {
                             },
                           ),
 
-                          SizedBox(width: 4),
-
                           // Notifications icon with badge
                           GetX<NotificationController>(
                             builder: (notifController) {
                               final count = notifController.unreadCount.value;
-                              return _buildIconButtonWithBadge(
+                              return _buildCompactIconButtonWithBadge(
                                 context: context,
                                 icon: Icon(
                                   Icons.notifications_outlined,
@@ -510,7 +515,7 @@ class HomeView extends GetView<HomeController> {
                     Get.back();
                     AuthGuard.navigateIfAuthenticated(
                       context,
-                      '/ship-config',
+                      '/delivery-check',
                       featureName: 'le mode livreur',
                     );
                   },
@@ -959,7 +964,7 @@ class HomeView extends GetView<HomeController> {
     );
   }
 
-  Widget _buildIconButton({
+  Widget _buildCompactIconButton({
     required BuildContext context,
     required Widget icon,
     required VoidCallback onPressed,
@@ -968,19 +973,19 @@ class HomeView extends GetView<HomeController> {
     return IconButton(
       icon: icon,
       onPressed: onPressed,
-      iconSize: deviceType == DeviceType.mobile ? 24 : 28,
-      padding: EdgeInsets.all(deviceType == DeviceType.mobile ? 8 : 10),
+      iconSize: deviceType == DeviceType.mobile ? 20 : 24,
+      padding: EdgeInsets.all(deviceType == DeviceType.mobile ? 4 : 6),
       constraints: BoxConstraints(
-        minWidth: deviceType == DeviceType.mobile ? 40 : 48,
-        minHeight: deviceType == DeviceType.mobile ? 40 : 48,
+        minWidth: deviceType == DeviceType.mobile ? 32 : 40,
+        minHeight: deviceType == DeviceType.mobile ? 32 : 40,
       ),
     );
   }
 
-  Widget _buildIconButtonWithBadge({
+  Widget _buildCompactIconButtonWithBadge({
     required BuildContext context,
     required Widget icon,
-    String? badgeCount, // Nullable maintenant
+    String? badgeCount,
     required VoidCallback onPressed,
   }) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -992,20 +997,20 @@ class HomeView extends GetView<HomeController> {
         IconButton(
           icon: icon,
           onPressed: onPressed,
-          iconSize: deviceType == DeviceType.mobile ? 24 : 28,
-          padding: EdgeInsets.all(deviceType == DeviceType.mobile ? 8 : 10),
+          iconSize: deviceType == DeviceType.mobile ? 20 : 24,
+          padding: EdgeInsets.all(deviceType == DeviceType.mobile ? 4 : 6),
           constraints: BoxConstraints(
-            minWidth: deviceType == DeviceType.mobile ? 40 : 48,
-            minHeight: deviceType == DeviceType.mobile ? 40 : 48,
+            minWidth: deviceType == DeviceType.mobile ? 32 : 40,
+            minHeight: deviceType == DeviceType.mobile ? 32 : 40,
           ),
         ),
         // Badge (affiché seulement si badgeCount != null)
         if (badgeCount != null)
           Positioned(
-            right: deviceType == DeviceType.mobile ? 6 : 8,
-            top: deviceType == DeviceType.mobile ? 6 : 8,
+            right: deviceType == DeviceType.mobile ? 4 : 6,
+            top: deviceType == DeviceType.mobile ? 4 : 6,
             child: Container(
-              padding: EdgeInsets.all(deviceType == DeviceType.mobile ? 3 : 4),
+              padding: EdgeInsets.all(deviceType == DeviceType.mobile ? 2 : 3),
               decoration: BoxDecoration(
                 color: AppThemeSystem.errorColor,
                 shape: BoxShape.circle,
@@ -1024,23 +1029,23 @@ class HomeView extends GetView<HomeController> {
                 ],
               ),
               constraints: BoxConstraints(
-                minWidth: deviceType == DeviceType.mobile ? 16 : 18,
-                minHeight: deviceType == DeviceType.mobile ? 16 : 18,
+                minWidth: deviceType == DeviceType.mobile ? 14 : 16,
+                minHeight: deviceType == DeviceType.mobile ? 14 : 16,
               ),
               child: Center(
-              child: Text(
-                badgeCount,
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: deviceType == DeviceType.mobile ? 9 : 10,
-                  fontWeight: FontWeight.bold,
-                  height: 1.0,
+                child: Text(
+                  badgeCount,
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: deviceType == DeviceType.mobile ? 8 : 9,
+                    fontWeight: FontWeight.bold,
+                    height: 1.0,
+                  ),
+                  textAlign: TextAlign.center,
                 ),
-                textAlign: TextAlign.center,
               ),
             ),
           ),
-        ),
       ],
     );
   }
@@ -1074,76 +1079,61 @@ class HomeItemView extends GetView<HomeController> {
 
             // Afficher les sections "Proche de vous" et "Récemment postés" seulement si "Tous" est sélectionné
             if (controller.selectedCategory.value == 'Tous') ...[
-              // Section "Proche de vous"
-              SliverToBoxAdapter(
-                child: _buildSectionTitle(
-                  context,
-                  'Proche de vous',
-                  Icons.location_on_rounded,
-                  onSeeAll: controller.onSeeAllNearby,
-                ),
-              ),
+              // Vérifier si on est en train de charger ou s'il y a des produits
+              if (controller.isLoadingNearby.value || controller.isLoadingRecent.value ||
+                  controller.nearbyProducts.isNotEmpty || controller.recentProducts.isNotEmpty) ...[
 
-              // Liste horizontale de produits proches
-              SliverToBoxAdapter(
-                child: AnimatedSwitcher(
-                  duration: AppConstants.shimmerFadeTransitionDuration,
-                  switchInCurve: Curves.easeIn,
-                  switchOutCurve: Curves.easeOut,
-                  child: controller.isLoadingNearby.value
-                      ? ShimmerWidgets.horizontalProductListShimmer(context)
-                      : _buildHorizontalProductList(context, controller.nearbyProducts),
-                ),
-              ),
+                // Section "Proche de vous" - afficher seulement s'il y a des produits ou en chargement
+                if (controller.isLoadingNearby.value || controller.nearbyProducts.isNotEmpty) ...[
+                  SliverToBoxAdapter(
+                    child: _buildSectionTitle(
+                      context,
+                      'Proche de vous',
+                      Icons.location_on_rounded,
+                      onSeeAll: controller.nearbyProducts.isNotEmpty ? controller.onSeeAllNearby : null,
+                    ),
+                  ),
 
-              // Section "Récemment postés"
-              SliverToBoxAdapter(
-                child: _buildSectionTitle(
-                  context,
-                  'Récemment postés',
-                  Icons.schedule_rounded,
-                ),
-              ),
+                  // Liste horizontale de produits proches
+                  SliverToBoxAdapter(
+                    child: AnimatedSwitcher(
+                      duration: AppConstants.shimmerFadeTransitionDuration,
+                      switchInCurve: Curves.easeIn,
+                      switchOutCurve: Curves.easeOut,
+                      child: controller.isLoadingNearby.value
+                          ? ShimmerWidgets.horizontalProductListShimmer(context)
+                          : _buildHorizontalProductList(context, controller.nearbyProducts),
+                    ),
+                  ),
+                ],
 
-              // Grille de produits récents
-              controller.isLoadingRecent.value
-                  ? SliverPadding(
-                      padding: EdgeInsets.symmetric(
-                        horizontal: AppThemeSystem.getHorizontalPadding(context),
-                      ),
-                      sliver: SliverGrid(
-                        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount:
-                              AppThemeSystem.getDeviceType(context) == DeviceType.mobile ? 2 : 3,
-                          childAspectRatio: 0.75,
-                          crossAxisSpacing: 12,
-                          mainAxisSpacing: 12,
-                        ),
-                        delegate: SliverChildBuilderDelegate(
-                          (context, index) => ShimmerWidgets.productCardShimmer(context),
-                          childCount: 6,
-                        ),
-                      ),
-                    )
-                  : controller.recentProducts.isEmpty
-                      ? SliverToBoxAdapter(
-                          child: Padding(
-                            padding: const EdgeInsets.all(32),
-                            child: Center(
-                              child: Column(
-                                children: [
-                                  Icon(Icons.inventory_2_outlined,
-                                      size: 64, color: AppThemeSystem.grey400),
-                                  const SizedBox(height: 16),
-                                  Text(
-                                    'Aucun produit récent',
-                                    style: context.textStyle(
-                                      FontSizeType.body1,
-                                      color: AppThemeSystem.grey600,
-                                    ),
-                                  ),
-                                ],
-                              ),
+                // Section "Récemment postés" - afficher seulement s'il y a des produits ou en chargement
+                if (controller.isLoadingRecent.value || controller.recentProducts.isNotEmpty) ...[
+                  SliverToBoxAdapter(
+                    child: _buildSectionTitle(
+                      context,
+                      'Récemment postés',
+                      Icons.schedule_rounded,
+                    ),
+                  ),
+
+                  // Grille de produits récents
+                  controller.isLoadingRecent.value
+                      ? SliverPadding(
+                          padding: EdgeInsets.symmetric(
+                            horizontal: AppThemeSystem.getHorizontalPadding(context),
+                          ),
+                          sliver: SliverGrid(
+                            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount:
+                                  AppThemeSystem.getDeviceType(context) == DeviceType.mobile ? 2 : 3,
+                              childAspectRatio: 0.75,
+                              crossAxisSpacing: 12,
+                              mainAxisSpacing: 12,
+                            ),
+                            delegate: SliverChildBuilderDelegate(
+                              (context, index) => ShimmerWidgets.productCardShimmer(context),
+                              childCount: 6,
                             ),
                           ),
                         )
@@ -1172,11 +1162,19 @@ class HomeItemView extends GetView<HomeController> {
                           ),
                         ),
 
-              // Bouton "Voir plus" stylé
-              if (controller.recentProducts.isNotEmpty)
-                SliverToBoxAdapter(
-                  child: _buildSeeMoreButton(context, controller.onSeeAllRecent),
+                  // Bouton "Voir plus" stylé
+                  if (controller.recentProducts.isNotEmpty)
+                    SliverToBoxAdapter(
+                      child: _buildSeeMoreButton(context, controller.onSeeAllRecent),
+                    ),
+                ],
+              ] else ...[
+                // État vide professionnel - affiché seulement quand il n'y a aucun produit
+                SliverFillRemaining(
+                  hasScrollBody: false,
+                  child: _buildEmptyState(context),
                 ),
+              ],
             ],
 
             // Afficher les produits filtrés par catégorie
@@ -2007,8 +2005,6 @@ class HomeItemView extends GetView<HomeController> {
 
   /// Bouton "Voir plus" stylé
   Widget _buildSeeMoreButton(BuildContext context, VoidCallback onTap) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
     return Padding(
       padding: EdgeInsets.symmetric(
         horizontal: AppThemeSystem.getHorizontalPadding(context),
@@ -2078,6 +2074,69 @@ class HomeItemView extends GetView<HomeController> {
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+
+  /// État vide professionnel
+  Widget _buildEmptyState(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final deviceType = AppThemeSystem.getDeviceType(context);
+
+    return Center(
+      child: Padding(
+        padding: EdgeInsets.all(AppThemeSystem.getHorizontalPadding(context) * 2),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            // Icône avec dégradé
+            Container(
+              padding: const EdgeInsets.all(32),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    AppThemeSystem.primaryColor.withValues(alpha: 0.1),
+                    AppThemeSystem.tertiaryColor.withValues(alpha: 0.1),
+                  ],
+                ),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.inventory_2_outlined,
+                size: deviceType == DeviceType.mobile ? 80 : 100,
+                color: AppThemeSystem.primaryColor.withValues(alpha: 0.6),
+              ),
+            ),
+
+            SizedBox(height: AppThemeSystem.getVerticalPadding(context) * 1.5),
+
+            // Titre
+            Text(
+              'Aucun produit disponible',
+              style: context.textStyle(
+                deviceType == DeviceType.mobile ? FontSizeType.h4 : FontSizeType.h3,
+                fontWeight: FontWeight.bold,
+                color: AppThemeSystem.getPrimaryTextColor(context),
+              ),
+              textAlign: TextAlign.center,
+            ),
+
+            SizedBox(height: AppThemeSystem.getElementSpacing(context)),
+
+            // Message
+            Text(
+              'Il n\'y a pas encore de produits disponibles dans votre région.',
+              style: context.textStyle(
+                FontSizeType.body1,
+                color: isDark ? AppThemeSystem.grey400 : AppThemeSystem.grey600,
+                height: 1.5,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
         ),
       ),
     );
