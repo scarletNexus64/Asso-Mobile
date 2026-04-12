@@ -9,6 +9,10 @@ import '../../../data/providers/storage_service.dart';
 class WalletController extends GetxController {
   final WalletService _walletService = Get.find<WalletService>();
 
+  // State management
+  bool _isDisposed = false;
+  bool get isSafe => !_isDisposed && isClosed == false;
+
   // FCM Service (optionnel - si disponible)
   FcmService? _fcmService;
   StreamSubscription? _fcmSubscription;
@@ -81,9 +85,25 @@ class WalletController extends GetxController {
 
   @override
   void onClose() {
+    print('');
+    print('========================================');
+    print('💰 WALLET CONTROLLER: Closing');
+    print('========================================');
+
+    _isDisposed = true;
+
     // Annuler la subscription FCM
-    _fcmSubscription?.cancel();
+    try {
+      _fcmSubscription?.cancel();
+      print('  └─ FCM subscription cancelled');
+    } catch (e) {
+      print('  └─ Error cancelling FCM subscription: $e');
+    }
+
     super.onClose();
+
+    print('  └─ Controller disposed safely');
+    print('========================================');
   }
 
   /// Configure l'écoute des notifications FCM pour le wallet
@@ -157,11 +177,15 @@ class WalletController extends GetxController {
 
   /// Charge les données du wallet (solde et stats)
   Future<void> loadWallet() async {
+    if (_isDisposed) return;
+
     isLoading.value = true;
     errorMessage.value = '';
 
     try {
       final result = await _walletService.getWalletStats();
+
+      if (_isDisposed) return;
 
       if (result != null) {
         wallet.value = result;
@@ -235,6 +259,8 @@ class WalletController extends GetxController {
     required String paymentMethod, // 'freemopay' ou 'paypal'
     String? phoneNumber, // Requis pour freemopay
   }) async {
+    if (_isDisposed) return {'success': false, 'message': 'Controller disposed'};
+
     isProcessingPayment.value = true;
     errorMessage.value = '';
     successMessage.value = '';
@@ -245,6 +271,8 @@ class WalletController extends GetxController {
         paymentMethod: paymentMethod,
         phoneNumber: phoneNumber,
       );
+
+      if (_isDisposed) return {'success': false, 'message': 'Controller disposed'};
 
       if (result['success'] == true) {
         successMessage.value = result['message'] ?? 'Recharge initiée avec succès';
@@ -403,6 +431,8 @@ class WalletController extends GetxController {
     required int referenceId,
     required String paymentProvider, // 'freemopay' ou 'paypal'
   }) async {
+    if (_isDisposed) return false;
+
     isProcessingPayment.value = true;
     errorMessage.value = '';
     successMessage.value = '';
@@ -415,6 +445,8 @@ class WalletController extends GetxController {
         referenceId: referenceId,
         paymentProvider: paymentProvider,
       );
+
+      if (_isDisposed) return false;
 
       if (result['success'] == true) {
         successMessage.value = result['message'] ?? 'Paiement effectué avec succès';
@@ -471,6 +503,8 @@ class WalletController extends GetxController {
     required int paymentId,
     required String orderId,
   }) async {
+    if (_isDisposed) return {'success': false, 'message': 'Controller disposed'};
+
     isProcessingPayment.value = true;
     errorMessage.value = '';
     successMessage.value = '';
@@ -480,6 +514,8 @@ class WalletController extends GetxController {
         paymentId: paymentId,
         orderId: orderId,
       );
+
+      if (_isDisposed) return {'success': false, 'message': 'Controller disposed'};
 
       if (result['success'] == true) {
         successMessage.value = result['message'] ?? 'Paiement effectué avec succès';

@@ -84,9 +84,22 @@ class FcmService extends GetxService {
   void _onNotificationTapped(NotificationResponse response) {
     print('[FCM] Notification tapped: ${response.payload}');
 
-    // Si la notification contient des données de wallet, naviguer vers le wallet
-    if (response.payload != null && response.payload!.contains('wallet')) {
+    if (response.payload == null) return;
+
+    final payload = response.payload!;
+
+    // Navigation basée sur le payload
+    if (payload.contains('wallet')) {
       Get.toNamed('/wallet');
+    } else if (payload == 'vendor_dashboard') {
+      Get.toNamed('/vendor-dashboard');
+    } else if (payload == 'package_subscription') {
+      Get.toNamed('/package-subscription');
+    } else if (payload.startsWith('order_details:')) {
+      final orderId = payload.split(':').last;
+      if (orderId.isNotEmpty) {
+        Get.toNamed('/order-details', arguments: {'orderId': orderId});
+      }
     }
   }
 
@@ -142,6 +155,54 @@ class FcmService extends GetxService {
           title: message.notification?.title ?? 'Wallet',
           body: message.notification?.body ?? 'Transaction mise à jour',
           payload: 'wallet:${data['wallet_transaction_id'] ?? data['withdrawal_id']}',
+        );
+      }
+    }
+    // Notifications de package purchase
+    else if (type == 'package_purchase') {
+      print('[FCM] Package purchase notification received');
+
+      // Si en foreground, afficher une notification locale
+      if (inForeground) {
+        _showLocalNotification(
+          title: message.notification?.title ?? '🎉 Package activé',
+          body: message.notification?.body ?? 'Votre package a été activé avec succès',
+          payload: 'vendor_dashboard',
+        );
+      }
+
+      // Naviguer vers le dashboard vendeur si spécifié
+      final screen = data['screen'] as String?;
+      if (screen == 'vendor_dashboard' && !inForeground) {
+        Get.toNamed('/vendor-dashboard');
+      }
+    }
+    // Notifications d'expiration de package
+    else if (type == 'package_expiring') {
+      print('[FCM] Package expiring notification received');
+
+      if (inForeground) {
+        _showLocalNotification(
+          title: message.notification?.title ?? '⚠️ Package expirant',
+          body: message.notification?.body ?? 'Votre package va bientôt expirer',
+          payload: 'package_subscription',
+        );
+      }
+
+      final screen = data['screen'] as String?;
+      if (screen == 'package_subscription' && !inForeground) {
+        Get.toNamed('/package-subscription');
+      }
+    }
+    // Notifications de commande
+    else if (type?.startsWith('order_') == true) {
+      print('[FCM] Order notification received');
+
+      if (inForeground) {
+        _showLocalNotification(
+          title: message.notification?.title ?? '📦 Commande',
+          body: message.notification?.body ?? 'Mise à jour de commande',
+          payload: 'order_details:${data['order_id'] ?? ''}',
         );
       }
     }

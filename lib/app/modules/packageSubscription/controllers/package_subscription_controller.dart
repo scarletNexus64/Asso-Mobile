@@ -1,15 +1,27 @@
 import 'package:get/get.dart';
 import 'package:flutter/material.dart';
 import '../../../data/providers/package_service.dart';
+import '../../../data/providers/wallet_service.dart';
+import '../../../data/models/wallet_model.dart';
 import '../../../core/utils/app_theme_system.dart';
+import '../widgets/payment_loading_dialog.dart';
+import '../widgets/payment_success_dialog.dart';
 
 class PackageSubscriptionController extends GetxController {
+  // State management
+  bool _isDisposed = false;
+  bool get isSafe => !_isDisposed && isClosed == false;
+
   // Observable variables
   final packages = <Map<String, dynamic>>[].obs;
   final selectedPackage = Rx<Map<String, dynamic>?>(null);
   final isLoading = false.obs;
   final currentVendorPackage = Rx<Map<String, dynamic>?>(null);
   final hasPackage = false.obs;
+
+  // Wallet data
+  final wallet = Rx<WalletModel?>(null);
+  final isLoadingWallet = false.obs;
 
   @override
   void onInit() {
@@ -20,16 +32,21 @@ class PackageSubscriptionController extends GetxController {
     print('========================================');
     loadPackages();
     loadCurrentPackage();
+    loadWallet();
   }
 
   /// Load all available packages
   Future<void> loadPackages() async {
+    if (_isDisposed) return;
+
     print('');
     print('📦 Loading packages...');
     isLoading.value = true;
 
     try {
       final response = await PackageService.getPackages();
+
+      if (_isDisposed) return;
 
       if (response.success && response.data != null) {
         final packagesData = response.data!['packages'] as List?;
@@ -46,6 +63,8 @@ class PackageSubscriptionController extends GetxController {
           'Erreur',
           response.message ?? 'Impossible de charger les packages',
           snackPosition: SnackPosition.BOTTOM,
+          backgroundColor: AppThemeSystem.errorColor,
+          colorText: Colors.white,
         );
       }
     } catch (e) {
@@ -54,6 +73,8 @@ class PackageSubscriptionController extends GetxController {
         'Erreur',
         'Une erreur est survenue: $e',
         snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: AppThemeSystem.errorColor,
+        colorText: Colors.white,
       );
     } finally {
       isLoading.value = false;
@@ -62,11 +83,15 @@ class PackageSubscriptionController extends GetxController {
 
   /// Load current vendor package
   Future<void> loadCurrentPackage() async {
+    if (_isDisposed) return;
+
     print('');
     print('📊 Loading current package...');
 
     try {
       final response = await PackageService.getCurrentPackage();
+
+      if (_isDisposed) return;
 
       if (response.success && response.data != null) {
         hasPackage.value = response.data!['has_package'] ?? false;
@@ -86,6 +111,38 @@ class PackageSubscriptionController extends GetxController {
     }
   }
 
+  /// Load wallet balance
+  Future<void> loadWallet() async {
+    if (_isDisposed) return;
+
+    print('');
+    print('💰 Loading wallet balance...');
+    isLoadingWallet.value = true;
+
+    try {
+      final response = await WalletService.getWallet();
+
+      if (_isDisposed) return;
+
+      if (response.success && response.data != null) {
+        // Backend returns: {success: true, data: {freemopay_balance: ..., paypal_balance: ...}}
+        // So we need to access response.data['data'] to get the wallet stats
+        final walletData = response.data!['data'] ?? response.data!;
+        wallet.value = WalletModel.fromJson(walletData);
+        print('✅ Wallet loaded');
+        print('  └─ FreeMoPay: ${wallet.value!.freemopayBalance} FCFA');
+        print('  └─ PayPal: ${wallet.value!.paypalBalance} FCFA');
+        print('  └─ Total: ${wallet.value!.currentBalance} FCFA');
+      } else {
+        print('❌ Failed to load wallet: ${response.message}');
+      }
+    } catch (e) {
+      print('💥 Exception loading wallet: $e');
+    } finally {
+      isLoadingWallet.value = false;
+    }
+  }
+
   /// Select a package
   void selectPackage(Map<String, dynamic> package) {
     print('');
@@ -93,46 +150,87 @@ class PackageSubscriptionController extends GetxController {
     selectedPackage.value = package;
   }
 
-  /// Subscribe to the selected package
-  Future<void> subscribe() async {
+  /// Subscribe to the selected package with chosen wallet
+  Future<void> subscribeWithWallet(String walletType) async {
+    if (_isDisposed) return;
+
     if (selectedPackage.value == null) {
       Get.snackbar(
         'Erreur',
         'Veuillez sélectionner un package',
         snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: AppThemeSystem.errorColor,
+        colorText: Colors.white,
+      );
+      return;
+    }
+
+    // Check wallet balance
+    final price = (selectedPackage.value!['price'] ?? 0).toDouble();
+    final walletBalance = walletType == 'freemopay'
+        ? wallet.value?.freemopayBalance ?? 0
+        : wallet.value?.paypalBalance ?? 0;
+
+    if (walletBalance < price) {
+      Get.snackbar(
+        'Solde insuffisant',
+        'Votre ${walletType == 'freemopay' ? 'wallet FreeMoPay' : 'wallet PayPal'} n\'a pas un solde suffisant. Solde actuel: ${walletBalance.toStringAsFixed(0)} FCFA, Prix: ${price.toStringAsFixed(0)} FCFA',
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: AppThemeSystem.warningColor,
+        colorText: Colors.white,
+        duration: const Duration(seconds: 5),
       );
       return;
     }
 
     print('');
     print('========================================');
-    print('💳 Subscribing to package...');
+    print('💳 Subscribing to package with $walletType...');
     print('  └─ Package: ${selectedPackage.value!['name']}');
+    print('  └─ Price: $price FCFA');
+    print('  └─ Wallet Balance: $walletBalance FCFA');
     print('========================================');
 
-    isLoading.value = true;
+    // Close bottom sheet first
+    Get.back();
+
+    // Show loading dialog
+    PaymentLoadingDialog.show(
+      message: 'Activation de votre package ${selectedPackage.value!['name']}...',
+    );
 
     try {
       final packageId = selectedPackage.value!['id'] as int;
-      final response = await PackageService.subscribeToPackage(packageId);
+      final response = await PackageService.subscribeToPackage(
+        packageId,
+        walletType: walletType,
+      );
+
+      if (_isDisposed) return;
+
+      // Hide loading dialog
+      PaymentLoadingDialog.hide();
 
       if (response.success) {
         print('✅ Subscription successful!');
 
-        Get.snackbar(
-          'Succès',
-          'Abonnement au package ${selectedPackage.value!['name']} effectué avec succès!',
-          snackPosition: SnackPosition.BOTTOM,
-          backgroundColor: AppThemeSystem.successColor,
-          colorText: Colors.white,
-          duration: const Duration(seconds: 3),
+        // Reload wallet and package data in background
+        Future.wait([
+          loadWallet(),
+          loadCurrentPackage(),
+        ]);
+
+        // Show success dialog with invoice URL if available
+        final invoiceUrl = response.data?['invoice_url'];
+
+        await PaymentSuccessDialog.show(
+          packageName: selectedPackage.value!['name'],
+          amount: price,
+          paymentMethod: walletType,
+          invoiceUrl: invoiceUrl,
         );
 
-        // Wait a bit for the snackbar to be visible
-        await Future.delayed(const Duration(milliseconds: 500));
-
-        // Navigate back to vendor dashboard
-        Get.offAllNamed('/vendor-dashboard');
+        // Navigation is handled by the success dialog
       } else {
         print('❌ Subscription failed: ${response.message}');
 
@@ -142,10 +240,14 @@ class PackageSubscriptionController extends GetxController {
           snackPosition: SnackPosition.BOTTOM,
           backgroundColor: AppThemeSystem.errorColor,
           colorText: Colors.white,
+          duration: const Duration(seconds: 4),
         );
       }
     } catch (e) {
       print('💥 Exception during subscription: $e');
+
+      // Hide loading dialog if still open
+      PaymentLoadingDialog.hide();
 
       Get.snackbar(
         'Erreur',
@@ -153,15 +255,39 @@ class PackageSubscriptionController extends GetxController {
         snackPosition: SnackPosition.BOTTOM,
         backgroundColor: AppThemeSystem.errorColor,
         colorText: Colors.white,
+        duration: const Duration(seconds: 4),
       );
-    } finally {
-      isLoading.value = false;
     }
   }
 
   /// Refresh packages
   Future<void> refreshPackages() async {
-    await loadPackages();
-    await loadCurrentPackage();
+    await Future.wait([
+      loadPackages(),
+      loadCurrentPackage(),
+      loadWallet(),
+    ]);
+  }
+
+  /// Format currency
+  String formatCurrency(double amount) {
+    return '${amount.toStringAsFixed(0).replaceAllMapped(
+          RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
+          (match) => '${match[1]} ',
+        )} FCFA';
+  }
+
+  @override
+  void onClose() {
+    print('');
+    print('========================================');
+    print('🎯 PACKAGE SUBSCRIPTION CONTROLLER: Closing');
+    print('========================================');
+
+    _isDisposed = true;
+    super.onClose();
+
+    print('  └─ Controller disposed safely');
+    print('========================================');
   }
 }

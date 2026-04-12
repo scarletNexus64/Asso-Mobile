@@ -12,11 +12,18 @@ import '../../../routes/app_pages.dart';
 import '../../../core/base/safe_controller_mixin.dart';
 
 class HomeController extends GetxController with GetSingleTickerProviderStateMixin, SafeControllerMixin {
-  final GlobalKey<ScaffoldState> scaffoldKey = GlobalKey<ScaffoldState>();
+  // Supprimé scaffoldKey pour éviter les problèmes de GlobalKey duplicate
+  // On utilisera Scaffold.of(context) dans la vue à la place
 
   late TabController tabController;
   final RxInt currentTabIndex = 0.obs;
   final ScrollController nestedScrollController = ScrollController();
+
+  // Flag pour éviter d'utiliser des ressources disposées
+  bool _isDisposed = false;
+
+  /// Getter pour vérifier si le controller est sûr à utiliser
+  bool get isSafe => !_isDisposed && isClosed == false;
 
   final List<String> tabNames = [
     'Accueil',
@@ -71,11 +78,25 @@ class HomeController extends GetxController with GetSingleTickerProviderStateMix
 
     super.onInit();
 
+    // Check for initialTab argument
+    final arguments = Get.arguments;
+    int initialTab = 0;
+    if (arguments != null && arguments is Map && arguments.containsKey('initialTab')) {
+      final tabIndex = arguments['initialTab'];
+      if (tabIndex is int && tabIndex >= 0 && tabIndex < tabNames.length) {
+        initialTab = tabIndex;
+        print('  └─ Initial tab set to: $initialTab');
+      }
+    }
+
     print('  └─ Creating TabController...');
-    tabController = TabController(length: tabNames.length, vsync: this);
-    tabController.addListener(() {
-      currentTabIndex.value = tabController.index;
-    });
+    tabController = TabController(
+      length: tabNames.length,
+      vsync: this,
+      initialIndex: initialTab,
+    );
+    tabController.addListener(_onTabChanged);
+    currentTabIndex.value = initialTab;
     print('  └─ TabController created: ${tabController.hashCode}');
 
     // Load user info
@@ -114,19 +135,66 @@ class HomeController extends GetxController with GetSingleTickerProviderStateMix
     print('');
   }
 
+  /// Listener pour les changements de tab
+  void _onTabChanged() {
+    // Vérifier que le controller n'est pas disposé ET que le tabController existe
+    if (_isDisposed) return;
+
+    try {
+      // Vérifier que l'index n'est pas en train de changer pour éviter les erreurs
+      if (!tabController.indexIsChanging) {
+        currentTabIndex.value = tabController.index;
+      }
+    } catch (e) {
+      print('  └─ Error in _onTabChanged: $e');
+    }
+  }
+
   @override
   void onClose() {
     print('');
     print('========================================');
     print('🔴 HOME CONTROLLER: onClose() START');
     print('========================================');
-    print('  └─ Controller hashCode: ${hashCode}');
+    print('  └─ Controller hashCode: $hashCode');
     print('  └─ Disposing controllers...');
 
+    // Marquer comme disposé AVANT de toucher aux controllers
+    _isDisposed = true;
     markAsDisposed();
-    nestedScrollController.dispose();
-    bannerController.dispose();
-    tabController.dispose();
+
+    // Remove listener avant de dispose - avec try-catch pour éviter les erreurs
+    try {
+      if (tabController.hasListeners) {
+        tabController.removeListener(_onTabChanged);
+      }
+    } catch (e) {
+      print('  └─ Error removing tabController listener: $e');
+    }
+
+    // Dispose dans l'ordre inverse de création avec protection
+    try {
+      tabController.dispose();
+    } catch (e) {
+      print('  └─ Error disposing tabController: $e');
+    }
+
+    try {
+      if (bannerController.hasClients) {
+        bannerController.dispose();
+      }
+    } catch (e) {
+      print('  └─ Error disposing bannerController: $e');
+    }
+
+    try {
+      if (nestedScrollController.hasClients) {
+        nestedScrollController.dispose();
+      }
+    } catch (e) {
+      print('  └─ Error disposing nestedScrollController: $e');
+    }
+
     super.onClose();
 
     print('✅ HOME CONTROLLER: onClose() COMPLETED');
@@ -135,8 +203,11 @@ class HomeController extends GetxController with GetSingleTickerProviderStateMix
   }
 
   void _onScroll() {
-    if (nestedScrollController.position.pixels >=
-        nestedScrollController.position.maxScrollExtent - 200) {
+    if (_isDisposed) return;
+
+    if (nestedScrollController.hasClients &&
+        nestedScrollController.position.pixels >=
+            nestedScrollController.position.maxScrollExtent - 200) {
       _loadMoreProducts();
     }
   }
@@ -452,6 +523,8 @@ class HomeController extends GetxController with GetSingleTickerProviderStateMix
   }
 
   void handleTabTap(int index) {
+    if (_isDisposed) return;
+
     // Tabs protégés : Messages (1), Portefeuille (2), Tracking (3), Profile (4)
     // Tab Accueil (0) est accessible sans connexion
     final protectedTabs = [1, 2, 3, 4];
@@ -471,9 +544,16 @@ class HomeController extends GetxController with GetSingleTickerProviderStateMix
           featureName: tabFeatureNames[index],
         );
       }
-      // Rester sur le tab Accueil
-      tabController.animateTo(0);
-      currentTabIndex.value = 0;
+      // Rester sur le tab Accueil - avec protection contre dispose
+      try {
+        if (!_isDisposed && tabController.index != 0) {
+          tabController.animateTo(0);
+          currentTabIndex.value = 0;
+        }
+      } catch (e) {
+        print('  └─ Error animating to tab 0: $e');
+        currentTabIndex.value = 0;
+      }
     } else {
       // Autoriser l'accès au tab
       currentTabIndex.value = index;
@@ -481,9 +561,13 @@ class HomeController extends GetxController with GetSingleTickerProviderStateMix
   }
 
   void _startBannerAutoScroll() {
+    if (_isDisposed) return;
+
     safeDelayed(const Duration(seconds: 3), () {
+      if (_isDisposed) return;
+
       final totalBanners = banners.isNotEmpty ? banners.length : fallbackBanners.length;
-      if (totalBanners > 0) {
+      if (totalBanners > 0 && bannerController.hasClients) {
         int nextPage = (currentBannerIndex.value + 1) % totalBanners;
         safeAnimateToPage(
           bannerController,
@@ -495,7 +579,9 @@ class HomeController extends GetxController with GetSingleTickerProviderStateMix
       }
 
       // Continue the loop
-      _startBannerAutoScroll();
+      if (!_isDisposed) {
+        _startBannerAutoScroll();
+      }
     });
   }
 

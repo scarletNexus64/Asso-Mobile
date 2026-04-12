@@ -1,0 +1,166 @@
+import 'dart:io';
+import '../../core/values/constants.dart';
+import 'api_provider.dart';
+
+class ShopService {
+  /// Get shop information for the authenticated vendor
+  static Future<ApiResponse> getShop() async {
+    print('');
+    print('========================================');
+    print('🏪 SHOP SERVICE: Get Shop START');
+    print('========================================');
+    print('🌐 SHOP SERVICE: Calling API...');
+    print('  └─ Endpoint: ${AppConstants.vendorShopUrl}');
+
+    try {
+      final response = await ApiProvider.get(AppConstants.vendorShopUrl);
+
+      print('✅ SHOP SERVICE: API call completed');
+      print('  └─ Success: ${response.success}');
+      print('  └─ Status: ${response.statusCode}');
+      print('========================================');
+
+      return response;
+    } catch (e, stackTrace) {
+      print('💥 SHOP SERVICE: Exception!');
+      print('  └─ Error: $e');
+      print('  └─ Stack trace:');
+      print(stackTrace.toString().split('\n').take(3).join('\n'));
+      print('========================================');
+      rethrow;
+    }
+  }
+
+  /// Update shop information
+  static Future<ApiResponse> updateShop({
+    String? shopName,
+    String? shopDescription,
+    String? shopAddress,
+    String? shopPhone,
+    double? shopLatitude,
+    double? shopLongitude,
+    List<String>? categories,
+    File? shopLogo,
+  }) async {
+    print('');
+    print('========================================');
+    print('🏪 SHOP SERVICE: Update Shop START');
+    print('========================================');
+
+    // Build fields map
+    final Map<String, String> fields = {};
+
+    print('📦 SHOP SERVICE: Building fields...');
+    if (shopName != null) fields['shop_name'] = shopName;
+    if (shopDescription != null) fields['shop_description'] = shopDescription;
+    if (shopAddress != null) fields['shop_address'] = shopAddress;
+    if (shopPhone != null) fields['shop_phone'] = shopPhone;
+    if (shopLatitude != null) fields['shop_latitude'] = shopLatitude.toString();
+    if (shopLongitude != null) {
+      fields['shop_longitude'] = shopLongitude.toString();
+    }
+
+    // Add categories as array
+    if (categories != null && categories.isNotEmpty) {
+      print('  └─ Adding ${categories.length} categories');
+      for (int i = 0; i < categories.length; i++) {
+        fields['categories[$i]'] = categories[i];
+      }
+    }
+
+    print('  └─ Total fields: ${fields.length}');
+
+    // Build files map with file paths
+    final Map<String, String> files = {};
+    if (shopLogo != null) {
+      files['shop_logo'] = shopLogo.path;
+      print('  └─ Shop logo: ${shopLogo.path}');
+    }
+    print('  └─ Total files: ${files.length}');
+
+    print('🌐 SHOP SERVICE: Calling API (multipart)...');
+    print('  └─ Endpoint: ${AppConstants.vendorShopUrl}');
+    print('  └─ Method: PUT');
+
+    try {
+      // Use multipart for file uploads with PUT method
+      final response = await ApiProvider.multipart(
+        AppConstants.vendorShopUrl,
+        fields: fields,
+        files: files.isNotEmpty ? files : null,
+        method: 'PUT',
+      );
+
+      print('✅ SHOP SERVICE: API call completed');
+      print('  └─ Success: ${response.success}');
+      print('  └─ Status: ${response.statusCode}');
+      print('========================================');
+
+      return response;
+    } catch (e, stackTrace) {
+      print('💥 SHOP SERVICE: Exception!');
+      print('  └─ Error: $e');
+      print('  └─ Stack trace:');
+      print(stackTrace.toString().split('\n').take(3).join('\n'));
+      print('========================================');
+      rethrow;
+    }
+  }
+
+  /// Get all shops for the authenticated vendor
+  static Future<ApiResponse> getShops() async {
+    print('');
+    print('========================================');
+    print('🏪 SHOP SERVICE: Get Shops START');
+    print('========================================');
+    print('🌐 SHOP SERVICE: Calling API...');
+    print('  └─ Endpoint: ${AppConstants.vendorShopsUrl}');
+
+    try {
+      final response = await ApiProvider.get(AppConstants.vendorShopsUrl);
+
+      print('✅ SHOP SERVICE: API call completed');
+      print('  └─ Success: ${response.success}');
+      print('  └─ Status: ${response.statusCode}');
+      print('========================================');
+
+      return response;
+    } catch (e, stackTrace) {
+      print('💥 SHOP SERVICE: Exception!');
+      print('  └─ Error: $e');
+      print('  └─ Stack trace:');
+      print(stackTrace.toString().split('\n').take(3).join('\n'));
+      print('========================================');
+      rethrow;
+    }
+  }
+
+  /// Get public shop information by ID
+  static Future<ApiResponse> getPublicShop(String shopId) async {
+    print('');
+    print('========================================');
+    print('🏪 SHOP SERVICE: Get Public Shop START');
+    print('========================================');
+    print('🌐 SHOP SERVICE: Calling API...');
+    print('  └─ Endpoint: ${AppConstants.publicShopUrl}/$shopId');
+
+    try {
+      final response =
+          await ApiProvider.get('${AppConstants.publicShopUrl}/$shopId');
+
+      print('✅ SHOP SERVICE: API call completed');
+      print('  └─ Success: ${response.success}');
+      print('  └─ Status: ${response.statusCode}');
+      print('========================================');
+
+      return response;
+    } catch (e, stackTrace) {
+      print('💥 SHOP SERVICE: Exception!');
+      print('  └─ Error: $e');
+      print('  └─ Stack trace:');
+      print(stackTrace.toString().split('\n').take(3).join('\n'));
+      print('========================================');
+      rethrow;
+    }
+  }
+}

@@ -38,8 +38,16 @@ class HomeView extends GetView<HomeController> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final deviceType = AppThemeSystem.getDeviceType(context);
 
+    // Protection contre l'utilisation d'un controller disposé
+    if (!controller.isSafe) {
+      return Scaffold(
+        backgroundColor: AppThemeSystem.getBackgroundColor(context),
+        body: const Center(child: CircularProgressIndicator()),
+      );
+    }
+
     return Scaffold(
-      key: controller.scaffoldKey,
+      // Supprimé key pour éviter le problème de GlobalKey duplicate
       backgroundColor: AppThemeSystem.getBackgroundColor(context),
       drawer: _buildDrawer(context),
       body: NestedScrollView(
@@ -71,19 +79,23 @@ class HomeView extends GetView<HomeController> {
                   child: Row(
                     children: [
                       // Hamburger menu button (left side)
-                      IconButton(
-                        icon: Icon(
-                          Icons.menu_rounded,
-                          color: AppThemeSystem.getPrimaryTextColor(context),
-                          size: deviceType == DeviceType.mobile ? 24 : 28,
-                        ),
-                        padding: EdgeInsets.zero,
-                        constraints: BoxConstraints(
-                          minWidth: deviceType == DeviceType.mobile ? 40 : 48,
-                          minHeight: deviceType == DeviceType.mobile ? 40 : 48,
-                        ),
-                        onPressed: () {
-                          controller.scaffoldKey.currentState?.openDrawer();
+                      Builder(
+                        builder: (BuildContext scaffoldContext) {
+                          return IconButton(
+                            icon: Icon(
+                              Icons.menu_rounded,
+                              color: AppThemeSystem.getPrimaryTextColor(context),
+                              size: deviceType == DeviceType.mobile ? 24 : 28,
+                            ),
+                            padding: EdgeInsets.zero,
+                            constraints: BoxConstraints(
+                              minWidth: deviceType == DeviceType.mobile ? 40 : 48,
+                              minHeight: deviceType == DeviceType.mobile ? 40 : 48,
+                            ),
+                            onPressed: () {
+                              Scaffold.of(scaffoldContext).openDrawer();
+                            },
+                          );
                         },
                       ),
 
@@ -229,72 +241,79 @@ class HomeView extends GetView<HomeController> {
                   padding: EdgeInsets.symmetric(
                     horizontal: AppThemeSystem.getHorizontalPadding(context) * 0.5,
                   ),
-                  child: TabBar(
-                    controller: controller.tabController,
-                    onTap: controller.handleTabTap,
-                    indicatorColor: AppThemeSystem.primaryColor,
-                    indicatorWeight: 3,
-                    indicatorSize: TabBarIndicatorSize.tab,
-                    labelColor: AppThemeSystem.primaryColor,
-                    unselectedLabelColor: isDark
-                        ? AppThemeSystem.grey400
-                        : AppThemeSystem.grey600,
-                    labelStyle: context.textStyle(FontSizeType.caption).copyWith(
-                      fontWeight: FontWeight.w600,
-                      fontSize: deviceType == DeviceType.mobile ? 11 : 13,
-                    ),
-                    unselectedLabelStyle: context.textStyle(FontSizeType.caption).copyWith(
-                      fontWeight: FontWeight.normal,
-                      fontSize: deviceType == DeviceType.mobile ? 11 : 13,
-                    ),
-                    tabs: [
-                      // Accueil
-                      Tab(
-                        height: deviceType == DeviceType.mobile ? 64 : 72,
-                        icon: Icon(Icons.home_rounded, size: deviceType == DeviceType.mobile ? 24 : 28),
-                        text: controller.tabNames[0],
-                      ),
-                      // Messages
-                      Tab(
-                        height: deviceType == DeviceType.mobile ? 64 : 72,
-                        icon: Icon(Icons.chat_bubble_outline_rounded, size: deviceType == DeviceType.mobile ? 24 : 28),
-                        text: controller.tabNames[1],
-                      ),
-                      // Portefeuille
-                      Tab(
-                        height: deviceType == DeviceType.mobile ? 64 : 72,
-                        icon: Icon(Icons.account_balance_wallet_rounded, size: deviceType == DeviceType.mobile ? 24 : 28),
-                        text: controller.tabNames[2],
-                      ),
-                      // Tracking
-                      Tab(
-                        height: deviceType == DeviceType.mobile ? 64 : 72,
-                        icon: Icon(Icons.local_shipping_outlined, size: deviceType == DeviceType.mobile ? 24 : 28),
-                        text: controller.tabNames[3],
-                      ),
-                      // Profile
-                      Tab(
-                        height: deviceType == DeviceType.mobile ? 64 : 72,
-                        icon: Icon(Icons.person_outline_rounded, size: deviceType == DeviceType.mobile ? 24 : 28),
-                        text: controller.tabNames[4],
-                      ),
-                    ],
-                  ),
+                  child: controller.isSafe
+                      ? TabBar(
+                          controller: controller.tabController,
+                          onTap: controller.handleTabTap,
+                          indicatorColor: AppThemeSystem.primaryColor,
+                          indicatorWeight: 3,
+                          indicatorSize: TabBarIndicatorSize.tab,
+                          labelColor: AppThemeSystem.primaryColor,
+                          unselectedLabelColor: isDark
+                              ? AppThemeSystem.grey400
+                              : AppThemeSystem.grey600,
+                          labelStyle: context.textStyle(FontSizeType.caption).copyWith(
+                            fontWeight: FontWeight.w600,
+                            fontSize: deviceType == DeviceType.mobile ? 11 : 13,
+                          ),
+                          unselectedLabelStyle: context.textStyle(FontSizeType.caption).copyWith(
+                            fontWeight: FontWeight.normal,
+                            fontSize: deviceType == DeviceType.mobile ? 11 : 13,
+                          ),
+                          tabs: [
+                            // Accueil
+                            Tab(
+                              height: deviceType == DeviceType.mobile ? 64 : 72,
+                              icon: Icon(Icons.home_rounded, size: deviceType == DeviceType.mobile ? 24 : 28),
+                              text: controller.tabNames[0],
+                            ),
+                            // Messages
+                            Tab(
+                              height: deviceType == DeviceType.mobile ? 64 : 72,
+                              icon: Icon(Icons.chat_bubble_outline_rounded, size: deviceType == DeviceType.mobile ? 24 : 28),
+                              text: controller.tabNames[1],
+                            ),
+                            // Portefeuille
+                            Tab(
+                              height: deviceType == DeviceType.mobile ? 64 : 72,
+                              icon: Icon(Icons.account_balance_wallet_rounded, size: deviceType == DeviceType.mobile ? 24 : 28),
+                              text: controller.tabNames[2],
+                            ),
+                            // Tracking
+                            Tab(
+                              height: deviceType == DeviceType.mobile ? 64 : 72,
+                              icon: Icon(Icons.local_shipping_outlined, size: deviceType == DeviceType.mobile ? 24 : 28),
+                              text: controller.tabNames[3],
+                            ),
+                            // Profile
+                            Tab(
+                              height: deviceType == DeviceType.mobile ? 64 : 72,
+                              icon: Icon(Icons.person_outline_rounded, size: deviceType == DeviceType.mobile ? 24 : 28),
+                              text: controller.tabNames[4],
+                            ),
+                          ],
+                        )
+                      : SizedBox(
+                          height: deviceType == DeviceType.mobile ? 72 : 80,
+                          child: const Center(child: CircularProgressIndicator()),
+                        ),
                 ),
               ),
             ),
           ];
         },
-        body: TabBarView(
-          controller: controller.tabController,
-          children: const [
-            HomeItemView(),
-            ChatView(),
-            WalletView(),
-            TrackingView(),
-            ProfileView(),
-          ],
-        ),
+        body: controller.isSafe
+            ? TabBarView(
+                controller: controller.tabController,
+                children: const [
+                  HomeItemView(),
+                  ChatView(),
+                  WalletView(),
+                  TrackingView(),
+                  ProfileView(),
+                ],
+              )
+            : const Center(child: CircularProgressIndicator()),
       ),
     );
   }

@@ -1149,10 +1149,10 @@ class VendorConfigView extends GetView<VendorConfigController> {
 
           // Button is enabled only if:
           // - Not loading
-          // - If Step 2: all fields filled AND delivery is available
+          // - If Step 2: all fields filled (shopLocation can only be filled if position is valid)
           // - If Step 1: proceed normally (will be validated in controller)
           final isButtonEnabled = !isLoading &&
-              (!isSecondStep || (isStep2Complete && controller.isDeliveryAvailable.value));
+              (!isSecondStep || isStep2Complete);
 
           return Row(
             children: [

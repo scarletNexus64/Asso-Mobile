@@ -5,6 +5,13 @@ import '../../../data/providers/vendor_service.dart';
 import '../../../core/utils/app_theme_system.dart';
 
 class VendorDashboardController extends GetxController {
+  // State management
+  bool _isDisposed = false;
+  bool get isSafe => !_isDisposed && isClosed == false;
+
+  // Loading state
+  final isLoading = true.obs;
+
   // Statut de vérification
   final verificationStatus = 'pending'.obs; // pending, approved, rejected
   final verificationMessage = 'Votre demande est en cours de vérification'.obs;
@@ -46,6 +53,10 @@ class VendorDashboardController extends GetxController {
 
   /// Récupère les statistiques du vendeur depuis l'API
   Future<void> _fetchVendorStats() async {
+    if (_isDisposed) return;
+
+    isLoading.value = true;
+
     print('');
     print('========================================');
     print('📊 VENDOR DASHBOARD: FETCH STATS START');
@@ -54,6 +65,8 @@ class VendorDashboardController extends GetxController {
     try {
       print('🌐 VENDOR DASHBOARD: Calling API...');
       final response = await VendorService.getVendorDashboard();
+
+      if (_isDisposed) return;
 
       print('📥 VENDOR DASHBOARD: API Response received');
       print('  └─ Success: ${response.success}');
@@ -118,11 +131,19 @@ class VendorDashboardController extends GetxController {
             storageRemainingMb.value = (package['vendor_package']['storage_remaining_mb'] ?? 0).toDouble();
             storagePercentageUsed.value = (package['vendor_package']['storage_percentage_used'] ?? 0).toDouble();
             packageExpiresAt.value = package['vendor_package']['expires_at'];
-            daysRemaining.value = package['vendor_package']['days_remaining'] ?? 0;
+
+            // Convert days_remaining to int (backend might return double)
+            final daysRemainingValue = package['vendor_package']['days_remaining'] ?? 0;
+            daysRemaining.value = daysRemainingValue is int
+                ? daysRemainingValue
+                : (daysRemainingValue as num).toInt();
+
             print('  └─ Storage Used: ${storageUsedMb.value} MB');
             print('  └─ Storage Total: ${storageTotalMb.value} MB');
             print('  └─ Storage Percentage: ${storagePercentageUsed.value}%');
             print('  └─ Days Remaining: ${daysRemaining.value}');
+            print('  └─ Package Name: ${package['vendor_package']['package']?['name'] ?? "N/A"}');
+            print('  └─ Package Price: ${package['vendor_package']['package']?['formatted_price'] ?? "N/A"}');
           }
         } else {
           print('  └─ ⚠️ No package data in response');
@@ -145,6 +166,8 @@ class VendorDashboardController extends GetxController {
       print('========================================');
       // Fallback to mock data on error
       _loadMockData();
+    } finally {
+      isLoading.value = false;
     }
   }
 
@@ -215,5 +238,19 @@ class VendorDashboardController extends GetxController {
       // Refresh dashboard after managing products
       refreshData();
     });
+  }
+
+  @override
+  void onClose() {
+    print('');
+    print('========================================');
+    print('📊 VENDOR DASHBOARD CONTROLLER: Closing');
+    print('========================================');
+
+    _isDisposed = true;
+    super.onClose();
+
+    print('  └─ Controller disposed safely');
+    print('========================================');
   }
 }

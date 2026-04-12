@@ -19,6 +19,10 @@ import '../../../core/utils/app_theme_system.dart';
 import '../views/map_location_picker_view.dart';
 
 class VendorConfigController extends GetxController {
+  // State management
+  bool _isDisposed = false;
+  bool get isSafe => !_isDisposed && isClosed == false;
+
   // Stepper
   final currentStep = 0.obs;
 
@@ -171,13 +175,29 @@ class VendorConfigController extends GetxController {
 
   @override
   void onClose() {
-    firstNameController.dispose();
-    lastNameController.dispose();
-    emailController.dispose();
-    shopNameController.dispose();
-    shopDescriptionController.dispose();
-    locationSearchController.dispose();
+    print('');
+    print('========================================');
+    print('🏪 VENDOR CONFIG CONTROLLER: Closing');
+    print('========================================');
+
+    _isDisposed = true;
+
+    try {
+      firstNameController.dispose();
+      lastNameController.dispose();
+      emailController.dispose();
+      shopNameController.dispose();
+      shopDescriptionController.dispose();
+      locationSearchController.dispose();
+      print('  └─ Text controllers disposed');
+    } catch (e) {
+      print('  └─ Error disposing controllers: $e');
+    }
+
     super.onClose();
+
+    print('  └─ Controller disposed safely');
+    print('========================================');
   }
 
   /// Demande la permission de localisation
@@ -521,12 +541,9 @@ class VendorConfigController extends GetxController {
       return false;
     }
 
-    if (!isDeliveryAvailable.value) {
-      // Normalement ce cas ne devrait jamais arriver car on vérifie avant de sauvegarder
-      // Mais on garde ce check comme filet de sécurité
-      _showNoDeliveryServiceDialog();
-      return false;
-    }
+    // Note: We don't check isDeliveryAvailable here because shopLocation can only be filled
+    // if the position was validated during selection (line 827 + line 844-846).
+    // This prevents the bug where isDeliveryAvailable might be reset to false in error cases.
 
     if (selectedCategories.isEmpty) {
       Get.snackbar(

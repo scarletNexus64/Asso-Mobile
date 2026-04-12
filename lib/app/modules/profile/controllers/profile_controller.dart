@@ -42,14 +42,19 @@ class ProfileController extends GetxController {
   }
 
   void _loadProfile() {
-    // Load from cache first
-    final cachedUser = ApiProvider.cachedUser;
+    // Load from cache first using StorageService
+    final cachedUser = StorageService.getUser();
     if (cachedUser != null) {
-      _setProfileData(Map<String, dynamic>.from(cachedUser));
+      _setProfileData(cachedUser.toJson());
     }
 
     // Then refresh from API
     _refreshProfile();
+  }
+
+  /// Public method to reload profile (called after profile update)
+  Future<void> reloadProfile() async {
+    await _refreshProfile();
   }
 
   Future<void> _refreshProfile() async {

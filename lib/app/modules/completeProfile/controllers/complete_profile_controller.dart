@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../../data/providers/auth_service.dart';
-import '../../../data/providers/api_provider.dart';
-import '../../../routes/app_pages.dart';
+import '../../../data/providers/storage_service.dart';
+import '../../profile/controllers/profile_controller.dart';
 
 class CompleteProfileController extends GetxController {
   final firstNameController = TextEditingController();
@@ -18,13 +18,31 @@ class CompleteProfileController extends GetxController {
   void onInit() {
     super.onInit();
     // Pre-fill from cached user data
-    final user = ApiProvider.cachedUser;
+    final user = StorageService.getUser();
     if (user != null) {
-      firstNameController.text = user['first_name'] ?? '';
-      lastNameController.text = user['last_name'] ?? '';
-      emailController.text = user['email'] ?? '';
-      selectedGender.value = user['gender'] ?? '';
-      address.value = user['address'] ?? '';
+      firstNameController.text = user.firstName ?? '';
+      lastNameController.text = user.lastName ?? '';
+      emailController.text = user.email ?? '';
+
+      // Mapper les valeurs backend vers les valeurs UI
+      final backendGender = user.gender ?? '';
+      final reverseGenderMap = {
+        'male': 'H',
+        'female': 'F',
+      };
+      selectedGender.value = reverseGenderMap[backendGender] ?? '';
+
+      // Pré-remplir la date de naissance si elle existe
+      final userBirthDate = user.birthDate;
+      if (userBirthDate != null && userBirthDate.isNotEmpty) {
+        try {
+          birthDate.value = DateTime.parse(userBirthDate);
+        } catch (e) {
+          print('Error parsing birth date: $e');
+        }
+      }
+
+      address.value = user.address ?? '';
     }
   }
 
@@ -62,7 +80,12 @@ class CompleteProfileController extends GetxController {
         data['email'] = emailController.text.trim();
       }
       if (selectedGender.value.isNotEmpty) {
-        data['gender'] = selectedGender.value;
+        // Mapper les valeurs UI vers les valeurs backend
+        final genderMap = {
+          'H': 'male',
+          'F': 'female',
+        };
+        data['gender'] = genderMap[selectedGender.value] ?? selectedGender.value;
       }
       if (birthDate.value != null) {
         data['birth_date'] = birthDate.value!.toIso8601String().split('T')[0];
@@ -74,6 +97,9 @@ class CompleteProfileController extends GetxController {
       final response = await AuthService.updateProfile(data);
 
       if (response.success) {
+        // Le cache est déjà mis à jour dans AuthService.updateProfile
+        // Mais on va forcer un refresh du profil si on revient en arrière
+
         Get.snackbar(
           'Profil complété',
           'Votre profil a été mis à jour avec succès',
@@ -86,7 +112,19 @@ class CompleteProfileController extends GetxController {
         );
 
         await Future.delayed(const Duration(milliseconds: 500));
-        Get.offAllNamed(Routes.HOME);
+
+        // Forcer le refresh du ProfileController si il existe
+        try {
+          if (Get.isRegistered<ProfileController>()) {
+            final profileController = Get.find<ProfileController>();
+            await profileController.reloadProfile();
+          }
+        } catch (e) {
+          print('Could not refresh ProfileController: $e');
+        }
+
+        // Utiliser Get.back() au lieu de Get.offAllNamed() pour éviter le duplicate GlobalKey
+        Get.back(); // Retour à la page précédente (HOME avec tab Profile)
       } else {
         Get.snackbar(
           'Erreur',

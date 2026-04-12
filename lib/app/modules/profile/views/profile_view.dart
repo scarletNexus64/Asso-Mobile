@@ -9,6 +9,7 @@ class ProfileView extends GetView<ProfileController> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final deviceType = AppThemeSystem.getDeviceType(context);
 
     return Scaffold(
       backgroundColor: AppThemeSystem.getBackgroundColor(context),
@@ -21,14 +22,14 @@ class ProfileView extends GetView<ProfileController> {
             child: Column(
               children: [
                 // Header avec profil
-                _buildProfileHeader(context, isDark),
+                _buildProfileHeader(context, isDark, deviceType),
 
-                SizedBox(height: 24),
+                SizedBox(height: AppThemeSystem.getSectionSpacing(context)),
 
                 // Statistiques
-                _buildStats(context),
+                _buildStats(context, deviceType),
 
-                SizedBox(height: 24),
+                SizedBox(height: AppThemeSystem.getSectionSpacing(context)),
 
                 // Menu principal
                 _buildMenuSection(
@@ -56,7 +57,7 @@ class ProfileView extends GetView<ProfileController> {
                   ],
                 ),
 
-                SizedBox(height: 16),
+                SizedBox(height: AppThemeSystem.getElementSpacing(context)),
 
                 // Paramètres et préférences
                 _buildMenuSection(
@@ -84,7 +85,7 @@ class ProfileView extends GetView<ProfileController> {
                   ],
                 ),
 
-                SizedBox(height: 16),
+                SizedBox(height: AppThemeSystem.getElementSpacing(context)),
 
                 // Support
                 _buildMenuSection(
@@ -106,12 +107,13 @@ class ProfileView extends GetView<ProfileController> {
                   ],
                 ),
 
-                SizedBox(height: 24),
+                SizedBox(height: AppThemeSystem.getSectionSpacing(context)),
 
                 // Bouton déconnexion
-                _buildLogoutButton(context),
+                _buildLogoutButton(context, deviceType),
 
-                SizedBox(height: 32),
+                // Espacement pour la barre de navigation native du téléphone
+                SizedBox(height: MediaQuery.of(context).viewPadding.bottom + AppThemeSystem.getVerticalPadding(context)),
               ],
             ),
           );
@@ -119,11 +121,11 @@ class ProfileView extends GetView<ProfileController> {
     );
   }
 
-  Widget _buildProfileHeader(BuildContext context, bool isDark) {
+  Widget _buildProfileHeader(BuildContext context, bool isDark, DeviceType deviceType) {
     final profile = controller.userProfile;
 
     return Container(
-      padding: EdgeInsets.all(20),
+      padding: EdgeInsets.all(AppThemeSystem.getHorizontalPadding(context)),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
@@ -156,13 +158,13 @@ class ProfileView extends GetView<ProfileController> {
               ),
             ],
           ),
-          SizedBox(height: 20),
+          SizedBox(height: AppThemeSystem.getElementSpacing(context)),
           // Avatar
           Stack(
             children: [
               Container(
-                width: 100,
-                height: 100,
+                width: deviceType == DeviceType.mobile ? 100 : 120,
+                height: deviceType == DeviceType.mobile ? 100 : 120,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   border: Border.all(
@@ -209,24 +211,24 @@ class ProfileView extends GetView<ProfileController> {
               ),
             ],
           ),
-          SizedBox(height: 16),
+          SizedBox(height: AppThemeSystem.getElementSpacing(context)),
           Text(
             profile['name'],
             style: context.textStyle(
-              FontSizeType.h4,
+              deviceType == DeviceType.mobile ? FontSizeType.h4 : FontSizeType.h3,
               fontWeight: FontWeight.bold,
               color: Colors.white,
             ),
           ),
-          SizedBox(height: 4),
+          SizedBox(height: AppThemeSystem.getElementSpacing(context) * 0.5),
           Text(
             profile['email'],
             style: context.textStyle(
-              FontSizeType.body2,
+              deviceType == DeviceType.mobile ? FontSizeType.body2 : FontSizeType.body1,
               color: Colors.white.withValues(alpha: 0.9),
             ),
           ),
-          SizedBox(height: 4),
+          SizedBox(height: AppThemeSystem.getElementSpacing(context) * 0.5),
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
@@ -245,11 +247,11 @@ class ProfileView extends GetView<ProfileController> {
               ),
             ],
           ),
-          SizedBox(height: 8),
+          SizedBox(height: AppThemeSystem.getElementSpacing(context) * 0.75),
           Text(
             profile['memberSince'],
             style: context.textStyle(
-              FontSizeType.caption,
+              deviceType == DeviceType.mobile ? FontSizeType.caption : FontSizeType.body2,
               color: Colors.white.withValues(alpha: 0.8),
             ),
           ),
@@ -258,11 +260,11 @@ class ProfileView extends GetView<ProfileController> {
     );
   }
 
-  Widget _buildStats(BuildContext context) {
+  Widget _buildStats(BuildContext context, DeviceType deviceType) {
     final stats = controller.userProfile['stats'];
 
     return Padding(
-      padding: EdgeInsets.symmetric(horizontal: 16),
+      padding: EdgeInsets.symmetric(horizontal: AppThemeSystem.getHorizontalPadding(context)),
       child: Row(
         children: [
           _buildStatCard(
@@ -270,20 +272,23 @@ class ProfileView extends GetView<ProfileController> {
             Icons.shopping_cart_rounded,
             stats['orders'].toString(),
             'Commandes',
+            deviceType,
           ),
-          SizedBox(width: 12),
+          SizedBox(width: AppThemeSystem.getElementSpacing(context)),
           _buildStatCard(
             context,
             Icons.star_rounded,
             stats['reviews'].toString(),
             'Avis',
+            deviceType,
           ),
-          SizedBox(width: 12),
+          SizedBox(width: AppThemeSystem.getElementSpacing(context)),
           _buildStatCard(
             context,
             Icons.favorite_rounded,
             stats['favorites'].toString(),
             'Favoris',
+            deviceType,
           ),
         ],
       ),
@@ -295,13 +300,14 @@ class ProfileView extends GetView<ProfileController> {
     IconData icon,
     String value,
     String label,
+    DeviceType deviceType,
   ) {
     return Expanded(
       child: Container(
-        padding: EdgeInsets.all(16),
+        padding: EdgeInsets.all(AppThemeSystem.getElementSpacing(context) * 1.5),
         decoration: BoxDecoration(
           color: AppThemeSystem.getSurfaceColor(context),
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: context.borderRadius(BorderRadiusType.medium),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withValues(alpha: 0.05),
@@ -315,23 +321,24 @@ class ProfileView extends GetView<ProfileController> {
             Icon(
               icon,
               color: AppThemeSystem.primaryColor,
-              size: 28,
+              size: deviceType == DeviceType.mobile ? 28 : 36,
             ),
-            SizedBox(height: 8),
+            SizedBox(height: AppThemeSystem.getElementSpacing(context) * 0.75),
             Text(
               value,
               style: context.textStyle(
-                FontSizeType.h5,
+                deviceType == DeviceType.mobile ? FontSizeType.h5 : FontSizeType.h4,
                 fontWeight: FontWeight.bold,
               ),
             ),
-            SizedBox(height: 4),
+            SizedBox(height: AppThemeSystem.getElementSpacing(context) * 0.5),
             Text(
               label,
               style: context.textStyle(
-                FontSizeType.caption,
+                deviceType == DeviceType.mobile ? FontSizeType.caption : FontSizeType.body2,
                 color: AppThemeSystem.grey600,
               ),
+              textAlign: TextAlign.center,
             ),
           ],
         ),
@@ -344,11 +351,13 @@ class ProfileView extends GetView<ProfileController> {
     String title,
     List<_MenuItem> items,
   ) {
+    final deviceType = AppThemeSystem.getDeviceType(context);
+
     return Container(
-      margin: EdgeInsets.symmetric(horizontal: 16),
+      margin: EdgeInsets.symmetric(horizontal: AppThemeSystem.getHorizontalPadding(context)),
       decoration: BoxDecoration(
         color: AppThemeSystem.getSurfaceColor(context),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: context.borderRadius(BorderRadiusType.medium),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.05),
@@ -361,11 +370,11 @@ class ProfileView extends GetView<ProfileController> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
-            padding: EdgeInsets.all(16),
+            padding: EdgeInsets.all(AppThemeSystem.getHorizontalPadding(context)),
             child: Text(
               title,
               style: context.textStyle(
-                FontSizeType.body2,
+                deviceType == DeviceType.mobile ? FontSizeType.body2 : FontSizeType.body1,
                 fontWeight: FontWeight.bold,
                 color: AppThemeSystem.grey600,
               ),
@@ -383,28 +392,28 @@ class ProfileView extends GetView<ProfileController> {
                   child: InkWell(
                     onTap: item.onTap,
                     borderRadius: BorderRadius.vertical(
-                      bottom: isLast ? Radius.circular(12) : Radius.zero,
+                      bottom: isLast ? Radius.circular(AppThemeSystem.getBorderRadius(context, BorderRadiusType.medium)) : Radius.zero,
                     ),
                     child: Padding(
                       padding: EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 12,
+                        horizontal: AppThemeSystem.getHorizontalPadding(context),
+                        vertical: AppThemeSystem.getElementSpacing(context),
                       ),
                       child: Row(
                         children: [
                           Container(
-                            padding: EdgeInsets.all(10),
+                            padding: EdgeInsets.all(AppThemeSystem.getElementSpacing(context) * 0.8),
                             decoration: BoxDecoration(
                               color: AppThemeSystem.primaryColor.withValues(alpha: 0.1),
-                              borderRadius: BorderRadius.circular(10),
+                              borderRadius: context.borderRadius(BorderRadiusType.small),
                             ),
                             child: Icon(
                               item.icon,
                               color: AppThemeSystem.primaryColor,
-                              size: 24,
+                              size: deviceType == DeviceType.mobile ? 24 : 28,
                             ),
                           ),
-                          SizedBox(width: 16),
+                          SizedBox(width: AppThemeSystem.getElementSpacing(context)),
                           Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
@@ -412,16 +421,16 @@ class ProfileView extends GetView<ProfileController> {
                                 Text(
                                   item.title,
                                   style: context.textStyle(
-                                    FontSizeType.body1,
+                                    deviceType == DeviceType.mobile ? FontSizeType.body1 : FontSizeType.subtitle1,
                                     fontWeight: FontWeight.w600,
                                   ),
                                 ),
                                 if (item.subtitle != null) ...[
-                                  SizedBox(height: 2),
+                                  SizedBox(height: AppThemeSystem.getElementSpacing(context) * 0.25),
                                   Text(
                                     item.subtitle!,
                                     style: context.textStyle(
-                                      FontSizeType.caption,
+                                      deviceType == DeviceType.mobile ? FontSizeType.caption : FontSizeType.body2,
                                       color: AppThemeSystem.grey600,
                                     ),
                                   ),
@@ -451,33 +460,38 @@ class ProfileView extends GetView<ProfileController> {
     );
   }
 
-  Widget _buildLogoutButton(BuildContext context) {
+  Widget _buildLogoutButton(BuildContext context, DeviceType deviceType) {
     return Padding(
-      padding: EdgeInsets.symmetric(horizontal: 16),
+      padding: EdgeInsets.symmetric(horizontal: AppThemeSystem.getHorizontalPadding(context)),
       child: SizedBox(
         width: double.infinity,
+        height: AppThemeSystem.getButtonHeight(context),
         child: OutlinedButton.icon(
           onPressed: controller.logout,
           icon: Icon(
             Icons.logout_rounded,
             color: AppThemeSystem.errorColor,
+            size: deviceType == DeviceType.mobile ? 20 : 24,
           ),
           label: Text(
             'Déconnexion',
             style: context.textStyle(
-              FontSizeType.body1,
+              deviceType == DeviceType.mobile ? FontSizeType.body1 : FontSizeType.subtitle1,
               fontWeight: FontWeight.w600,
               color: AppThemeSystem.errorColor,
             ),
           ),
           style: OutlinedButton.styleFrom(
-            padding: EdgeInsets.symmetric(vertical: 16),
+            padding: EdgeInsets.symmetric(
+              vertical: AppThemeSystem.getElementSpacing(context),
+              horizontal: AppThemeSystem.getHorizontalPadding(context),
+            ),
             side: BorderSide(
               color: AppThemeSystem.errorColor,
-              width: 1.5,
+              width: deviceType == DeviceType.mobile ? 1.5 : 2,
             ),
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: context.borderRadius(BorderRadiusType.medium),
             ),
           ),
         ),

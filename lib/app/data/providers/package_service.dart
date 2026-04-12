@@ -33,20 +33,28 @@ class PackageService {
     }
   }
 
-  /// Subscribe to a package
-  static Future<ApiResponse> subscribeToPackage(int packageId) async {
+  /// Subscribe to a package with wallet type selection
+  /// walletType: 'freemopay' or 'paypal'
+  static Future<ApiResponse> subscribeToPackage(
+    int packageId, {
+    required String walletType,
+  }) async {
     print('');
     print('========================================');
     print('💳 PACKAGE SERVICE: Subscribe Package START');
     print('========================================');
     print('  └─ Package ID: $packageId');
+    print('  └─ Wallet Type: $walletType');
 
     try {
       print('🌐 Calling API: POST /v1/packages/subscribe');
 
       final response = await ApiProvider.post(
         '/v1/packages/subscribe',
-        body: {'package_id': packageId},
+        body: {
+          'package_id': packageId,
+          'wallet_type': walletType,
+        },
       );
 
       print('✅ PACKAGE SERVICE: API call completed');
@@ -56,6 +64,7 @@ class PackageService {
         final vendorPackage = response.data!['vendor_package'];
         print('  └─ Storage Total: ${vendorPackage['storage_total_mb']} MB');
         print('  └─ Expires At: ${vendorPackage['expires_at']}');
+        print('  └─ Wallet Used: $walletType');
       }
       print('========================================');
 

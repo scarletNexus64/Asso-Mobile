@@ -21,36 +21,38 @@ class HomeBinding extends Bindings {
     // Créer les controllers des onglets AVANT HomeController
     // Utiliser put() au lieu de lazyPut() pour créer immédiatement
     // car TabBarView a besoin d'eux dès le premier build
+    // permanent: true pour éviter la dispose pendant la navigation
     Get.put<ChatController>(
       ChatController(),
-      permanent: false,
+      permanent: true,
     );
-    print('  └─ ✅ ChatController created');
+    print('  └─ ✅ ChatController created (permanent)');
 
     Get.put<WalletController>(
       WalletController(),
-      permanent: false,
+      permanent: true,
     );
-    print('  └─ ✅ WalletController created');
+    print('  └─ ✅ WalletController created (permanent)');
 
     Get.put<TrackingController>(
       TrackingController(),
-      permanent: false,
+      permanent: true,
     );
-    print('  └─ ✅ TrackingController created');
+    print('  └─ ✅ TrackingController created (permanent)');
 
     Get.put<ProfileController>(
       ProfileController(),
-      permanent: false,
+      permanent: true,
     );
-    print('  └─ ✅ ProfileController created');
+    print('  └─ ✅ ProfileController created (permanent)');
 
     // Créer HomeController en dernier
+    // permanent: true pour éviter que le TabController soit disposé pendant la navigation
     Get.put<HomeController>(
       HomeController(),
-      permanent: false,
+      permanent: true,
     );
-    print('  └─ ✅ HomeController created');
+    print('  └─ ✅ HomeController created (permanent)');
 
     print('✅ HOME BINDING: All dependencies registered');
     print('========================================');

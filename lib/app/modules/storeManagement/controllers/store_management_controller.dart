@@ -1,9 +1,10 @@
+import 'package:asso/app/routes/app_pages.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import '../models/store_models.dart';
-import '../../../data/providers/vendor_service.dart';
+import '../../../data/providers/shop_service.dart';
 
 class StoreManagementController extends GetxController {
   // État de chargement
@@ -44,86 +45,143 @@ class StoreManagementController extends GetxController {
   Future<void> loadData() async {
     isLoading.value = true;
     try {
-      // Essayer de charger depuis l'API
-      final response = await VendorService.getVendorDashboard();
+      // Essayer de charger depuis l'API shop dédiée
+      final response = await ShopService.getShop();
+
+      print('📊 CONTROLLER: Response success: ${response.success}');
+      print('📊 CONTROLLER: Response data: ${response.data}');
 
       if (response.success && response.data != null) {
-        final data = response.data!['data'] ?? response.data!;
+        final data = response.data!;
+        final shop = data['shop'];
+        final stats = data['stats'];
+        final certificationData = data['certification'];
+        final package = data['package'];
+
+        print('📊 CONTROLLER: Shop data: $shop');
+        print('📊 CONTROLLER: Stats data: $stats');
+        print('📊 CONTROLLER: Certification data: $certificationData');
+        print('📊 CONTROLLER: Package data: $package');
 
         // Parser les informations de la boutique
-        if (data['shop'] != null) {
-          final shop = data['shop'];
+        if (shop != null) {
+          // Nettoyer l'adresse (gérer les valeurs placeholder)
+          String? address = shop['address']?.toString();
+          if (address != null &&
+              (address.contains('Chargement de l') || address.isEmpty)) {
+            address = '';
+          }
+
+          // Extraire la ville de l'adresse si présente
+          String city = '';
+          if (address != null && address.isNotEmpty && address.contains(',')) {
+            city = address.split(',').last.trim();
+          }
+
           storeInfo.value = StoreInfo(
-            id: shop['id'] ?? 'store_001',
-            name: shop['name'] ?? 'Ma Boutique',
-            logoUrl: shop['logo_url'],
+            id: shop['id']?.toString() ?? '',
+            name: shop['name'] ?? '',
+            logoUrl: shop['logo'],
             description: shop['description'] ?? '',
-            latitude: (shop['latitude'] ?? 4.0511).toDouble(),
-            longitude: (shop['longitude'] ?? 9.7679).toDouble(),
-            address: shop['address'] ?? '',
-            city: shop['city'] ?? 'Douala',
+            latitude: _toDouble(shop['latitude']),
+            longitude: _toDouble(shop['longitude']),
+            address: address ?? '',
+            city: city,
             phone: shop['phone'] ?? '',
           );
+          print('✅ CONTROLLER: Store info loaded: ${storeInfo.value?.name}');
         } else {
-          _loadMockStoreInfo();
+          print('⚠️ CONTROLLER: No shop data');
+          storeInfo.value = null;
         }
 
-        // Parser les statistiques
-        if (data['stats'] != null) {
-          final stats = data['stats'];
+        // Parser les statistiques depuis stats et package
+        if (stats != null) {
+          final totalProducts = stats['total_products'] ?? 0;
+
+          // Parser les stats de stockage depuis le package
+          final storageUsedGB = package != null
+              ? _toDouble(package['storage_used_gb'])
+              : 0.0;
+          final storageTotalGB = package != null
+              ? _toDouble(package['storage_total_gb'])
+              : 0.0;
+
           storageStats.value = StorageStats(
-            usedSpaceGB: (stats['used_space_gb'] ?? 3.2).toDouble(),
-            totalSpaceGB: (stats['total_space_gb'] ?? 5.0).toDouble(),
-            totalProducts: stats['total_products'] ?? 0,
-            totalImages: stats['total_images'] ?? 0,
+            usedSpaceGB: storageUsedGB,
+            totalSpaceGB: storageTotalGB,
+            totalProducts: totalProducts,
+            totalImages: 0, // TODO: À calculer depuis les produits
           );
-        } else {
-          _loadMockStorageStats();
-        }
+          print('✅ CONTROLLER: Storage stats loaded');
 
-        // Parser la certification
-        if (data['certification'] != null) {
-          final cert = data['certification'];
-          certification.value = Certification(
-            isCertified: cert['is_certified'] ?? false,
-            status: _parseCertificationStatus(cert['status']),
-          );
-        } else {
-          _loadMockCertification();
-        }
-
-        // Parser les statistiques d'audience
-        if (data['audience_stats'] != null) {
-          final audience = data['audience_stats'];
+          // Parser les statistiques d'audience depuis stats
           audienceStats.value = AudienceStats(
-            totalViews: audience['total_views'] ?? 0,
-            totalClicks: audience['total_clicks'] ?? 0,
-            totalOrders: audience['total_orders'] ?? 0,
-            conversionRate: (audience['conversion_rate'] ?? 0).toDouble(),
-            dailyStats: _parseDailyStats(audience['daily_stats'] ?? []),
-            topProducts: Map<String, int>.from(audience['top_products'] ?? {}),
+            totalViews: 0, // TODO: À implémenter dans le backend
+            totalClicks: 0, // TODO: À implémenter dans le backend
+            totalOrders: stats['total_orders'] ?? 0,
+            conversionRate: 0.0, // TODO: À calculer
+            dailyStats: [], // TODO: À implémenter dans le backend
+            topProducts: {}, // TODO: À implémenter dans le backend
           );
+          print('✅ CONTROLLER: Audience stats loaded');
         } else {
-          _loadMockAudienceStats();
+          print('⚠️ CONTROLLER: No stats data');
+          storageStats.value = null;
+          audienceStats.value = null;
         }
 
-        // Parser l'inventaire
-        if (data['inventory'] is List) {
-          inventoryEntries.value = _parseInventoryEntries(data['inventory']);
+        // Parser la certification depuis certificationData (séparé de la vérification)
+        if (certificationData != null) {
+          final isCertified = certificationData['is_certified'] ?? false;
+          final expiresAt = certificationData['certification_expires_at'];
+
+          certification.value = Certification(
+            isCertified: isCertified,
+            status: isCertified
+                ? CertificationStatus.certified
+                : CertificationStatus.notCertified,
+            expiryDate: expiresAt != null ? DateTime.parse(expiresAt) : null,
+          );
+          print('✅ CONTROLLER: Certification loaded (isCertified: $isCertified)');
         } else {
-          inventoryEntries.value = _generateInventoryEntries();
+          print('⚠️ CONTROLLER: No certification data');
+          certification.value = Certification(
+            isCertified: false,
+            status: CertificationStatus.notCertified,
+          );
         }
+
+        // Inventaire vide pour l'instant (TODO: implémenter l'API backend)
+        inventoryEntries.value = [];
+        print(
+          '✅ CONTROLLER: Inventory loaded (empty - waiting for backend implementation)',
+        );
       } else {
-        // Fallback to mock data if API fails
-        _loadMockData();
+        print('❌ CONTROLLER: API call failed');
+        // Clear all data
+        storeInfo.value = null;
+        storageStats.value = null;
+        audienceStats.value = null;
+        certification.value = null;
+        inventoryEntries.value = [];
       }
-    } catch (e) {
-      // Fallback to mock data on error
-      _loadMockData();
+    } catch (e, stackTrace) {
+      print('💥 CONTROLLER: Exception occurred!');
+      print('  └─ Error: $e');
+      print('  └─ Stack trace:');
+      print(stackTrace.toString().split('\n').take(5).join('\n'));
+
+      // Clear all data on error
+      storeInfo.value = null;
+      storageStats.value = null;
+      audienceStats.value = null;
+      certification.value = null;
+      inventoryEntries.value = [];
 
       Get.snackbar(
         'Erreur',
-        'Impossible de charger les données',
+        'Impossible de charger les données: ${e.toString()}',
         snackPosition: SnackPosition.BOTTOM,
         backgroundColor: Colors.red,
         colorText: Colors.white,
@@ -133,130 +191,15 @@ class StoreManagementController extends GetxController {
     }
   }
 
-  /// Load mock data as fallback
-  void _loadMockData() {
-    _loadMockStoreInfo();
-    _loadMockStorageStats();
-    _loadMockCertification();
-    _loadMockAudienceStats();
-    inventoryEntries.value = _generateInventoryEntries();
-  }
-
-  void _loadMockStoreInfo() {
-    storeInfo.value = StoreInfo(
-      id: 'store_001',
-      name: 'Ma Boutique',
-      logoUrl: null,
-      description: 'Une boutique de qualité',
-      latitude: 4.0511,
-      longitude: 9.7679,
-      address: 'Avenue de la République',
-      city: 'Douala',
-      phone: '+237 690000000',
-    );
-  }
-
-  void _loadMockStorageStats() {
-    storageStats.value = StorageStats(
-      usedSpaceGB: 3.2,
-      totalSpaceGB: 5.0,
-      totalProducts: 45,
-      totalImages: 180,
-    );
-  }
-
-  void _loadMockCertification() {
-    certification.value = Certification(
-      isCertified: false,
-      status: CertificationStatus.notCertified,
-    );
-  }
-
-  void _loadMockAudienceStats() {
-    audienceStats.value = AudienceStats(
-      totalViews: 12450,
-      totalClicks: 3890,
-      totalOrders: 234,
-      conversionRate: 6.02,
-      dailyStats: _generateDailyStats(),
-      topProducts: {
-        'Smartphone Galaxy A54': 45,
-        'Écouteurs Bluetooth': 32,
-        'Montre connectée': 28,
-        'Chargeur rapide': 21,
-        'Câble USB-C': 18,
-      },
-    );
-  }
-
-  /// Parse certification status
-  CertificationStatus _parseCertificationStatus(String? status) {
-    switch (status?.toLowerCase()) {
-      case 'certified':
-        return CertificationStatus.certified;
-      case 'pending':
-        return CertificationStatus.pending;
-      case 'rejected':
-        return CertificationStatus.rejected;
-      default:
-        return CertificationStatus.notCertified;
+  /// Convert dynamic value to double (handles both String and num)
+  double _toDouble(dynamic value) {
+    if (value == null) return 0.0;
+    if (value is double) return value;
+    if (value is int) return value.toDouble();
+    if (value is String) {
+      return double.tryParse(value) ?? 0.0;
     }
-  }
-
-  /// Parse daily stats from API
-  List<DailyStats> _parseDailyStats(List<dynamic> rawStats) {
-    return rawStats.map((item) {
-      final stat = item as Map<String, dynamic>;
-      return DailyStats(
-        date: _parseDate(stat['date']),
-        views: stat['views'] ?? 0,
-        clicks: stat['clicks'] ?? 0,
-        orders: stat['orders'] ?? 0,
-      );
-    }).toList();
-  }
-
-  /// Parse inventory entries from API
-  List<InventoryEntry> _parseInventoryEntries(List<dynamic> rawEntries) {
-    return rawEntries.map((item) {
-      final entry = item as Map<String, dynamic>;
-      return InventoryEntry(
-        id: entry['id'] ?? '',
-        productId: entry['product_id'] ?? '',
-        productName: entry['product_name'] ?? 'Produit',
-        type: _parseInventoryType(entry['type']),
-        quantity: entry['quantity'] ?? 0,
-        date: _parseDate(entry['created_at'] ?? entry['date']),
-        notes: entry['notes'] ?? '',
-        orderId: entry['order_id'],
-      );
-    }).toList();
-  }
-
-  /// Parse inventory type
-  InventoryType _parseInventoryType(String? type) {
-    switch (type?.toLowerCase()) {
-      case 'entry':
-      case 'in':
-        return InventoryType.entry;
-      case 'exit':
-      case 'out':
-        return InventoryType.exit;
-      default:
-        return InventoryType.entry;
-    }
-  }
-
-  /// Parse ISO datetime string
-  DateTime _parseDate(dynamic dateValue) {
-    if (dateValue is String) {
-      try {
-        return DateTime.parse(dateValue);
-      } catch (e) {
-        return DateTime.now();
-      }
-    }
-    return DateTime.now();
+    return 0.0;
   }
 
   /// Configure les bannières promotionnelles
@@ -297,63 +240,6 @@ class StoreManagementController extends GetxController {
         type: BannerType.premium,
         actionLabel: 'Découvrir',
         onTap: upgradeToPremium,
-      ),
-    ];
-  }
-
-  /// Génère des statistiques journalières de test
-  List<DailyStats> _generateDailyStats() {
-    final now = DateTime.now();
-    return List.generate(7, (index) {
-      final date = now.subtract(Duration(days: 6 - index));
-      return DailyStats(
-        date: date,
-        views: 1500 + (index * 200),
-        clicks: 450 + (index * 50),
-        orders: 25 + (index * 5),
-      );
-    });
-  }
-
-  /// Génère des entrées d'inventaire de test
-  List<InventoryEntry> _generateInventoryEntries() {
-    return [
-      InventoryEntry(
-        id: 'inv_001',
-        productId: 'prod_001',
-        productName: 'Smartphone Galaxy A54',
-        type: InventoryType.entry,
-        quantity: 50,
-        date: DateTime.now().subtract(const Duration(days: 5)),
-        notes: 'Réapprovisionnement',
-      ),
-      InventoryEntry(
-        id: 'inv_002',
-        productId: 'prod_001',
-        productName: 'Smartphone Galaxy A54',
-        type: InventoryType.exit,
-        quantity: 3,
-        date: DateTime.now().subtract(const Duration(days: 2)),
-        orderId: 'CMD1001',
-        notes: 'Commande validée',
-      ),
-      InventoryEntry(
-        id: 'inv_003',
-        productId: 'prod_002',
-        productName: 'Écouteurs Bluetooth',
-        type: InventoryType.entry,
-        quantity: 100,
-        date: DateTime.now().subtract(const Duration(days: 7)),
-        notes: 'Stock initial',
-      ),
-      InventoryEntry(
-        id: 'inv_004',
-        productId: 'prod_002',
-        productName: 'Écouteurs Bluetooth',
-        type: InventoryType.exit,
-        quantity: 5,
-        date: DateTime.now().subtract(const Duration(days: 1)),
-        orderId: 'CMD1015',
       ),
     ];
   }
@@ -403,32 +289,54 @@ class StoreManagementController extends GetxController {
     required String address,
     required String city,
     required String phone,
+    double? latitude,
+    double? longitude,
   }) async {
     try {
       isLoading.value = true;
 
-      // TODO: Appel API pour sauvegarder
-      await Future.delayed(const Duration(milliseconds: 500));
-
-      storeInfo.value = storeInfo.value?.copyWith(
-        name: name,
-        description: description,
-        address: address,
-        city: city,
-        phone: phone,
+      // Appel API pour sauvegarder
+      final response = await ShopService.updateShop(
+        shopName: name,
+        shopDescription: description,
+        shopAddress: address,
+        shopPhone: phone,
+        shopLatitude: latitude ?? storeInfo.value?.latitude,
+        shopLongitude: longitude ?? storeInfo.value?.longitude,
+        shopLogo: selectedLogo.value,
       );
 
-      Get.snackbar(
-        'Succès',
-        'Informations de la boutique mises à jour',
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: Colors.green,
-        colorText: Colors.white,
-      );
+      if (response.success) {
+        // Recharger les données depuis l'API
+        await loadData();
+
+        // Réinitialiser le logo sélectionné
+        selectedLogo.value = null;
+
+        Get.back(); // Fermer le formulaire d'édition
+
+        Get.snackbar(
+          'Succès',
+          'Informations de la boutique mises à jour',
+          snackPosition: SnackPosition.BOTTOM,
+          backgroundColor: Colors.green,
+          colorText: Colors.white,
+        );
+      } else {
+        Get.snackbar(
+          'Erreur',
+          response.message.isNotEmpty
+              ? response.message
+              : 'Impossible de sauvegarder les informations',
+          snackPosition: SnackPosition.BOTTOM,
+          backgroundColor: Colors.red,
+          colorText: Colors.white,
+        );
+      }
     } catch (e) {
       Get.snackbar(
         'Erreur',
-        'Impossible de sauvegarder les informations',
+        'Impossible de sauvegarder les informations: ${e.toString()}',
         snackPosition: SnackPosition.BOTTOM,
         backgroundColor: Colors.red,
         colorText: Colors.white,
@@ -470,15 +378,6 @@ class StoreManagementController extends GetxController {
     Get.snackbar(
       'Premium',
       'Upgrade premium en cours de développement',
-      snackPosition: SnackPosition.BOTTOM,
-    );
-  }
-
-  /// Ajouter une entrée d'inventaire
-  void addInventoryEntry() {
-    Get.snackbar(
-      'Inventaire',
-      'Ajout d\'entrée d\'inventaire en cours de développement',
       snackPosition: SnackPosition.BOTTOM,
     );
   }

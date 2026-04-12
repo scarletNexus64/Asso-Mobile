@@ -488,7 +488,7 @@ class _RechargeBottomSheetState extends State<RechargeBottomSheet> {
               }
               final amount = double.tryParse(value);
               print(
-                'Validating amount: $appConfig.minDepositAmount, entered: $amount',
+                'Validating amount: ${appConfig.minDepositAmount}, entered: $amount',
               );
               if (amount == null || amount < appConfig.minDepositAmount) {
                 return 'Le montant minimum est de ${appConfig.minDepositAmount.toStringAsFixed(0)} FCFA';

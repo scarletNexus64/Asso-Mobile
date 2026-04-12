@@ -8,6 +8,8 @@ class CompleteProfileView extends GetView<CompleteProfileController> {
 
   @override
   Widget build(BuildContext context) {
+    final deviceType = AppThemeSystem.getDeviceType(context);
+
     return Scaffold(
       backgroundColor: context.backgroundColor,
       appBar: AppBar(
@@ -15,7 +17,9 @@ class CompleteProfileView extends GetView<CompleteProfileController> {
         backgroundColor: context.backgroundColor,
         title: Text(
           'Compléter votre profil',
-          style: context.h5.copyWith(
+          style: context.textStyle(
+            deviceType == DeviceType.mobile ? FontSizeType.h5 : FontSizeType.h4,
+            fontWeight: FontWeight.w600,
             color: context.primaryTextColor,
           ),
         ),
@@ -28,7 +32,7 @@ class CompleteProfileView extends GetView<CompleteProfileController> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Header section with description
-            _buildHeaderSection(context),
+            _buildHeaderSection(context, deviceType),
 
             SizedBox(height: context.sectionSpacing),
 
@@ -100,9 +104,13 @@ class CompleteProfileView extends GetView<CompleteProfileController> {
                   SizedBox(height: context.sectionSpacing * 2),
 
                   // Save Button
-                  _buildSaveButton(context),
+                  _buildSaveButton(context, deviceType),
 
-                  SizedBox(height: context.verticalPadding),
+                  // Espacement pour la barre de navigation native du téléphone
+                  SizedBox(
+                    height: MediaQuery.of(context).viewPadding.bottom +
+                        context.verticalPadding,
+                  ),
                 ],
               ),
             ),
@@ -112,10 +120,10 @@ class CompleteProfileView extends GetView<CompleteProfileController> {
     );
   }
 
-  Widget _buildHeaderSection(BuildContext context) {
+  Widget _buildHeaderSection(BuildContext context, DeviceType deviceType) {
     return Container(
       width: double.infinity,
-      padding: EdgeInsets.all(context.horizontalPadding),
+      padding: EdgeInsets.all(context.horizontalPadding * 1.5),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
@@ -132,15 +140,17 @@ class CompleteProfileView extends GetView<CompleteProfileController> {
           Row(
             children: [
               Container(
-                padding: EdgeInsets.all(12),
+                padding: EdgeInsets.all(
+                  deviceType == DeviceType.mobile ? 12 : 16,
+                ),
                 decoration: BoxDecoration(
                   color: Colors.white.withValues(alpha: 0.2),
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: context.borderRadius(BorderRadiusType.medium),
                 ),
                 child: Icon(
                   Icons.person_add_outlined,
                   color: Colors.white,
-                  size: 28,
+                  size: deviceType == DeviceType.mobile ? 28 : 36,
                 ),
               ),
               SizedBox(width: context.elementSpacing * 2),
@@ -150,15 +160,21 @@ class CompleteProfileView extends GetView<CompleteProfileController> {
                   children: [
                     Text(
                       'Finalisez votre profil',
-                      style: context.h5.copyWith(
-                        color: Colors.white,
+                      style: context.textStyle(
+                        deviceType == DeviceType.mobile
+                            ? FontSizeType.h5
+                            : FontSizeType.h4,
                         fontWeight: FontWeight.bold,
+                        color: Colors.white,
                       ),
                     ),
-                    SizedBox(height: 4),
+                    SizedBox(height: context.elementSpacing * 0.5),
                     Text(
                       'Complétez vos informations pour continuer',
-                      style: context.body2.copyWith(
+                      style: context.textStyle(
+                        deviceType == DeviceType.mobile
+                            ? FontSizeType.body2
+                            : FontSizeType.body1,
                         color: Colors.white.withValues(alpha: 0.9),
                       ),
                     ),
@@ -177,12 +193,17 @@ class CompleteProfileView extends GetView<CompleteProfileController> {
     String label,
     bool isRequired,
   ) {
+    final deviceType = AppThemeSystem.getDeviceType(context);
+
     return RichText(
       text: TextSpan(
         children: [
           TextSpan(
             text: label,
-            style: context.body2.copyWith(
+            style: context.textStyle(
+              deviceType == DeviceType.mobile
+                  ? FontSizeType.body2
+                  : FontSizeType.body1,
               fontWeight: FontWeight.w600,
               color: context.primaryTextColor,
             ),
@@ -190,9 +211,12 @@ class CompleteProfileView extends GetView<CompleteProfileController> {
           if (isRequired) ...[
             TextSpan(
               text: ' *',
-              style: context.body2.copyWith(
-                color: AppThemeSystem.errorColor,
+              style: context.textStyle(
+                deviceType == DeviceType.mobile
+                    ? FontSizeType.body2
+                    : FontSizeType.body1,
                 fontWeight: FontWeight.w600,
+                color: AppThemeSystem.errorColor,
               ),
             ),
           ],
@@ -210,6 +234,8 @@ class CompleteProfileView extends GetView<CompleteProfileController> {
     int maxLines = 1,
     void Function(String)? onChanged,
   }) {
+    final deviceType = AppThemeSystem.getDeviceType(context);
+
     return TextField(
       controller: textController,
       onChanged: onChanged,
@@ -220,33 +246,40 @@ class CompleteProfileView extends GetView<CompleteProfileController> {
         prefixIcon: Icon(
           icon,
           color: AppThemeSystem.primaryColor,
+          size: deviceType == DeviceType.mobile ? 20 : 24,
         ),
         filled: true,
         fillColor: context.surfaceColor,
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: context.borderRadius(BorderRadiusType.medium),
           borderSide: BorderSide(color: context.borderColor),
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: context.borderRadius(BorderRadiusType.medium),
           borderSide: BorderSide(color: context.borderColor),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: context.borderRadius(BorderRadiusType.medium),
           borderSide: BorderSide(
             color: AppThemeSystem.primaryColor,
-            width: 2,
+            width: deviceType == DeviceType.mobile ? 2 : 2.5,
           ),
         ),
         contentPadding: EdgeInsets.symmetric(
           horizontal: context.horizontalPadding,
           vertical: context.verticalPadding * 0.75,
         ),
-        hintStyle: context.body2.copyWith(
+        hintStyle: context.textStyle(
+          deviceType == DeviceType.mobile
+              ? FontSizeType.body2
+              : FontSizeType.body1,
           color: context.secondaryTextColor,
         ),
       ),
-      style: context.body1.copyWith(
+      style: context.textStyle(
+        deviceType == DeviceType.mobile
+            ? FontSizeType.body1
+            : FontSizeType.subtitle1,
         color: context.primaryTextColor,
       ),
     );
@@ -287,6 +320,9 @@ class CompleteProfileView extends GetView<CompleteProfileController> {
     bool isSelected,
     VoidCallback onTap,
   ) {
+    final deviceType = AppThemeSystem.getDeviceType(context);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -302,9 +338,19 @@ class CompleteProfileView extends GetView<CompleteProfileController> {
             color: isSelected
                 ? AppThemeSystem.primaryColor
                 : context.borderColor,
-            width: 2,
+            width: deviceType == DeviceType.mobile ? 2 : 2.5,
           ),
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: context.borderRadius(BorderRadiusType.medium),
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color:
+                        AppThemeSystem.primaryColor.withValues(alpha: 0.3),
+                    blurRadius: 8,
+                    offset: Offset(0, 2),
+                  ),
+                ]
+              : null,
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -313,13 +359,18 @@ class CompleteProfileView extends GetView<CompleteProfileController> {
               value == 'H' ? Icons.male_outlined : Icons.female_outlined,
               color: isSelected
                   ? Colors.white
-                  : context.secondaryTextColor,
-              size: 20,
+                  : (isDark
+                      ? AppThemeSystem.grey300
+                      : context.secondaryTextColor),
+              size: deviceType == DeviceType.mobile ? 20 : 24,
             ),
-            SizedBox(width: 8),
+            SizedBox(width: context.elementSpacing * 0.75),
             Text(
               label,
-              style: context.body1.copyWith(
+              style: context.textStyle(
+                deviceType == DeviceType.mobile
+                    ? FontSizeType.body1
+                    : FontSizeType.subtitle1,
                 fontWeight: FontWeight.w600,
                 color: isSelected
                     ? Colors.white
@@ -333,6 +384,9 @@ class CompleteProfileView extends GetView<CompleteProfileController> {
   }
 
   Widget _buildBirthDatePicker(BuildContext context) {
+    final deviceType = AppThemeSystem.getDeviceType(context);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Obx(
       () => GestureDetector(
         onTap: () async {
@@ -344,11 +398,18 @@ class CompleteProfileView extends GetView<CompleteProfileController> {
             builder: (context, child) {
               return Theme(
                 data: Theme.of(context).copyWith(
-                  colorScheme: ColorScheme.light(
-                    primary: AppThemeSystem.primaryColor,
-                    onPrimary: Colors.white,
-                    surface: context.surfaceColor,
-                  ),
+                  colorScheme: isDark
+                      ? ColorScheme.dark(
+                          primary: AppThemeSystem.primaryColor,
+                          onPrimary: Colors.white,
+                          surface: AppThemeSystem.darkCardColor,
+                          onSurface: Colors.white,
+                        )
+                      : ColorScheme.light(
+                          primary: AppThemeSystem.primaryColor,
+                          onPrimary: Colors.white,
+                          surface: context.surfaceColor,
+                        ),
                 ),
                 child: child!,
               );
@@ -366,14 +427,18 @@ class CompleteProfileView extends GetView<CompleteProfileController> {
           ),
           decoration: BoxDecoration(
             color: context.surfaceColor,
-            border: Border.all(color: context.borderColor),
-            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: context.borderColor,
+              width: 1,
+            ),
+            borderRadius: context.borderRadius(BorderRadiusType.medium),
           ),
           child: Row(
             children: [
               Icon(
                 Icons.calendar_today_outlined,
                 color: AppThemeSystem.primaryColor,
+                size: deviceType == DeviceType.mobile ? 20 : 24,
               ),
               SizedBox(width: context.horizontalPadding),
               Expanded(
@@ -381,7 +446,10 @@ class CompleteProfileView extends GetView<CompleteProfileController> {
                   controller.birthDate.value != null
                       ? '${controller.birthDate.value!.day.toString().padLeft(2, '0')}/${controller.birthDate.value!.month.toString().padLeft(2, '0')}/${controller.birthDate.value!.year}'
                       : 'Sélectionnez une date',
-                  style: context.body1.copyWith(
+                  style: context.textStyle(
+                    deviceType == DeviceType.mobile
+                        ? FontSizeType.body1
+                        : FontSizeType.subtitle1,
                     color: controller.birthDate.value != null
                         ? context.primaryTextColor
                         : context.secondaryTextColor,
@@ -390,7 +458,7 @@ class CompleteProfileView extends GetView<CompleteProfileController> {
               ),
               Icon(
                 Icons.arrow_forward_ios,
-                size: 16,
+                size: deviceType == DeviceType.mobile ? 16 : 18,
                 color: AppThemeSystem.primaryColor,
               ),
             ],
@@ -400,7 +468,11 @@ class CompleteProfileView extends GetView<CompleteProfileController> {
     );
   }
 
-  Widget _buildSaveButton(BuildContext context) {
+  Widget _buildSaveButton(BuildContext context, DeviceType deviceType) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    // Le bouton orange a toujours du texte blanc pour une meilleure lisibilité
+    final buttonTextColor = Colors.white;
+
     return Obx(
       () => SizedBox(
         width: double.infinity,
@@ -411,33 +483,45 @@ class CompleteProfileView extends GetView<CompleteProfileController> {
               : () => controller.saveProfile(),
           icon: controller.isLoading.value
               ? SizedBox(
-                  width: 20,
-                  height: 20,
+                  width: deviceType == DeviceType.mobile ? 20 : 24,
+                  height: deviceType == DeviceType.mobile ? 20 : 24,
                   child: CircularProgressIndicator(
                     strokeWidth: 2,
                     valueColor: AlwaysStoppedAnimation<Color>(
-                      Colors.white,
+                      buttonTextColor,
                     ),
                   ),
                 )
-              : Icon(Icons.check_circle_outline),
+              : Icon(
+                  Icons.check_circle_outline,
+                  size: deviceType == DeviceType.mobile ? 20 : 24,
+                ),
           label: Text(
             controller.isLoading.value
                 ? 'Enregistrement...'
                 : 'Enregistrer le profil',
-            style: context.button.copyWith(
+            style: context.textStyle(
+              deviceType == DeviceType.mobile
+                  ? FontSizeType.button
+                  : FontSizeType.subtitle1,
               fontWeight: FontWeight.w600,
+              color: buttonTextColor,
             ),
           ),
           style: ElevatedButton.styleFrom(
             backgroundColor: AppThemeSystem.primaryColor,
-            foregroundColor: Colors.white,
-            disabledBackgroundColor: AppThemeSystem.grey400,
-            disabledForegroundColor: Colors.white.withValues(alpha: 0.6),
+            foregroundColor: buttonTextColor,
+            disabledBackgroundColor: isDark
+                ? AppThemeSystem.grey700
+                : AppThemeSystem.grey400,
+            disabledForegroundColor: isDark
+                ? AppThemeSystem.grey500
+                : Colors.white.withValues(alpha: 0.6),
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: context.borderRadius(BorderRadiusType.medium),
             ),
-            elevation: 2,
+            elevation: isDark ? 4 : 2,
+            shadowColor: AppThemeSystem.primaryColor.withValues(alpha: 0.4),
           ),
         ),
       ),

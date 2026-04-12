@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../../../core/utils/app_theme_system.dart';
 import '../controllers/store_management_controller.dart';
 import '../models/store_models.dart';
+import 'edit_store_view.dart';
 
 class StoreManagementView extends GetView<StoreManagementController> {
   const StoreManagementView({super.key});
@@ -176,6 +177,7 @@ class _BannerItem extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
                     banner.title,
@@ -183,19 +185,25 @@ class _BannerItem extends StatelessWidget {
                       color: Colors.white,
                       fontWeight: FontWeight.bold,
                     ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: 4),
-                  Text(
-                    banner.description,
-                    style: context.body2.copyWith(
-                      color: Colors.white.withValues(alpha: 0.9),
+                  Flexible(
+                    child: Text(
+                      banner.description,
+                      style: context.body2.copyWith(
+                        color: Colors.white.withValues(alpha: 0.9),
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 8),
                   Container(
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 8,
+                      horizontal: 12,
+                      vertical: 6,
                     ),
                     decoration: BoxDecoration(
                       color: Colors.white,
@@ -212,10 +220,11 @@ class _BannerItem extends StatelessWidget {
                 ],
               ),
             ),
+            const SizedBox(width: 8),
             Icon(
               Icons.arrow_forward_ios,
               color: Colors.white,
-              size: 32,
+              size: 28,
             ),
           ],
         ),
@@ -400,118 +409,159 @@ class _CertificationCard extends GetView<StoreManagementController> {
       final cert = controller.certification.value;
       if (cert == null) return const SizedBox.shrink();
 
+      // Si certifié : afficher un badge élégant
+      if (cert.isCertified) {
+        return Container(
+          padding: EdgeInsets.all(context.horizontalPadding),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [
+                const Color(0xFF1DA1F2).withValues(alpha: 0.1),
+                const Color(0xFF0D7FC6).withValues(alpha: 0.05),
+              ],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: context.borderRadius(BorderRadiusType.medium),
+            border: Border.all(
+              color: const Color(0xFF1DA1F2).withValues(alpha: 0.3),
+              width: 1.5,
+            ),
+          ),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1DA1F2),
+                  borderRadius: context.borderRadius(BorderRadiusType.small),
+                ),
+                child: const Icon(
+                  Icons.verified,
+                  color: Colors.white,
+                  size: 28,
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Text(
+                          'Boutique Certifiée',
+                          style: context.h6.copyWith(
+                            fontWeight: FontWeight.bold,
+                            color: const Color(0xFF1DA1F2),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Icon(
+                          Icons.check_circle,
+                          color: const Color(0xFF1DA1F2),
+                          size: 18,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Votre boutique bénéficie d\'une confiance accrue',
+                      style: context.caption.copyWith(
+                        color: context.secondaryTextColor,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      }
+
+      // Si non certifié : afficher comme une pub attractive
       return Container(
         padding: EdgeInsets.all(context.horizontalPadding),
         decoration: BoxDecoration(
-          color: context.surfaceColor,
+          gradient: LinearGradient(
+            colors: [
+              AppThemeSystem.primaryColor.withValues(alpha: 0.1),
+              AppThemeSystem.primaryColor.withValues(alpha: 0.05),
+            ],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
           borderRadius: context.borderRadius(BorderRadiusType.medium),
-          border: Border.all(color: context.borderColor),
+          border: Border.all(
+            color: AppThemeSystem.primaryColor.withValues(alpha: 0.3),
+          ),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
-                Icon(
-                  cert.isCertified ? Icons.verified : Icons.verified_outlined,
-                  color: cert.isCertified
-                      ? AppThemeSystem.successColor
-                      : AppThemeSystem.grey400,
-                  size: 24,
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: AppThemeSystem.primaryColor.withValues(alpha: 0.2),
+                    borderRadius: context.borderRadius(BorderRadiusType.small),
+                  ),
+                  child: Icon(
+                    Icons.verified_outlined,
+                    color: AppThemeSystem.primaryColor,
+                    size: 32,
+                  ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: Text(
-                    'Certification',
-                    style: context.h6.copyWith(fontWeight: FontWeight.bold),
-                  ),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 6,
-                  ),
-                  decoration: BoxDecoration(
-                    color: cert.isCertified
-                        ? AppThemeSystem.successColor.withValues(alpha: 0.1)
-                        : AppThemeSystem.grey200,
-                    borderRadius: context.borderRadius(BorderRadiusType.small),
-                    border: Border.all(
-                      color: cert.isCertified
-                          ? AppThemeSystem.successColor
-                          : AppThemeSystem.grey400,
-                    ),
-                  ),
-                  child: Text(
-                    cert.status.label,
-                    style: context.caption.copyWith(
-                      color: cert.isCertified
-                          ? AppThemeSystem.successColor
-                          : context.secondaryTextColor,
-                      fontWeight: FontWeight.w600,
-                    ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Devenez une boutique certifiée',
+                        style: context.h6.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Gagnez la confiance de vos clients',
+                        style: context.caption.copyWith(
+                          color: context.secondaryTextColor,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ],
             ),
             SizedBox(height: context.elementSpacing),
-            if (cert.isCertified && cert.expiryDate != null) ...[
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: cert.isExpiringSoon
-                      ? AppThemeSystem.warningColor.withValues(alpha: 0.1)
-                      : AppThemeSystem.successColor.withValues(alpha: 0.1),
-                  borderRadius: context.borderRadius(BorderRadiusType.small),
-                ),
-                child: Row(
-                  children: [
-                    Icon(
-                      cert.isExpiringSoon
-                          ? Icons.warning_amber_rounded
-                          : Icons.check_circle,
-                      color: cert.isExpiringSoon
-                          ? AppThemeSystem.warningColor
-                          : AppThemeSystem.successColor,
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        cert.isExpiringSoon
-                            ? 'Expire dans ${cert.daysUntilExpiry} jours'
-                            : 'Valide jusqu\'au ${DateFormat('dd/MM/yyyy').format(cert.expiryDate!)}',
-                        style: context.body2,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              SizedBox(height: context.elementSpacing),
-            ] else ...[
-              Text(
-                'Obtenez la certification pour gagner la confiance de vos clients et augmenter vos ventes.',
-                style: context.body2.copyWith(
-                  color: context.secondaryTextColor,
-                ),
-              ),
-              SizedBox(height: context.elementSpacing),
-            ],
+            // Avantages
+            _CertificationBenefit(
+              icon: Icons.trending_up,
+              text: '+300% de visibilité sur vos produits',
+            ),
+            const SizedBox(height: 8),
+            _CertificationBenefit(
+              icon: Icons.star,
+              text: 'Badge bleu de confiance affiché',
+            ),
+            const SizedBox(height: 8),
+            _CertificationBenefit(
+              icon: Icons.security,
+              text: 'Priorité dans les résultats de recherche',
+            ),
+            SizedBox(height: context.elementSpacing),
             SizedBox(
               width: double.infinity,
               child: ElevatedButton.icon(
                 onPressed: controller.requestCertification,
-                icon: Icon(
-                  cert.isCertified ? Icons.refresh : Icons.verified,
-                ),
-                label: Text(
-                  cert.isCertified
-                      ? 'Renouveler la certification'
-                      : 'Demander la certification',
-                ),
+                icon: const Icon(Icons.verified),
+                label: const Text('Demander la certification'),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: cert.isCertified
-                      ? AppThemeSystem.successColor
-                      : AppThemeSystem.primaryColor,
+                  backgroundColor: AppThemeSystem.primaryColor,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
                 ),
               ),
             ),
@@ -519,6 +569,39 @@ class _CertificationCard extends GetView<StoreManagementController> {
         ),
       );
     });
+  }
+}
+
+/// Bénéfice de certification
+class _CertificationBenefit extends StatelessWidget {
+  final IconData icon;
+  final String text;
+
+  const _CertificationBenefit({
+    required this.icon,
+    required this.text,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Icon(
+          icon,
+          size: 16,
+          color: AppThemeSystem.primaryColor,
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            text,
+            style: context.caption.copyWith(
+              color: context.primaryTextColor,
+            ),
+          ),
+        ),
+      ],
+    );
   }
 }
 
@@ -693,11 +776,6 @@ class _InventoryCard extends GetView<StoreManagementController> {
                   'Inventaire',
                   style: context.h6.copyWith(fontWeight: FontWeight.bold),
                 ),
-              ),
-              IconButton(
-                onPressed: controller.addInventoryEntry,
-                icon: const Icon(Icons.add_circle),
-                color: AppThemeSystem.primaryColor,
               ),
             ],
           ),
@@ -896,110 +974,185 @@ class _StoreEditorCard extends GetView<StoreManagementController> {
           children: [
             Row(
               children: [
-                Icon(
-                  Icons.edit,
-                  color: AppThemeSystem.primaryColor,
-                  size: 24,
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: AppThemeSystem.primaryColor.withValues(alpha: 0.1),
+                    borderRadius: context.borderRadius(BorderRadiusType.small),
+                  ),
+                  child: Icon(
+                    Icons.storefront,
+                    color: AppThemeSystem.primaryColor,
+                    size: 20,
+                  ),
                 ),
                 const SizedBox(width: 12),
-                Text(
-                  'Informations de la boutique',
-                  style: context.h6.copyWith(fontWeight: FontWeight.bold),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Informations de la boutique',
+                        style: context.h6.copyWith(fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Gérez les détails de votre boutique',
+                        style: context.caption.copyWith(
+                          color: context.secondaryTextColor,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
-            SizedBox(height: context.elementSpacing),
-            // Logo
-            Center(
-              child: GestureDetector(
-                onTap: controller.pickLogo,
-                child: Stack(
-                  children: [
-                    Container(
-                      width: 100,
-                      height: 100,
-                      decoration: BoxDecoration(
-                        color: AppThemeSystem.grey200,
-                        borderRadius:
-                            context.borderRadius(BorderRadiusType.medium),
-                        border: Border.all(
-                          color: AppThemeSystem.primaryColor,
-                          width: 2,
-                        ),
-                      ),
-                      child: controller.selectedLogo.value != null
-                          ? ClipRRect(
-                              borderRadius:
-                                  context.borderRadius(BorderRadiusType.medium),
-                              child: Image.file(
-                                controller.selectedLogo.value!,
-                                fit: BoxFit.cover,
-                              ),
-                            )
-                          : Icon(
-                              Icons.store,
-                              size: 50,
-                              color: AppThemeSystem.primaryColor,
+            SizedBox(height: context.sectionSpacing),
+            // Logo avec carte
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: context.backgroundColor,
+                borderRadius: context.borderRadius(BorderRadiusType.small),
+                border: Border.all(color: context.borderColor),
+              ),
+              child: Row(
+                children: [
+                  GestureDetector(
+                    onTap: controller.pickLogo,
+                    child: Stack(
+                      children: [
+                        Container(
+                          width: 80,
+                          height: 80,
+                          decoration: BoxDecoration(
+                            color: AppThemeSystem.grey200,
+                            borderRadius:
+                                context.borderRadius(BorderRadiusType.small),
+                            border: Border.all(
+                              color: AppThemeSystem.primaryColor.withValues(alpha: 0.3),
+                              width: 2,
                             ),
-                    ),
-                    Positioned(
-                      bottom: 0,
-                      right: 0,
-                      child: Container(
-                        padding: const EdgeInsets.all(6),
-                        decoration: BoxDecoration(
-                          color: AppThemeSystem.primaryColor,
-                          shape: BoxShape.circle,
+                          ),
+                          child: controller.selectedLogo.value != null
+                              ? ClipRRect(
+                                  borderRadius:
+                                      context.borderRadius(BorderRadiusType.small),
+                                  child: Image.file(
+                                    controller.selectedLogo.value!,
+                                    fit: BoxFit.cover,
+                                  ),
+                                )
+                              : store.logoUrl != null && store.logoUrl!.isNotEmpty
+                                  ? ClipRRect(
+                                      borderRadius:
+                                          context.borderRadius(BorderRadiusType.small),
+                                      child: Image.network(
+                                        store.logoUrl!,
+                                        fit: BoxFit.cover,
+                                        errorBuilder: (context, error, stackTrace) {
+                                          return Icon(
+                                            Icons.store,
+                                            size: 40,
+                                            color: AppThemeSystem.primaryColor,
+                                          );
+                                        },
+                                      ),
+                                    )
+                                  : Icon(
+                                      Icons.store,
+                                      size: 40,
+                                      color: AppThemeSystem.primaryColor,
+                                    ),
                         ),
-                        child: const Icon(
-                          Icons.camera_alt,
-                          color: Colors.white,
-                          size: 16,
+                        Positioned(
+                          bottom: -4,
+                          right: -4,
+                          child: Container(
+                            padding: const EdgeInsets.all(6),
+                            decoration: BoxDecoration(
+                              color: AppThemeSystem.primaryColor,
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: context.backgroundColor,
+                                width: 2,
+                              ),
+                            ),
+                            child: const Icon(
+                              Icons.camera_alt,
+                              color: Colors.white,
+                              size: 12,
+                            ),
+                          ),
                         ),
-                      ),
+                      ],
                     ),
-                  ],
-                ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Logo de la boutique',
+                          style: context.body2.copyWith(
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Tapez pour modifier',
+                          style: context.caption.copyWith(
+                            color: AppThemeSystem.primaryColor,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
             ),
             SizedBox(height: context.elementSpacing),
-            // Informations
+            // Informations avec valeurs par défaut si vide
             _InfoRow(
               icon: Icons.store,
               label: 'Nom',
-              value: store.name,
+              value: store.name.isNotEmpty ? store.name : 'Non renseigné',
+              isEmpty: store.name.isEmpty,
             ),
+            const SizedBox(height: 8),
             _InfoRow(
-              icon: Icons.location_on,
+              icon: Icons.location_city,
               label: 'Ville',
-              value: store.city,
+              value: store.city.isNotEmpty ? store.city : 'Non renseignée',
+              isEmpty: store.city.isEmpty,
             ),
+            const SizedBox(height: 8),
             _InfoRow(
               icon: Icons.home,
               label: 'Adresse',
-              value: store.address,
+              value: store.address.isNotEmpty ? store.address : 'Non renseignée',
+              isEmpty: store.address.isEmpty,
             ),
+            const SizedBox(height: 8),
             _InfoRow(
               icon: Icons.phone,
               label: 'Téléphone',
-              value: store.phone,
+              value: store.phone.isNotEmpty ? store.phone : 'Non renseigné',
+              isEmpty: store.phone.isEmpty,
             ),
-            SizedBox(height: context.elementSpacing),
+            SizedBox(height: context.sectionSpacing),
             SizedBox(
               width: double.infinity,
               child: ElevatedButton.icon(
                 onPressed: () {
-                  // TODO: Ouvrir un formulaire d'édition
-                  Get.snackbar(
-                    'Édition',
-                    'Formulaire d\'édition en cours de développement',
-                    snackPosition: SnackPosition.BOTTOM,
-                  );
+                  Get.to(() => const EditStoreView());
                 },
-                icon: const Icon(Icons.edit),
+                icon: const Icon(Icons.edit_outlined),
                 label: const Text('Modifier les informations'),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppThemeSystem.primaryColor,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
                 ),
               ),
             ),
@@ -1015,20 +1168,37 @@ class _InfoRow extends StatelessWidget {
   final IconData icon;
   final String label;
   final String value;
+  final bool isEmpty;
 
   const _InfoRow({
     required this.icon,
     required this.label,
     required this.value,
+    this.isEmpty = false,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: context.backgroundColor,
+        borderRadius: context.borderRadius(BorderRadiusType.small),
+        border: Border.all(
+          color: isEmpty
+              ? AppThemeSystem.warningColor.withValues(alpha: 0.3)
+              : context.borderColor,
+        ),
+      ),
       child: Row(
         children: [
-          Icon(icon, size: 20, color: context.secondaryTextColor),
+          Icon(
+            icon,
+            size: 20,
+            color: isEmpty
+                ? AppThemeSystem.warningColor
+                : context.secondaryTextColor,
+          ),
           const SizedBox(width: 12),
           Text(
             '$label:',
@@ -1042,9 +1212,13 @@ class _InfoRow extends StatelessWidget {
             child: Text(
               value,
               style: context.body2.copyWith(
-                fontWeight: FontWeight.w600,
+                fontWeight: isEmpty ? FontWeight.normal : FontWeight.w600,
+                fontStyle: isEmpty ? FontStyle.italic : FontStyle.normal,
+                color: isEmpty
+                    ? AppThemeSystem.warningColor
+                    : context.primaryTextColor,
               ),
-              maxLines: 1,
+              maxLines: 2,
               overflow: TextOverflow.ellipsis,
             ),
           ),

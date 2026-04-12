@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:intl/intl.dart';
 import '../../../core/utils/app_theme_system.dart';
 import '../controllers/package_subscription_controller.dart';
 
@@ -16,86 +15,160 @@ class PackageSubscriptionView extends GetView<PackageSubscriptionController> {
         elevation: 0,
         leading: IconButton(
           icon: Icon(
-            Icons.arrow_back_ios,
+            Icons.arrow_back_ios_rounded,
             color: context.primaryTextColor,
+            size: 20,
           ),
           onPressed: () => Get.back(),
         ),
+        centerTitle: false,
         title: Text(
-          'Choisir un package de stockage',
-          style: context.h5.copyWith(
-            fontWeight: FontWeight.w600,
+          'Sélectionner un Plan',
+          style: context.h4.copyWith(
+            fontWeight: FontWeight.w700,
           ),
         ),
       ),
-      body: Obx(() {
-        if (controller.isLoading.value && controller.packages.isEmpty) {
-          return const Center(
-            child: CircularProgressIndicator(
-              valueColor: AlwaysStoppedAnimation<Color>(
-                AppThemeSystem.primaryColor,
+      body: SafeArea(
+        bottom: true,
+        child: Obx(() {
+          if (controller.isLoading.value && controller.packages.isEmpty) {
+            return Center(
+              child: CircularProgressIndicator(
+                valueColor: AlwaysStoppedAnimation<Color>(
+                  AppThemeSystem.primaryColor,
+                ),
+                strokeWidth: 3,
+              ),
+            );
+          }
+
+          return RefreshIndicator(
+            onRefresh: controller.refreshPackages,
+            color: AppThemeSystem.primaryColor,
+            child: SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              child: Padding(
+                padding: EdgeInsets.only(
+                  left: context.horizontalPadding,
+                  right: context.horizontalPadding,
+                  top: context.horizontalPadding,
+                  bottom: MediaQuery.of(context).padding.bottom + context.horizontalPadding,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Wallet Balance Section
+                    // _buildWalletSection(context),
+                    // SizedBox(height: context.sectionSpacing),
+
+                    // Current Package Section (if exists)
+                    if (controller.hasPackage.value) ...[
+                      _buildCurrentPackageSection(context),
+                      SizedBox(height: context.sectionSpacing),
+                    ],
+
+                    // Available Packages
+                    if (controller.packages.isEmpty)
+                      Center(
+                        child: Padding(
+                          padding: const EdgeInsets.all(48.0),
+                          child: Column(
+                            children: [
+                              Icon(
+                                Icons.inventory_2_outlined,
+                                size: 64,
+                                color: context.secondaryTextColor,
+                              ),
+                              const SizedBox(height: 16),
+                              Text(
+                                'Aucun package disponible',
+                                style: context.body1.copyWith(
+                                  color: context.secondaryTextColor,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      )
+                    else
+                      _buildPackagesList(context),
+                  ],
+                ),
               ),
             ),
           );
-        }
-
-        return RefreshIndicator(
-          onRefresh: controller.refreshPackages,
-          color: AppThemeSystem.primaryColor,
-          child: SingleChildScrollView(
-            physics: const AlwaysScrollableScrollPhysics(),
-            padding: EdgeInsets.all(context.horizontalPadding),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Current Package Section (if exists)
-                if (controller.hasPackage.value) ...[
-                  _buildCurrentPackageSection(context),
-                  SizedBox(height: context.sectionSpacing),
-                ],
-
-                // Available Packages Title
-                Text(
-                  controller.hasPackage.value
-                      ? 'Packages disponibles'
-                      : 'Choisissez votre package',
-                  style: context.h5.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                SizedBox(height: context.elementSpacing),
-
-                // Packages Grid
-                if (controller.packages.isEmpty)
-                  Center(
-                    child: Padding(
-                      padding: const EdgeInsets.all(32.0),
-                      child: Text(
-                        'Aucun package disponible',
-                        style: context.body1.copyWith(
-                          color: context.secondaryTextColor,
-                        ),
-                      ),
-                    ),
-                  )
-                else
-                  _buildPackagesGrid(context),
-              ],
-            ),
-          ),
-        );
-      }),
+        }),
+      ),
     );
   }
 
-  /// Build current package section
+  /// Build wallet balance row - method kept for future use
+  // ignore: unused_element
+  Widget _buildWalletBalanceRow(
+    BuildContext context,
+    String label,
+    double balance,
+    Color color,
+  ) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.2),
+          width: 1,
+        ),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: color,
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Icon(
+                  label == 'FreeMoPay'
+                      ? Icons.phone_android_rounded
+                      : Icons.payment_rounded,
+                  color: Colors.white,
+                  size: 16,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Text(
+                label,
+                style: context.body2.copyWith(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+          Text(
+            controller.formatCurrency(balance),
+            style: context.subtitle1.copyWith(
+              color: Colors.white,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Build current package section with modern design
   Widget _buildCurrentPackageSection(BuildContext context) {
     final vendorPackage = controller.currentVendorPackage.value;
     if (vendorPackage == null) return const SizedBox.shrink();
 
     final storageTotalMb = (vendorPackage['storage_total_mb'] ?? 0).toDouble();
     final storageUsedMb = (vendorPackage['storage_used_mb'] ?? 0).toDouble();
-    final storageRemainingMb = (vendorPackage['storage_remaining_mb'] ?? 0).toDouble();
     final storagePercentageUsed = (vendorPackage['storage_percentage_used'] ?? 0).toDouble();
     final daysRemaining = vendorPackage['days_remaining'] ?? 0;
     final packageData = vendorPackage['package'];
@@ -103,24 +176,24 @@ class PackageSubscriptionView extends GetView<PackageSubscriptionController> {
     return Container(
       padding: EdgeInsets.all(context.horizontalPadding),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            AppThemeSystem.primaryColor.withValues(alpha: 0.1),
-            AppThemeSystem.successColor.withValues(alpha: 0.1),
-          ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: context.borderRadius(BorderRadiusType.medium),
+        color: context.surfaceColor,
+        borderRadius: context.borderRadius(BorderRadiusType.large),
         border: Border.all(
           color: AppThemeSystem.successColor,
           width: 2,
         ),
+        boxShadow: [
+          BoxShadow(
+            color: AppThemeSystem.successColor.withValues(alpha: 0.15),
+            blurRadius: 16,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header with badge
+          // Header
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -129,12 +202,19 @@ class PackageSubscriptionView extends GetView<PackageSubscriptionController> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
+                      'Plan Actuel',
+                      style: context.caption.copyWith(
+                        color: context.secondaryTextColor,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
                       packageData?['name'] ?? 'Package Actuel',
                       style: context.h6.copyWith(
                         fontWeight: FontWeight.bold,
                       ),
                     ),
-                    SizedBox(height: 4),
+                    const SizedBox(height: 8),
                     Text(
                       packageData?['formatted_price'] ?? '',
                       style: context.subtitle1.copyWith(
@@ -163,37 +243,72 @@ class PackageSubscriptionView extends GetView<PackageSubscriptionController> {
           ),
           SizedBox(height: context.elementSpacing),
 
-          // Storage Progress Bar
-          ClipRRect(
-            borderRadius: BorderRadius.circular(8),
-            child: LinearProgressIndicator(
-              value: storagePercentageUsed / 100,
-              backgroundColor: context.borderColor,
-              valueColor: AlwaysStoppedAnimation<Color>(
-                storagePercentageUsed > 80
-                    ? AppThemeSystem.errorColor
-                    : storagePercentageUsed > 50
-                        ? AppThemeSystem.warningColor
-                        : AppThemeSystem.successColor,
-              ),
-              minHeight: 12,
+          // Storage Stats
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: AppThemeSystem.primaryColor.withValues(alpha: 0.05),
+              borderRadius: BorderRadius.circular(12),
             ),
-          ),
-          SizedBox(height: 12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Stockage utilisé',
+                      style: context.body2.copyWith(
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    Text(
+                      '${storagePercentageUsed.toStringAsFixed(1)}%',
+                      style: context.subtitle1.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: AppThemeSystem.primaryColor,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
 
-          // Storage Info
-          Text(
-            '${storageUsedMb.toStringAsFixed(1)} MB utilisés sur ${storageTotalMb.toStringAsFixed(0)} MB (${storagePercentageUsed.toStringAsFixed(1)}%)',
-            style: context.body2.copyWith(
-              color: context.secondaryTextColor,
-            ),
-          ),
-          SizedBox(height: 4),
-          Text(
-            'Espace restant : ${storageRemainingMb.toStringAsFixed(1)} MB',
-            style: context.caption.copyWith(
-              color: AppThemeSystem.successColor,
-              fontWeight: FontWeight.w600,
+                // Progress Bar
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: LinearProgressIndicator(
+                    value: storagePercentageUsed / 100,
+                    backgroundColor: context.borderColor,
+                    valueColor: AlwaysStoppedAnimation<Color>(
+                      storagePercentageUsed > 80
+                          ? AppThemeSystem.errorColor
+                          : storagePercentageUsed > 50
+                              ? AppThemeSystem.warningColor
+                              : AppThemeSystem.successColor,
+                    ),
+                    minHeight: 8,
+                  ),
+                ),
+                const SizedBox(height: 12),
+
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      '${storageUsedMb.toStringAsFixed(1)} MB',
+                      style: context.caption.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    Text(
+                      '${storageTotalMb.toStringAsFixed(0)} MB',
+                      style: context.caption.copyWith(
+                        color: context.secondaryTextColor,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ),
           ),
 
@@ -201,23 +316,23 @@ class PackageSubscriptionView extends GetView<PackageSubscriptionController> {
           if (daysRemaining <= 7)
             Container(
               margin: const EdgeInsets.only(top: 12),
-              padding: const EdgeInsets.all(8),
+              padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
                 color: AppThemeSystem.warningColor.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(10),
                 border: Border.all(
                   color: AppThemeSystem.warningColor,
-                  width: 1,
+                  width: 1.5,
                 ),
               ),
               child: Row(
                 children: [
                   Icon(
-                    Icons.access_time,
-                    size: 16,
+                    Icons.access_time_rounded,
+                    size: 18,
                     color: AppThemeSystem.warningColor,
                   ),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: 10),
                   Expanded(
                     child: Text(
                       'Expire dans $daysRemaining jour${daysRemaining > 1 ? "s" : ""}',
@@ -235,373 +350,524 @@ class PackageSubscriptionView extends GetView<PackageSubscriptionController> {
     );
   }
 
-  /// Build packages grid
-  Widget _buildPackagesGrid(BuildContext context) {
-    final crossAxisCount = context.deviceType == DeviceType.mobile ? 1 : 2;
-    final spacing = context.elementSpacing;
-
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: crossAxisCount,
-        crossAxisSpacing: spacing,
-        mainAxisSpacing: spacing,
-        childAspectRatio: context.deviceType == DeviceType.mobile ? 1.2 : 0.9,
+  /// Build packages list with modern card design
+  Widget _buildPackagesList(BuildContext context) {
+    return Column(
+      children: List.generate(
+        controller.packages.length,
+        (index) {
+          final package = controller.packages[index];
+          return Padding(
+            padding: EdgeInsets.only(bottom: index < controller.packages.length - 1 ? 16 : 0),
+            child: _buildModernPackageCard(context, package),
+          );
+        },
       ),
-      itemCount: controller.packages.length,
-      itemBuilder: (context, index) {
-        final package = controller.packages[index];
-        return _buildPackageCard(context, package);
-      },
     );
   }
 
-  /// Build a single package card
-  Widget _buildPackageCard(BuildContext context, Map<String, dynamic> package) {
+  /// Build modern package card inspired by the reference image
+  Widget _buildModernPackageCard(BuildContext context, Map<String, dynamic> package) {
     final isPopular = package['is_popular'] ?? false;
     final benefits = package['benefits'] as List?;
+    final name = package['name'] ?? '';
+    final price = package['formatted_price'] ?? '';
+    final storage = package['formatted_storage_size'] ?? '';
+    final duration = package['formatted_duration'] ?? '';
 
-    return GestureDetector(
-      onTap: () => _showSubscriptionDialog(context, package),
-      child: Container(
-        decoration: BoxDecoration(
-          color: context.surfaceColor,
-          borderRadius: context.borderRadius(BorderRadiusType.medium),
-          border: Border.all(
-            color: isPopular
-                ? AppThemeSystem.primaryColor
-                : context.borderColor,
-            width: isPopular ? 2 : 1,
-          ),
-          boxShadow: isPopular
-              ? [
-                  BoxShadow(
-                    color: AppThemeSystem.primaryColor.withValues(alpha: 0.2),
-                    blurRadius: 8,
-                    offset: const Offset(0, 4),
-                  ),
-                ]
-              : null,
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Header with popular badge
-            if (isPopular)
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                decoration: BoxDecoration(
-                  color: AppThemeSystem.primaryColor,
-                  borderRadius: BorderRadius.only(
-                    topLeft: Radius.circular(context.deviceType == DeviceType.mobile ? 12 : 16),
-                    topRight: Radius.circular(context.deviceType == DeviceType.mobile ? 12 : 16),
-                  ),
-                ),
-                child: Text(
-                  'POPULAIRE',
-                  textAlign: TextAlign.center,
-                  style: context.caption.copyWith(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 1.2,
-                  ),
-                ),
+    return Obx(() {
+      final isSelected = controller.selectedPackage.value?['id'] == package['id'];
+
+      return GestureDetector(
+        onTap: () => controller.selectPackage(package),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          padding: EdgeInsets.all(context.horizontalPadding),
+          decoration: BoxDecoration(
+            color: context.surfaceColor,
+            borderRadius: context.borderRadius(BorderRadiusType.large),
+            border: Border.all(
+              color: isPopular
+                  ? AppThemeSystem.warningColor
+                  : isSelected
+                      ? AppThemeSystem.primaryColor
+                      : context.borderColor,
+              width: isPopular || isSelected ? 2.5 : 1.5,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: isPopular
+                    ? AppThemeSystem.warningColor.withValues(alpha: 0.15)
+                    : isSelected
+                        ? AppThemeSystem.primaryColor.withValues(alpha: 0.15)
+                        : Colors.black.withValues(alpha: 0.05),
+                blurRadius: isPopular || isSelected ? 20 : 10,
+                offset: const Offset(0, 4),
               ),
-
-            // Content
-            Expanded(
-              child: Padding(
-                padding: EdgeInsets.all(context.horizontalPadding),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Package name
-                    Text(
-                      package['name'] ?? '',
-                      style: context.h6.copyWith(
-                        fontWeight: FontWeight.bold,
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Header with radio and popular badge
+              Row(
+                children: [
+                  // Radio button indicator
+                  Container(
+                    width: 24,
+                    height: 24,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: isSelected
+                            ? AppThemeSystem.primaryColor
+                            : context.borderColor,
+                        width: 2,
                       ),
+                      color: isSelected
+                          ? AppThemeSystem.primaryColor
+                          : Colors.transparent,
                     ),
-                    SizedBox(height: context.elementSpacing / 2),
+                    child: isSelected
+                        ? const Center(
+                            child: Icon(
+                              Icons.circle,
+                              size: 12,
+                              color: Colors.white,
+                            ),
+                          )
+                        : null,
+                  ),
+                  const SizedBox(width: 12),
 
-                    // Price
-                    Text(
-                      package['formatted_price'] ?? '',
-                      style: context.h5.copyWith(
-                        color: AppThemeSystem.primaryColor,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    SizedBox(height: context.elementSpacing / 2),
-
-                    // Storage and duration
-                    Row(
+                  // Plan name and subtitle
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Icon(
-                          Icons.storage,
-                          size: 16,
-                          color: context.secondaryTextColor,
-                        ),
-                        const SizedBox(width: 4),
                         Text(
-                          package['formatted_storage_size'] ?? '',
-                          style: context.body2.copyWith(
-                            color: context.secondaryTextColor,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.access_time,
-                          size: 16,
-                          color: context.secondaryTextColor,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          package['formatted_duration'] ?? '',
-                          style: context.body2.copyWith(
-                            color: context.secondaryTextColor,
-                          ),
-                        ),
-                      ],
-                    ),
-
-                    // Benefits
-                    if (benefits != null && benefits.isNotEmpty) ...[
-                      SizedBox(height: context.elementSpacing),
-                      Expanded(
-                        child: ListView.builder(
-                          shrinkWrap: true,
-                          physics: const NeverScrollableScrollPhysics(),
-                          itemCount: benefits.length > 3 ? 3 : benefits.length,
-                          itemBuilder: (context, index) {
-                            return Padding(
-                              padding: const EdgeInsets.only(bottom: 4),
-                              child: Row(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Icon(
-                                    Icons.check_circle,
-                                    size: 16,
-                                    color: AppThemeSystem.successColor,
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Expanded(
-                                    child: Text(
-                                      benefits[index].toString(),
-                                      style: context.caption.copyWith(
-                                        color: context.secondaryTextColor,
-                                      ),
-                                      maxLines: 2,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            );
-                          },
-                        ),
-                      ),
-                    ],
-
-                    const Spacer(),
-
-                    // Choose button
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        onPressed: () => _showSubscriptionDialog(context, package),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: isPopular
-                              ? AppThemeSystem.primaryColor
-                              : context.surfaceColor,
-                          foregroundColor: isPopular
-                              ? Colors.white
-                              : AppThemeSystem.primaryColor,
-                          side: BorderSide(
-                            color: AppThemeSystem.primaryColor,
-                            width: isPopular ? 0 : 1,
-                          ),
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                        ),
-                        child: Text(
-                          'Choisir',
-                          style: context.button.copyWith(
-                            color: isPopular ? Colors.white : AppThemeSystem.primaryColor,
+                          name,
+                          style: context.h6.copyWith(
                             fontWeight: FontWeight.bold,
                           ),
                         ),
+                        const SizedBox(height: 2),
+                        Text(
+                          'pour Stockage',
+                          style: context.body2.copyWith(
+                            color: context.secondaryTextColor,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  // Popular badge
+                  if (isPopular)
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: AppThemeSystem.warningColor,
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(
+                        'POPULAIRE',
+                        style: context.caption.copyWith(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+
+              SizedBox(height: context.elementSpacing),
+
+              // Price and period
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    price,
+                    style: context.h4.copyWith(
+                      color: AppThemeSystem.primaryColor,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 2),
+                    child: Text(
+                      duration,
+                      style: context.body2.copyWith(
+                        color: context.secondaryTextColor,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+
+              // Storage info
+              SizedBox(height: context.elementSpacing),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: AppThemeSystem.primaryColor.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.storage_rounded,
+                      size: 16,
+                      color: AppThemeSystem.primaryColor,
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      storage,
+                      style: context.caption.copyWith(
+                        color: AppThemeSystem.primaryColor,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                   ],
                 ),
+              ),
+
+              // Benefits
+              if (benefits != null && benefits.isNotEmpty) ...[
+                SizedBox(height: context.elementSpacing),
+                ...List.generate(
+                  benefits.length > 4 ? 4 : benefits.length,
+                  (index) => Padding(
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(
+                          Icons.check_circle_rounded,
+                          size: 18,
+                          color: AppThemeSystem.successColor,
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            benefits[index].toString(),
+                            style: context.body2.copyWith(
+                              color: context.secondaryTextColor,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+
+              // Subscribe button
+              SizedBox(height: context.elementSpacing),
+              SizedBox(
+                width: double.infinity,
+                height: context.buttonHeight,
+                child: ElevatedButton(
+                  onPressed: () => _showPaymentMethodBottomSheet(context, package),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: isPopular || isSelected
+                        ? AppThemeSystem.primaryColor
+                        : context.surfaceColor,
+                    foregroundColor: isPopular || isSelected
+                        ? Colors.white
+                        : AppThemeSystem.primaryColor,
+                    elevation: 0,
+                    side: BorderSide(
+                      color: AppThemeSystem.primaryColor,
+                      width: isPopular || isSelected ? 0 : 1.5,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: context.borderRadius(BorderRadiusType.medium),
+                    ),
+                  ),
+                  child: Text(
+                    'Choisir ce plan',
+                    style: context.button.copyWith(
+                      color: isPopular || isSelected
+                          ? Colors.white
+                          : AppThemeSystem.primaryColor,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    });
+  }
+
+  /// Show payment method selection bottom sheet
+  void _showPaymentMethodBottomSheet(BuildContext context, Map<String, dynamic> package) {
+    controller.selectPackage(package);
+
+    // Refresh wallet data (will update automatically via Obx)
+    controller.loadWallet();
+
+    final price = (package['price'] ?? 0).toDouble();
+
+    Get.bottomSheet(
+      Container(
+        padding: EdgeInsets.only(
+          left: context.horizontalPadding,
+          right: context.horizontalPadding,
+          top: context.verticalPadding,
+          bottom: context.bottomSheetPadding,
+        ),
+        decoration: BoxDecoration(
+          color: context.surfaceColor,
+          borderRadius: const BorderRadius.only(
+            topLeft: Radius.circular(24),
+            topRight: Radius.circular(24),
+          ),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Handle bar
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: context.borderColor,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            SizedBox(height: context.elementSpacing),
+
+            // Title
+            Text(
+              'Choisir votre méthode de paiement',
+              style: context.h6.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            SizedBox(height: context.elementSpacing / 2),
+
+            Text(
+              'Prix du package: ${controller.formatCurrency(price)}',
+              style: context.body2.copyWith(
+                color: context.secondaryTextColor,
+              ),
+            ),
+            SizedBox(height: context.sectionSpacing),
+
+            // Wallet loading indicator or options
+            Obx(() {
+              final isLoadingWallet = controller.isLoadingWallet.value;
+
+              if (isLoadingWallet) {
+                return Center(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 32.0),
+                    child: Column(
+                      children: [
+                        CircularProgressIndicator(
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            AppThemeSystem.primaryColor,
+                          ),
+                          strokeWidth: 3,
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          'Chargement des soldes...',
+                          style: context.body2.copyWith(
+                            color: context.secondaryTextColor,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }
+
+              return Column(
+                children: [
+                  // FreeMoPay Wallet Option
+                  _buildWalletOption(
+                    context,
+                    title: 'Wallet FreeMoPay',
+                    balance: controller.wallet.value?.freemopayBalance ?? 0,
+                    price: price,
+                    icon: Icons.phone_android_rounded,
+                    color: AppThemeSystem.freemopayColor,
+                    onTap: () {
+                      controller.subscribeWithWallet('freemopay');
+                    },
+                  ),
+                  SizedBox(height: context.elementSpacing),
+
+                  // PayPal Wallet Option
+                  _buildWalletOption(
+                    context,
+                    title: 'Wallet PayPal',
+                    balance: controller.wallet.value?.paypalBalance ?? 0,
+                    price: price,
+                    icon: Icons.payment_rounded,
+                    color: AppThemeSystem.paypalColor,
+                    onTap: () {
+                      controller.subscribeWithWallet('paypal');
+                    },
+                  ),
+                ],
+              );
+            }),
+            SizedBox(height: context.elementSpacing),
+
+            // Recharge Wallet Button
+            OutlinedButton(
+              onPressed: () {
+                Get.back(); // Fermer le bottom sheet
+                // Naviguer vers /home et sélectionner le tab Wallet (index 2)
+                Get.offAllNamed('/home', arguments: {'initialTab': 2});
+              },
+              style: OutlinedButton.styleFrom(
+                side: BorderSide(
+                  color: context.borderColor,
+                  width: 1.5,
+                ),
+                padding: EdgeInsets.symmetric(vertical: context.elementSpacing),
+                shape: RoundedRectangleBorder(
+                  borderRadius: context.borderRadius(BorderRadiusType.medium),
+                ),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.add_circle_outline_rounded,
+                    size: 20,
+                    color: AppThemeSystem.primaryColor,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Recharger mon wallet',
+                    style: context.button.copyWith(
+                      color: AppThemeSystem.primaryColor,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
         ),
       ),
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
     );
   }
 
-  /// Show subscription confirmation dialog
-  void _showSubscriptionDialog(BuildContext context, Map<String, dynamic> package) {
-    controller.selectPackage(package);
+  /// Build wallet option card
+  Widget _buildWalletOption(
+    BuildContext context, {
+    required String title,
+    required double balance,
+    required double price,
+    required IconData icon,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    final hasEnoughBalance = balance >= price;
 
-    Get.dialog(
-      Dialog(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
+    return Obx(() {
+      final isLoading = controller.isLoading.value;
+
+      return InkWell(
+        onTap: isLoading ? null : onTap,
+        borderRadius: context.borderRadius(BorderRadiusType.medium),
         child: Container(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
+          padding: EdgeInsets.all(context.horizontalPadding),
+          decoration: BoxDecoration(
+            color: hasEnoughBalance
+                ? color.withValues(alpha: 0.05)
+                : context.surfaceColor,
+            borderRadius: context.borderRadius(BorderRadiusType.medium),
+            border: Border.all(
+              color: hasEnoughBalance
+                  ? color
+                  : context.borderColor,
+              width: hasEnoughBalance ? 2 : 1,
+            ),
+          ),
+          child: Row(
             children: [
-              // Title
-              Text(
-                'Confirmer l\'abonnement',
-                style: context.h6.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 16),
-
-              // Package summary
+              // Icon
               Container(
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: AppThemeSystem.primaryColor.withValues(alpha: 0.1),
+                  color: color,
                   borderRadius: BorderRadius.circular(12),
                 ),
+                child: Icon(
+                  icon,
+                  color: Colors.white,
+                  size: 24,
+                ),
+              ),
+              SizedBox(width: context.elementSpacing),
+
+              // Info
+              Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      package['name'] ?? '',
+                      title,
                       style: context.subtitle1.copyWith(
-                        fontWeight: FontWeight.bold,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
-                    const SizedBox(height: 8),
-                    _buildInfoRow(
-                      context,
-                      Icons.attach_money,
-                      'Prix',
-                      package['formatted_price'] ?? '',
-                    ),
                     const SizedBox(height: 4),
-                    _buildInfoRow(
-                      context,
-                      Icons.storage,
-                      'Stockage',
-                      package['formatted_storage_size'] ?? '',
-                    ),
-                    const SizedBox(height: 4),
-                    _buildInfoRow(
-                      context,
-                      Icons.access_time,
-                      'Durée',
-                      package['formatted_duration'] ?? '',
+                    Text(
+                      'Solde: ${controller.formatCurrency(balance)}',
+                      style: context.caption.copyWith(
+                        color: hasEnoughBalance
+                            ? AppThemeSystem.successColor
+                            : AppThemeSystem.errorColor,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ],
                 ),
               ),
-              const SizedBox(height: 24),
 
-              // Buttons
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: () => Get.back(),
-                      style: OutlinedButton.styleFrom(
-                        side: BorderSide(color: context.borderColor),
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                      ),
-                      child: Text(
-                        'Annuler',
-                        style: context.button.copyWith(
-                          color: context.primaryTextColor,
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Obx(() {
-                      return ElevatedButton(
-                        onPressed: controller.isLoading.value
-                            ? null
-                            : () {
-                                Get.back(); // Close dialog
-                                controller.subscribe();
-                              },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppThemeSystem.primaryColor,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                        ),
-                        child: controller.isLoading.value
-                            ? const SizedBox(
-                                height: 20,
-                                width: 20,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  valueColor: AlwaysStoppedAnimation<Color>(
-                                    Colors.white,
-                                  ),
-                                ),
-                              )
-                            : Text(
-                                'Confirmer',
-                                style: context.button.copyWith(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                      );
-                    }),
-                  ),
-                ],
-              ),
+              // Status
+              if (isLoading)
+                const SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              else if (hasEnoughBalance)
+                Icon(
+                  Icons.check_circle_rounded,
+                  color: AppThemeSystem.successColor,
+                  size: 24,
+                )
+              else
+                Icon(
+                  Icons.lock_rounded,
+                  color: AppThemeSystem.errorColor,
+                  size: 20,
+                ),
             ],
           ),
         ),
-      ),
-    );
-  }
-
-  /// Build info row helper
-  Widget _buildInfoRow(BuildContext context, IconData icon, String label, String value) {
-    return Row(
-      children: [
-        Icon(icon, size: 16, color: context.secondaryTextColor),
-        const SizedBox(width: 8),
-        Text(
-          '$label: ',
-          style: context.caption.copyWith(
-            color: context.secondaryTextColor,
-          ),
-        ),
-        Expanded(
-          child: Text(
-            value,
-            style: context.caption.copyWith(
-              fontWeight: FontWeight.w600,
-            ),
-            textAlign: TextAlign.right,
-          ),
-        ),
-      ],
-    );
+      );
+    });
   }
 }

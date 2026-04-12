@@ -169,16 +169,17 @@ class ApiProvider {
     String endpoint, {
     Map<String, String>? fields,
     Map<String, String>? files,
+    String method = 'POST',
   }) async {
     final uri = _buildUri(endpoint);
     developer.log(
-      'MULTIPART POST ${uri.toString()}',
+      'MULTIPART $method ${uri.toString()}',
       name: 'ApiProvider',
       error: 'Fields: ${fields?.keys.join(", ")}, Files: ${files?.keys.join(", ")}',
     );
 
     try {
-      final request = http.MultipartRequest('POST', uri);
+      final request = http.MultipartRequest(method, uri);
       request.headers.addAll(_headers..remove('Content-Type'));
 
       if (fields != null) {

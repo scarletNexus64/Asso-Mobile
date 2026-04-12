@@ -11,6 +11,7 @@ import '../../storeManagement/views/store_management_view.dart';
 import '../../storeManagement/bindings/store_management_binding.dart';
 import '../../wallet/views/wallet_view.dart';
 import '../../wallet/bindings/wallet_binding.dart';
+import 'vendor_dashboard_shimmer.dart';
 
 class VendorDashboardView extends GetView<VendorDashboardController> {
   const VendorDashboardView({super.key});
@@ -51,39 +52,52 @@ class VendorDashboardView extends GetView<VendorDashboardController> {
         ),
         body: SafeArea(
           bottom: true,
-          child: SingleChildScrollView(
-            padding: EdgeInsets.only(
-              left: context.horizontalPadding,
-              right: context.horizontalPadding,
-              top: context.horizontalPadding,
-              // Padding bottom adaptatif pour la barre de navigation système Android
-              bottom: MediaQuery.of(context).viewPadding.bottom > 0
-                  ? MediaQuery.of(context).viewPadding.bottom + context.horizontalPadding
-                  : context.horizontalPadding * 1.5,
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Header avec logo de la boutique
-                _buildShopHeader(context),
+          child: Obx(() {
+            // Show shimmer loading while fetching data
+            if (controller.isLoading.value) {
+              return const VendorDashboardShimmer();
+            }
 
-                SizedBox(height: context.sectionSpacing),
+            // Show actual content once loaded
+            return RefreshIndicator(
+              onRefresh: () => controller.refreshData(),
+              color: AppThemeSystem.primaryColor,
+              child: SingleChildScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: EdgeInsets.only(
+                  left: context.horizontalPadding,
+                  right: context.horizontalPadding,
+                  top: context.horizontalPadding,
+                  // Padding bottom adaptatif pour la barre de navigation système Android
+                  bottom: MediaQuery.of(context).viewPadding.bottom > 0
+                      ? MediaQuery.of(context).viewPadding.bottom + context.horizontalPadding
+                      : context.horizontalPadding * 1.5,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Header avec logo de la boutique
+                    _buildShopHeader(context),
 
-                // Statistiques
-                _buildStatsSection(context),
+                    SizedBox(height: context.sectionSpacing),
 
-                SizedBox(height: context.sectionSpacing),
+                    // Statistiques
+                    _buildStatsSection(context),
 
-                // Package Info
-                _buildPackageSection(context),
+                    SizedBox(height: context.sectionSpacing),
 
-                SizedBox(height: context.sectionSpacing),
+                    // Package Info
+                    _buildPackageSection(context),
 
-                // Actions rapides
-                _buildQuickActions(context),
-              ],
-            ),
-          ),
+                    SizedBox(height: context.sectionSpacing),
+
+                    // Actions rapides
+                    _buildQuickActions(context),
+                  ],
+                ),
+              ),
+            );
+          }),
         ),
       ),
     );
@@ -171,7 +185,8 @@ class VendorDashboardView extends GetView<VendorDashboardController> {
               // Badge de statut de vérification
               Obx(() {
                 if (controller.verificationStatus.value == 'approved' ||
-                    controller.verificationStatus.value == 'verified') {
+                    controller.verificationStatus.value == 'verified' ||
+                    controller.verificationStatus.value == 'active') {
                   return Positioned(
                     top: -2,
                     right: -2,
@@ -543,6 +558,7 @@ class VendorDashboardView extends GetView<VendorDashboardController> {
     switch (controller.verificationStatus.value) {
       case 'approved':
       case 'verified':
+      case 'active':
         badgeColor = AppThemeSystem.successColor;
         iconColor = AppThemeSystem.successColor;
         badgeIcon = Icons.check_circle_outline;
@@ -555,6 +571,7 @@ class VendorDashboardView extends GetView<VendorDashboardController> {
         statusText = 'Rejeté';
         break;
       case 'pending':
+      case 'inactive':
       default:
         badgeColor = AppThemeSystem.warningColor;
         iconColor = AppThemeSystem.warningColor;
@@ -644,103 +661,280 @@ class VendorDashboardView extends GetView<VendorDashboardController> {
         );
       }
 
-      // A un package : afficher les infos
-      return Container(
-        padding: EdgeInsets.all(context.horizontalPadding),
-        decoration: BoxDecoration(
-          color: context.surfaceColor,
-          borderRadius: context.borderRadius(BorderRadiusType.medium),
-          border: Border.all(color: context.borderColor, width: 1),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
+      // A un package : afficher les infos complètes
+      final packageData = controller.packageInfo.value;
+      final packageName = packageData?['package']?['name'] ?? 'Package';
+      final packagePrice = packageData?['package']?['formatted_price'] ?? '';
+      final expiresAt = controller.packageExpiresAt.value;
+
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Mon package',
+            style: context.h4.copyWith(
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          SizedBox(height: context.elementSpacing),
+
+          Container(
+            padding: EdgeInsets.all(context.horizontalPadding),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  AppThemeSystem.primaryColor.withValues(alpha: 0.1),
+                  AppThemeSystem.successColor.withValues(alpha: 0.05),
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: context.borderRadius(BorderRadiusType.large),
+              border: Border.all(
+                color: AppThemeSystem.primaryColor.withValues(alpha: 0.3),
+                width: 2,
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(Icons.storage, color: AppThemeSystem.primaryColor),
-                SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    'Espace de stockage',
-                    style: context.subtitle1.copyWith(fontWeight: FontWeight.bold),
+                // Header with package name and status
+                Row(
+                  children: [
+                    Container(
+                      padding: EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: AppThemeSystem.primaryColor,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Icon(
+                        Icons.workspace_premium_rounded,
+                        color: Colors.white,
+                        size: 24,
+                      ),
+                    ),
+                    SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            packageName,
+                            style: context.h5.copyWith(
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          SizedBox(height: 2),
+                          Text(
+                            packagePrice,
+                            style: context.body2.copyWith(
+                              color: AppThemeSystem.primaryColor,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Container(
+                      padding: EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: AppThemeSystem.successColor,
+                        borderRadius: BorderRadius.circular(20),
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppThemeSystem.successColor.withValues(alpha: 0.3),
+                            blurRadius: 8,
+                            offset: Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.check_circle_rounded,
+                            size: 14,
+                            color: Colors.white,
+                          ),
+                          SizedBox(width: 4),
+                          Text(
+                            'Actif',
+                            style: context.caption.copyWith(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+
+                SizedBox(height: context.elementSpacing),
+
+                Divider(color: context.borderColor),
+
+                SizedBox(height: context.elementSpacing),
+
+                // Storage info
+                Row(
+                  children: [
+                    Icon(
+                      Icons.storage_rounded,
+                      size: 18,
+                      color: context.secondaryTextColor,
+                    ),
+                    SizedBox(width: 8),
+                    Text(
+                      'Espace de stockage',
+                      style: context.caption.copyWith(
+                        color: context.secondaryTextColor,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+                SizedBox(height: 8),
+
+                // Progress bar
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(10),
+                  child: LinearProgressIndicator(
+                    value: controller.storagePercentageUsed.value / 100,
+                    backgroundColor: context.borderColor,
+                    valueColor: AlwaysStoppedAnimation<Color>(
+                      controller.storagePercentageUsed.value > 80
+                          ? AppThemeSystem.errorColor
+                          : controller.storagePercentageUsed.value > 50
+                              ? AppThemeSystem.warningColor
+                              : AppThemeSystem.successColor,
+                    ),
+                    minHeight: 14,
                   ),
                 ),
-                Container(
-                  padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: AppThemeSystem.successColor.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: AppThemeSystem.successColor),
-                  ),
-                  child: Text(
-                    'Actif',
-                    style: context.caption.copyWith(
-                      color: AppThemeSystem.successColor,
-                      fontWeight: FontWeight.bold,
+                SizedBox(height: 10),
+
+                // Storage stats
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      '${controller.storageUsedMb.value.toStringAsFixed(1)} MB utilisés',
+                      style: context.body2.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    Text(
+                      '${controller.storageTotalMb.value.toStringAsFixed(0)} MB',
+                      style: context.body2.copyWith(
+                        color: context.secondaryTextColor,
+                      ),
+                    ),
+                  ],
+                ),
+                SizedBox(height: 6),
+                Row(
+                  children: [
+                    Icon(
+                      Icons.circle,
+                      size: 8,
+                      color: controller.storagePercentageUsed.value > 80
+                          ? AppThemeSystem.errorColor
+                          : controller.storagePercentageUsed.value > 50
+                              ? AppThemeSystem.warningColor
+                              : AppThemeSystem.successColor,
+                    ),
+                    SizedBox(width: 6),
+                    Text(
+                      '${controller.storagePercentageUsed.value.toStringAsFixed(1)}% utilisé • ${controller.storageRemainingMb.value.toStringAsFixed(1)} MB disponible',
+                      style: context.caption.copyWith(
+                        color: context.secondaryTextColor,
+                      ),
+                    ),
+                  ],
+                ),
+
+                SizedBox(height: context.elementSpacing),
+
+                Divider(color: context.borderColor),
+
+                SizedBox(height: context.elementSpacing),
+
+                // Expiration info
+                Row(
+                  children: [
+                    Icon(
+                      Icons.event_available_rounded,
+                      size: 18,
+                      color: controller.daysRemaining.value <= 3
+                          ? AppThemeSystem.errorColor
+                          : controller.daysRemaining.value <= 7
+                              ? AppThemeSystem.warningColor
+                              : AppThemeSystem.successColor,
+                    ),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            controller.daysRemaining.value <= 3
+                                ? 'Expire bientôt !'
+                                : controller.daysRemaining.value <= 7
+                                    ? 'Expire dans quelques jours'
+                                    : 'Valide jusqu\'au',
+                            style: context.caption.copyWith(
+                              color: context.secondaryTextColor,
+                            ),
+                          ),
+                          SizedBox(height: 2),
+                          Text(
+                            expiresAt != null
+                                ? '${DateFormat('dd MMM yyyy', 'fr_FR').format(DateTime.parse(expiresAt))} (${controller.daysRemaining.value} jour${controller.daysRemaining.value > 1 ? "s" : ""})'
+                                : '${controller.daysRemaining.value} jour${controller.daysRemaining.value > 1 ? "s" : ""} restant${controller.daysRemaining.value > 1 ? "s" : ""}',
+                            style: context.body2.copyWith(
+                              fontWeight: FontWeight.w600,
+                              color: controller.daysRemaining.value <= 3
+                                  ? AppThemeSystem.errorColor
+                                  : controller.daysRemaining.value <= 7
+                                      ? AppThemeSystem.warningColor
+                                      : context.primaryTextColor,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+
+                SizedBox(height: context.elementSpacing),
+
+                // Upgrade button
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: () => Get.toNamed('/package-subscription'),
+                    icon: Icon(Icons.upgrade_rounded, size: 18),
+                    label: Text(
+                      'Améliorer mon package',
+                      style: context.button.copyWith(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppThemeSystem.primaryColor,
+                      padding: EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: context.borderRadius(BorderRadiusType.medium),
+                      ),
                     ),
                   ),
                 ),
               ],
             ),
-            SizedBox(height: 16),
-
-            // Barre de progression
-            ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: LinearProgressIndicator(
-                value: controller.storagePercentageUsed.value / 100,
-                backgroundColor: context.borderColor,
-                valueColor: AlwaysStoppedAnimation<Color>(
-                  controller.storagePercentageUsed.value > 80
-                      ? AppThemeSystem.errorColor
-                      : controller.storagePercentageUsed.value > 50
-                          ? AppThemeSystem.warningColor
-                          : AppThemeSystem.successColor,
-                ),
-                minHeight: 12,
-              ),
-            ),
-            SizedBox(height: 12),
-
-            // Texte stockage
-            Text(
-              '${controller.storageUsedMb.value.toStringAsFixed(1)} MB utilisés sur ${controller.storageTotalMb.value.toStringAsFixed(0)} MB (${controller.storagePercentageUsed.value.toStringAsFixed(1)}%)',
-              style: context.body2.copyWith(color: context.secondaryTextColor),
-            ),
-            SizedBox(height: 8),
-            Text(
-              'Espace restant : ${controller.storageRemainingMb.value.toStringAsFixed(1)} MB',
-              style: context.caption.copyWith(
-                color: AppThemeSystem.primaryColor,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-
-            // Expiration
-            if (controller.daysRemaining.value <= 7)
-              Container(
-                margin: EdgeInsets.only(top: 12),
-                padding: EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: AppThemeSystem.warningColor.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Row(
-                  children: [
-                    Icon(Icons.access_time, size: 16, color: AppThemeSystem.warningColor),
-                    SizedBox(width: 8),
-                    Text(
-                      'Expire dans ${controller.daysRemaining.value} jour${controller.daysRemaining.value > 1 ? "s" : ""}',
-                      style: context.caption.copyWith(
-                        color: AppThemeSystem.warningColor,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-          ],
-        ),
+          ),
+        ],
       );
     });
   }

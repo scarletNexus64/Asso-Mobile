@@ -105,6 +105,11 @@ class AppConstants {
   // Vendor products management
   static const String vendorProductsUrl = '/v1/vendor/products';
 
+  // Vendor shop management
+  static const String vendorShopUrl = '/v1/vendor/shop';
+  static const String vendorShopsUrl = '/v1/vendor/shops';
+  static const String publicShopUrl = '/v1/shops'; // + /{id}
+
   // Device Tokens & Notifications (FCM)
   static const String deviceTokensUrl = '/v1/device-tokens';
   static const String notificationsTestUrl = '/v1/notifications/test';

@@ -250,7 +250,7 @@ class RechargeWalletView extends GetView<WalletController> {
 
                           final amount = double.tryParse(amountController.text);
                           print(
-                            'Validating amount: $appConfig.minDepositAmount, entered: $amount',
+                            'Validating amount: ${appConfig.minDepositAmount}, entered: $amount',
                           );
                           if (amount == null ||
                               amount < appConfig.minDepositAmount) {
