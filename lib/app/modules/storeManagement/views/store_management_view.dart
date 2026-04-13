@@ -409,68 +409,173 @@ class _CertificationCard extends GetView<StoreManagementController> {
       final cert = controller.certification.value;
       if (cert == null) return const SizedBox.shrink();
 
-      // Si certifié : afficher un badge élégant
+      // Si certifié : afficher un badge élégant avec délai d'expiration
       if (cert.isCertified) {
+        final daysRemaining = cert.daysUntilExpiry ?? 0;
+        final isExpiringSoon = cert.isExpiringSoon;
+        final isExpired = cert.isExpired;
+
+        // Couleur basée sur le statut d'expiration
+        final certColor = isExpired
+            ? AppThemeSystem.errorColor
+            : isExpiringSoon
+                ? AppThemeSystem.warningColor
+                : const Color(0xFF1DA1F2);
+
         return Container(
           padding: EdgeInsets.all(context.horizontalPadding),
           decoration: BoxDecoration(
             gradient: LinearGradient(
               colors: [
-                const Color(0xFF1DA1F2).withValues(alpha: 0.1),
-                const Color(0xFF0D7FC6).withValues(alpha: 0.05),
+                certColor.withValues(alpha: 0.15),
+                certColor.withValues(alpha: 0.05),
               ],
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),
             borderRadius: context.borderRadius(BorderRadiusType.medium),
             border: Border.all(
-              color: const Color(0xFF1DA1F2).withValues(alpha: 0.3),
-              width: 1.5,
+              color: certColor.withValues(alpha: 0.4),
+              width: 2,
             ),
-          ),
-          child: Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF1DA1F2),
-                  borderRadius: context.borderRadius(BorderRadiusType.small),
-                ),
-                child: const Icon(
-                  Icons.verified,
-                  color: Colors.white,
-                  size: 28,
-                ),
+            boxShadow: [
+              BoxShadow(
+                color: certColor.withValues(alpha: 0.2),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
               ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Text(
-                          'Boutique Certifiée',
-                          style: context.h6.copyWith(
-                            fontWeight: FontWeight.bold,
-                            color: const Color(0xFF1DA1F2),
-                          ),
-                        ),
-                        const SizedBox(width: 6),
-                        Icon(
-                          Icons.check_circle,
-                          color: const Color(0xFF1DA1F2),
-                          size: 18,
+            ],
+          ),
+          child: Column(
+            children: [
+              Row(
+                children: [
+                  // Badge avec animation shimmer subtile
+                  Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: certColor,
+                      borderRadius: context.borderRadius(BorderRadiusType.small),
+                      boxShadow: [
+                        BoxShadow(
+                          color: certColor.withValues(alpha: 0.4),
+                          blurRadius: 8,
+                          spreadRadius: 2,
                         ),
                       ],
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Votre boutique bénéficie d\'une confiance accrue',
-                      style: context.caption.copyWith(
-                        color: context.secondaryTextColor,
+                    child: const Icon(
+                      Icons.verified,
+                      color: Colors.white,
+                      size: 32,
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Text(
+                              'Boutique Certifiée',
+                              style: context.h6.copyWith(
+                                fontWeight: FontWeight.bold,
+                                color: certColor,
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            Icon(
+                              Icons.stars,
+                              color: certColor,
+                              size: 20,
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          isExpired
+                              ? 'Certification expirée'
+                              : isExpiringSoon
+                                  ? 'Expire bientôt - Renouvelez!'
+                                  : 'Badge de confiance actif',
+                          style: context.caption.copyWith(
+                            color: context.secondaryTextColor,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              // Délai d'expiration
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: context.backgroundColor,
+                  borderRadius: context.borderRadius(BorderRadiusType.small),
+                  border: Border.all(
+                    color: certColor.withValues(alpha: 0.3),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      isExpired
+                          ? Icons.error_outline
+                          : isExpiringSoon
+                              ? Icons.warning_amber
+                              : Icons.schedule,
+                      color: certColor,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            isExpired
+                                ? 'Expirée'
+                                : daysRemaining == 1
+                                    ? 'Expire demain'
+                                    : 'Expire dans',
+                            style: context.caption.copyWith(
+                              color: context.secondaryTextColor,
+                            ),
+                          ),
+                          if (!isExpired) ...[
+                            const SizedBox(height: 2),
+                            Text(
+                              '$daysRemaining jour${daysRemaining > 1 ? 's' : ''}',
+                              style: context.body1.copyWith(
+                                fontWeight: FontWeight.bold,
+                                color: certColor,
+                              ),
+                            ),
+                          ],
+                        ],
                       ),
                     ),
+                    if (isExpiringSoon || isExpired)
+                      TextButton(
+                        onPressed: controller.requestCertification,
+                        style: TextButton.styleFrom(
+                          foregroundColor: certColor,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 6,
+                          ),
+                        ),
+                        child: Text(
+                          'Renouveler',
+                          style: context.caption.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
                   ],
                 ),
               ),
