@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../models/order_model.dart';
 import '../models/cameroon_cities.dart';
 import '../../../data/providers/api_provider.dart';
+import '../../../data/providers/vendor_service.dart';
 
 class OrderManagementController extends GetxController {
   // Liste complète des commandes
@@ -58,18 +59,15 @@ class OrderManagementController extends GetxController {
         } else if (data is Map && data['orders'] is List) {
           allOrders.value = _parseOrdersFromApi(data['orders']);
         } else {
-          // Fallback to mock if no orders in response
-          allOrders.value = _generateMockOrders();
+          allOrders.value = [];
         }
       } else {
-        // Fallback to mock data if API fails
-        allOrders.value = _generateMockOrders();
+        allOrders.value = [];
       }
 
       applyFilters();
     } catch (e) {
-      // Fallback to mock data on error
-      allOrders.value = _generateMockOrders();
+      allOrders.value = [];
       applyFilters();
 
       Get.snackbar(
@@ -121,14 +119,20 @@ class OrderManagementController extends GetxController {
     }).toList();
   }
 
-  /// Parse order status
+  /// Parse order status from backend
   OrderStatus _parseOrderStatus(String? status) {
     switch (status?.toLowerCase()) {
       case 'pending':
         return OrderStatus.pending;
+      case 'confirmed':
       case 'validated':
       case 'approved':
+      case 'preparing':
         return OrderStatus.validated;
+      case 'shipped':
+        return OrderStatus.inDelivery;
+      case 'delivered':
+        return OrderStatus.delivered;
       case 'cancelled':
         return OrderStatus.cancelled;
       default:
@@ -193,15 +197,14 @@ class OrderManagementController extends GetxController {
     searchController.clear();
   }
 
-  /// Valide une commande
+  /// Valide une commande (appel API réel)
   Future<void> validateOrder(OrderModel order) async {
     try {
-      // Afficher un dialogue de confirmation
       final confirm = await Get.dialog<bool>(
         AlertDialog(
           title: const Text('Valider la commande'),
           content: Text(
-            'Voulez-vous valider la commande #${order.id} de ${order.clientName} ?',
+            'Voulez-vous valider la commande #${order.id} de ${order.clientName} ?\n\nLes fonds seront crédités sur votre wallet (bloqués jusqu\'à livraison).',
           ),
           actions: [
             TextButton(
@@ -219,26 +222,29 @@ class OrderManagementController extends GetxController {
       if (confirm == true) {
         isLoading.value = true;
 
-        // TODO: Appel API pour valider la commande
-        await Future.delayed(const Duration(milliseconds: 500));
+        final orderId = int.tryParse(order.id.toString());
+        if (orderId == null) return;
 
-        // Mettre à jour la commande
-        final index = allOrders.indexWhere((o) => o.id == order.id);
-        if (index != -1) {
-          allOrders[index] = order.copyWith(
-            status: OrderStatus.validated,
-            validatedDate: DateTime.now(),
+        final response = await VendorService.validateOrder(orderId);
+
+        if (response.success) {
+          await loadOrders(); // Recharger depuis l'API
+          Get.snackbar(
+            'Commande validée',
+            'Fonds crédités et bloqués. Le livreur a été notifié.',
+            snackPosition: SnackPosition.BOTTOM,
+            backgroundColor: Colors.green,
+            colorText: Colors.white,
           );
-          applyFilters();
+        } else {
+          Get.snackbar(
+            'Erreur',
+            response.message.isNotEmpty ? response.message : 'Impossible de valider la commande',
+            snackPosition: SnackPosition.BOTTOM,
+            backgroundColor: Colors.red,
+            colorText: Colors.white,
+          );
         }
-
-        Get.snackbar(
-          'Succès',
-          'Commande validée avec succès',
-          snackPosition: SnackPosition.BOTTOM,
-          backgroundColor: Colors.green,
-          colorText: Colors.white,
-        );
       }
     } catch (e) {
       Get.snackbar(
@@ -253,25 +259,24 @@ class OrderManagementController extends GetxController {
     }
   }
 
-  /// Annule une commande
+  /// Rejette une commande (appel API réel)
   Future<void> cancelOrder(OrderModel order) async {
     try {
-      // Demander la raison de l'annulation
       final reasonController = TextEditingController();
       final confirm = await Get.dialog<bool>(
         AlertDialog(
-          title: const Text('Annuler la commande'),
+          title: const Text('Refuser la commande'),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                'Voulez-vous annuler la commande #${order.id} de ${order.clientName} ?',
+                'Voulez-vous refuser la commande #${order.id} de ${order.clientName} ?\n\nLes fonds du client seront débloqués.',
               ),
               const SizedBox(height: 16),
               TextField(
                 controller: reasonController,
                 decoration: const InputDecoration(
-                  labelText: 'Raison de l\'annulation',
+                  labelText: 'Raison du refus (optionnel)',
                   border: OutlineInputBorder(),
                 ),
                 maxLines: 3,
@@ -285,10 +290,8 @@ class OrderManagementController extends GetxController {
             ),
             ElevatedButton(
               onPressed: () => Get.back(result: true),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.red,
-              ),
-              child: const Text('Annuler la commande'),
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+              child: const Text('Refuser la commande', style: TextStyle(color: Colors.white)),
             ),
           ],
         ),
@@ -297,34 +300,37 @@ class OrderManagementController extends GetxController {
       if (confirm == true) {
         isLoading.value = true;
 
-        // TODO: Appel API pour annuler la commande
-        await Future.delayed(const Duration(milliseconds: 500));
+        final orderId = int.tryParse(order.id.toString());
+        if (orderId == null) return;
 
-        // Mettre à jour la commande
-        final index = allOrders.indexWhere((o) => o.id == order.id);
-        if (index != -1) {
-          allOrders[index] = order.copyWith(
-            status: OrderStatus.cancelled,
-            cancelledDate: DateTime.now(),
-            cancelReason: reasonController.text,
-          );
-          applyFilters();
-        }
-
-        Get.snackbar(
-          'Succès',
-          'Commande annulée',
-          snackPosition: SnackPosition.BOTTOM,
-          backgroundColor: Colors.orange,
-          colorText: Colors.white,
+        final response = await VendorService.rejectOrder(
+          orderId,
+          reason: reasonController.text.isNotEmpty ? reasonController.text : null,
         );
-      }
 
-      reasonController.dispose();
+        if (response.success) {
+          await loadOrders();
+          Get.snackbar(
+            'Commande refusée',
+            'Le client a été notifié et ses fonds débloqués.',
+            snackPosition: SnackPosition.BOTTOM,
+            backgroundColor: Colors.orange,
+            colorText: Colors.white,
+          );
+        } else {
+          Get.snackbar(
+            'Erreur',
+            response.message.isNotEmpty ? response.message : 'Impossible de refuser la commande',
+            snackPosition: SnackPosition.BOTTOM,
+            backgroundColor: Colors.red,
+            colorText: Colors.white,
+          );
+        }
+      }
     } catch (e) {
       Get.snackbar(
         'Erreur',
-        'Impossible d\'annuler la commande',
+        'Impossible de refuser la commande',
         snackPosition: SnackPosition.BOTTOM,
         backgroundColor: Colors.red,
         colorText: Colors.white,
