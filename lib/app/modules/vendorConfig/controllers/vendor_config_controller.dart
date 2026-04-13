@@ -857,10 +857,26 @@ class VendorConfigController extends GetxController {
           await _showNoDeliveryServiceDialog();
         } else {
           print('✅ Position SAVED! Button "Finaliser" should now be enabled');
+
+          // Validation de l'adresse avant sauvegarde
+          if (address.contains('Chargement') || address.trim().isEmpty) {
+            print('⚠️ WARNING: Invalid address detected: "$address"');
+            Get.snackbar(
+              'Adresse invalide',
+              'L\'adresse n\'a pas pu être récupérée. Veuillez réessayer.',
+              snackPosition: SnackPosition.BOTTOM,
+              backgroundColor: AppThemeSystem.warningColor,
+              colorText: Colors.white,
+            );
+            return;
+          }
+
           // Sauvegarder la position uniquement si la zone est disponible
           shopLatitude.value = latitude;
           shopLongitude.value = longitude;
           shopLocation.value = address;
+
+          print('  └─ Address validated and saved: "$address"');
         }
       }
     } catch (e) {

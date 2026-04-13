@@ -78,6 +78,14 @@ class StoreManagementController extends GetxController {
             city = address.split(',').last.trim();
           }
 
+          // Parser les catégories
+          List<String> categories = [];
+          if (shop['categories'] != null) {
+            if (shop['categories'] is List) {
+              categories = List<String>.from(shop['categories'] as List);
+            }
+          }
+
           storeInfo.value = StoreInfo(
             id: shop['id']?.toString() ?? '',
             name: shop['name'] ?? '',
@@ -88,8 +96,10 @@ class StoreManagementController extends GetxController {
             address: address ?? '',
             city: city,
             phone: shop['phone'] ?? '',
+            categories: categories,
           );
           print('✅ CONTROLLER: Store info loaded: ${storeInfo.value?.name}');
+          print('  └─ Categories: ${categories.join(", ")}');
         } else {
           print('⚠️ CONTROLLER: No shop data');
           storeInfo.value = null;
@@ -291,6 +301,7 @@ class StoreManagementController extends GetxController {
     required String phone,
     double? latitude,
     double? longitude,
+    List<String>? categories,
   }) async {
     try {
       isLoading.value = true;
@@ -304,6 +315,7 @@ class StoreManagementController extends GetxController {
         shopLatitude: latitude ?? storeInfo.value?.latitude,
         shopLongitude: longitude ?? storeInfo.value?.longitude,
         shopLogo: selectedLogo.value,
+        categories: categories,
       );
 
       if (response.success) {

@@ -28,7 +28,28 @@ class AddProductView extends GetView<AddProductController> {
           ),
         ),
       ),
-      body: SingleChildScrollView(
+      body: Obx(() {
+        if (controller.isLoading.value) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                CircularProgressIndicator(
+                  color: AppThemeSystem.primaryColor,
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'Chargement...',
+                  style: context.body1.copyWith(
+                    color: context.secondaryTextColor,
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
+
+        return SingleChildScrollView(
         padding: EdgeInsets.all(context.horizontalPadding),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -48,23 +69,28 @@ class AddProductView extends GetView<AddProductController> {
 
             SizedBox(height: context.sectionSpacing),
 
-            // Sous-catégorie (Bottom sheet - apparaît seulement si catégorie sélectionnée)
+            // Sous-catégorie (Bottom sheet)
             _buildSubcategorySelector(context),
 
             SizedBox(height: context.sectionSpacing),
 
-            // Type d'article
-            _buildArticleTypeSection(context),
-
-            SizedBox(height: context.sectionSpacing),
-
-            // Type de prix
-            _buildPriceTypeSection(context),
+            // Prix
+            _buildPriceSection(context),
 
             SizedBox(height: context.sectionSpacing),
 
             // Description
             _buildDescriptionSection(context),
+
+            SizedBox(height: context.sectionSpacing),
+
+            // Poids du produit
+            _buildWeightSection(context),
+
+            SizedBox(height: context.sectionSpacing),
+
+            // Stock
+            _buildStockSection(context),
 
             SizedBox(height: context.sectionSpacing),
 
@@ -79,7 +105,8 @@ class AddProductView extends GetView<AddProductController> {
             SizedBox(height: context.verticalPadding),
           ],
         ),
-      ),
+      );
+      }),
     );
   }
 
@@ -325,6 +352,7 @@ class AddProductView extends GetView<AddProductController> {
     );
   }
 
+
   /// Sélecteur de catégorie avec bottom sheet
   Widget _buildCategorySelector(BuildContext context) {
     return Obx(() {
@@ -396,13 +424,7 @@ class AddProductView extends GetView<AddProductController> {
   /// Sélecteur de sous-catégorie avec bottom sheet
   Widget _buildSubcategorySelector(BuildContext context) {
     return Obx(() {
-      final category = controller.selectedCategory.value;
       final subcategory = controller.selectedSubcategory.value;
-
-      // N'afficher que si une catégorie est sélectionnée
-      if (category == null) {
-        return const SizedBox.shrink();
-      }
 
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -591,8 +613,6 @@ class AddProductView extends GetView<AddProductController> {
                             : null,
                         onTap: () {
                           controller.selectedCategory.value = category;
-                          // Réinitialiser la sous-catégorie
-                          controller.selectedSubcategory.value = null;
                           Navigator.pop(context);
                         },
                       );
@@ -612,10 +632,13 @@ class AddProductView extends GetView<AddProductController> {
     final searchController = TextEditingController();
     final category = controller.selectedCategory.value;
 
-    if (category == null) return;
+    // Filtrer les sous-catégories selon la catégorie sélectionnée
+    final subcategories = category != null
+        ? controller.categoriesData[category] ?? []
+        : controller.allSubcategories;
 
-    final subcategories = controller.categoriesData[category] ?? [];
-    final filteredSubcategories = subcategories.obs;
+    final filteredSubcategories = <Map<String, String>>[].obs;
+    filteredSubcategories.value = subcategories;
 
     showModalBottomSheet(
       context: context,
@@ -656,8 +679,10 @@ class AddProductView extends GetView<AddProductController> {
                       children: [
                         Expanded(
                           child: Text(
-                            'Sous-catégories de $category',
-                            style: context.h6.copyWith(
+                            category != null
+                                ? 'Sous-catégories de $category'
+                                : 'Sélectionner une sous-catégorie',
+                            style: context.h5.copyWith(
                               fontWeight: FontWeight.bold,
                             ),
                           ),
@@ -701,6 +726,19 @@ class AddProductView extends GetView<AddProductController> {
               // Liste
               Expanded(
                 child: Obx(() {
+                  if (filteredSubcategories.isEmpty) {
+                    return Center(
+                      child: Text(
+                        category != null
+                            ? 'Aucune sous-catégorie trouvée'
+                            : 'Veuillez sélectionner une catégorie d\'abord',
+                        style: context.body1.copyWith(
+                          color: context.secondaryTextColor,
+                        ),
+                      ),
+                    );
+                  }
+
                   return ListView.separated(
                     padding: EdgeInsets.all(context.horizontalPadding),
                     itemCount: filteredSubcategories.length,
@@ -710,8 +748,7 @@ class AddProductView extends GetView<AddProductController> {
                     ),
                     itemBuilder: (context, index) {
                       final subcategory = filteredSubcategories[index];
-                      final isSelected =
-                          controller.selectedSubcategory.value == subcategory['name'];
+                      final isSelected = controller.selectedSubcategoryId.value == subcategory['id'];
 
                       return ListTile(
                         leading: Icon(
@@ -737,6 +774,7 @@ class AddProductView extends GetView<AddProductController> {
                             : null,
                         onTap: () {
                           controller.selectedSubcategory.value = subcategory['name'];
+                          controller.selectedSubcategoryId.value = subcategory['id'];
                           Navigator.pop(context);
                         },
                       );
@@ -751,220 +789,47 @@ class AddProductView extends GetView<AddProductController> {
     );
   }
 
-  /// Section Type d'article
-  Widget _buildArticleTypeSection(BuildContext context) {
+
+  /// Section Prix
+  Widget _buildPriceSection(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Type d\'article *',
+          'Prix *',
           style: context.subtitle1.copyWith(
             fontWeight: FontWeight.w600,
           ),
         ),
         SizedBox(height: context.elementSpacing),
-        Obx(() => Row(
-          children: [
-            Expanded(
-              child: _buildTypeCard(
-                context,
-                icon: Icons.shopping_bag_outlined,
-                label: 'Article',
-                isSelected: controller.articleType.value == 'article',
-                onTap: () => controller.articleType.value = 'article',
+        TextField(
+          controller: controller.priceController,
+          keyboardType: TextInputType.number,
+          decoration: InputDecoration(
+            hintText: 'Entrez le prix',
+            filled: true,
+            fillColor: context.surfaceColor,
+            prefixIcon: const Icon(Icons.payments_outlined),
+            suffixText: 'XAF',
+            border: OutlineInputBorder(
+              borderRadius: context.borderRadius(BorderRadiusType.medium),
+              borderSide: BorderSide(color: context.borderColor),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: context.borderRadius(BorderRadiusType.medium),
+              borderSide: BorderSide(color: context.borderColor),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: context.borderRadius(BorderRadiusType.medium),
+              borderSide: const BorderSide(
+                color: AppThemeSystem.primaryColor,
+                width: 2,
               ),
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _buildTypeCard(
-                context,
-                icon: Icons.handyman_outlined,
-                label: 'Service',
-                isSelected: controller.articleType.value == 'service',
-                onTap: () => controller.articleType.value = 'service',
-              ),
-            ),
-          ],
-        )),
-      ],
-    );
-  }
-
-  Widget _buildTypeCard(
-    BuildContext context, {
-    required IconData icon,
-    required String label,
-    required bool isSelected,
-    required VoidCallback onTap,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: EdgeInsets.symmetric(
-          vertical: context.verticalPadding,
-        ),
-        decoration: BoxDecoration(
-          color: isSelected
-              ? AppThemeSystem.primaryColor.withValues(alpha: 0.1)
-              : context.surfaceColor,
-          borderRadius: context.borderRadius(BorderRadiusType.medium),
-          border: Border.all(
-            color: isSelected
-                ? AppThemeSystem.primaryColor
-                : context.borderColor,
-            width: isSelected ? 2 : 1,
           ),
         ),
-        child: Column(
-          children: [
-            Icon(
-              icon,
-              color: isSelected
-                  ? AppThemeSystem.primaryColor
-                  : context.secondaryTextColor,
-              size: 32,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              label,
-              style: context.body1.copyWith(
-                color: isSelected
-                    ? AppThemeSystem.primaryColor
-                    : context.primaryTextColor,
-                fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  /// Section Type de prix
-  Widget _buildPriceTypeSection(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Type de prix *',
-          style: context.subtitle1.copyWith(
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        SizedBox(height: context.elementSpacing),
-
-        // Boutons de sélection
-        Wrap(
-          spacing: 12,
-          runSpacing: 12,
-          children: [
-            _buildPriceTypeChip(
-              context,
-              label: 'Prix fixe',
-              value: 'fixed',
-              icon: Icons.attach_money,
-            ),
-            _buildPriceTypeChip(
-              context,
-              label: 'À découvrir',
-              value: 'discover',
-              icon: Icons.help_outline,
-            ),
-            _buildPriceTypeChip(
-              context,
-              label: 'Visite',
-              value: 'visit',
-              icon: Icons.visibility_outlined,
-            ),
-          ],
-        ),
-
-        // Champ de prix (si prix fixe)
-        Obx(() {
-          if (controller.priceType.value != 'fixed') {
-            return const SizedBox.shrink();
-          }
-
-          return Column(
-            children: [
-              SizedBox(height: context.elementSpacing),
-              TextField(
-                controller: controller.priceController,
-                keyboardType: TextInputType.number,
-                decoration: InputDecoration(
-                  hintText: 'Entrez le prix',
-                  filled: true,
-                  fillColor: context.surfaceColor,
-                  prefixIcon: const Icon(Icons.payments_outlined),
-                  suffixText: 'XAF',
-                  border: OutlineInputBorder(
-                    borderRadius: context.borderRadius(BorderRadiusType.medium),
-                    borderSide: BorderSide(color: context.borderColor),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: context.borderRadius(BorderRadiusType.medium),
-                    borderSide: BorderSide(color: context.borderColor),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: context.borderRadius(BorderRadiusType.medium),
-                    borderSide: const BorderSide(
-                      color: AppThemeSystem.primaryColor,
-                      width: 2,
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          );
-        }),
       ],
     );
-  }
-
-  Widget _buildPriceTypeChip(
-    BuildContext context, {
-    required String label,
-    required String value,
-    required IconData icon,
-  }) {
-    return Obx(() {
-      final isSelected = controller.priceType.value == value;
-
-      return FilterChip(
-        label: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              icon,
-              size: 18,
-              color: isSelected ? Colors.white : context.primaryTextColor,
-            ),
-            const SizedBox(width: 6),
-            Text(label),
-          ],
-        ),
-        selected: isSelected,
-        onSelected: (selected) {
-          if (selected) {
-            controller.priceType.value = value;
-          }
-        },
-        selectedColor: AppThemeSystem.primaryColor,
-        checkmarkColor: Colors.white,
-        backgroundColor: context.surfaceColor,
-        side: BorderSide(
-          color: isSelected
-              ? AppThemeSystem.primaryColor
-              : context.borderColor,
-          width: isSelected ? 2 : 1,
-        ),
-        labelStyle: context.body2.copyWith(
-          color: isSelected ? Colors.white : context.primaryTextColor,
-          fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-        ),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      );
-    });
   }
 
   /// Section Description
@@ -986,6 +851,299 @@ class AddProductView extends GetView<AddProductController> {
             hintText: 'Décrivez votre produit en détail...',
             filled: true,
             fillColor: context.surfaceColor,
+            border: OutlineInputBorder(
+              borderRadius: context.borderRadius(BorderRadiusType.medium),
+              borderSide: BorderSide(color: context.borderColor),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: context.borderRadius(BorderRadiusType.medium),
+              borderSide: BorderSide(color: context.borderColor),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: context.borderRadius(BorderRadiusType.medium),
+              borderSide: const BorderSide(
+                color: AppThemeSystem.primaryColor,
+                width: 2,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Section Poids du produit
+  Widget _buildWeightSection(BuildContext context) {
+    return Obx(() {
+      final selectedWeight = controller.selectedWeightType.value;
+      final weightLabel = selectedWeight != null
+          ? (selectedWeight == 'custom'
+              ? '${controller.weightKgController.text.trim()} KG'
+              : '$selectedWeight (${controller.weightTypes[selectedWeight]})')
+          : null;
+
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Poids du produit *',
+            style: context.subtitle1.copyWith(
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          SizedBox(height: context.elementSpacing),
+          GestureDetector(
+            onTap: () => _showWeightBottomSheet(context),
+            child: Container(
+              padding: EdgeInsets.all(context.horizontalPadding),
+              decoration: BoxDecoration(
+                color: selectedWeight != null
+                    ? AppThemeSystem.primaryColor.withValues(alpha: 0.1)
+                    : context.surfaceColor,
+                borderRadius: context.borderRadius(BorderRadiusType.medium),
+                border: Border.all(
+                  color: selectedWeight != null
+                      ? AppThemeSystem.primaryColor
+                      : context.borderColor,
+                  width: selectedWeight != null ? 2 : 1,
+                ),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.scale_outlined,
+                    color: selectedWeight != null
+                        ? AppThemeSystem.primaryColor
+                        : context.secondaryTextColor,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      weightLabel ?? 'Sélectionnez le poids',
+                      style: context.body1.copyWith(
+                        color: selectedWeight != null
+                            ? AppThemeSystem.primaryColor
+                            : context.secondaryTextColor,
+                        fontWeight: selectedWeight != null
+                            ? FontWeight.w600
+                            : FontWeight.normal,
+                      ),
+                    ),
+                  ),
+                  Icon(
+                    Icons.arrow_drop_down,
+                    color: selectedWeight != null
+                        ? AppThemeSystem.primaryColor
+                        : context.secondaryTextColor,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      );
+    });
+  }
+
+  /// Bottom sheet pour sélectionner le poids
+  void _showWeightBottomSheet(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return Container(
+          height: MediaQuery.of(context).size.height * 0.7,
+          decoration: BoxDecoration(
+            color: context.backgroundColor,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          child: Column(
+            children: [
+              // Header
+              Container(
+                padding: EdgeInsets.all(context.horizontalPadding),
+                decoration: BoxDecoration(
+                  color: context.surfaceColor,
+                  borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+                  border: Border(
+                    bottom: BorderSide(color: context.borderColor),
+                  ),
+                ),
+                child: Column(
+                  children: [
+                    // Handle
+                    Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: context.borderColor,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            'Sélectionner le poids',
+                            style: context.h5.copyWith(
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.close),
+                          onPressed: () => Navigator.pop(context),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+
+              // Liste des poids
+              Expanded(
+                child: ListView.separated(
+                  padding: EdgeInsets.all(context.horizontalPadding),
+                  itemCount: controller.weightTypes.length,
+                  separatorBuilder: (context, index) => Divider(
+                    height: 1,
+                    color: context.borderColor,
+                  ),
+                  itemBuilder: (context, index) {
+                    final entry = controller.weightTypes.entries.elementAt(index);
+
+                    return Obx(() {
+                      final isSelected = controller.selectedWeightType.value == entry.key;
+
+                      return ListTile(
+                        leading: Icon(
+                          Icons.scale_outlined,
+                          color: isSelected
+                              ? AppThemeSystem.primaryColor
+                              : context.secondaryTextColor,
+                        ),
+                        title: Text(
+                          entry.key,
+                          style: context.body1.copyWith(
+                            fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                            color: isSelected
+                                ? AppThemeSystem.primaryColor
+                                : context.primaryTextColor,
+                          ),
+                        ),
+                        subtitle: Text(
+                          entry.value,
+                          style: context.caption.copyWith(
+                            color: context.secondaryTextColor,
+                          ),
+                        ),
+                        trailing: isSelected
+                            ? Icon(
+                                Icons.check_circle,
+                                color: AppThemeSystem.successColor,
+                              )
+                            : null,
+                        onTap: () {
+                          controller.selectedWeightType.value = entry.key;
+
+                          if (entry.key == 'custom') {
+                            // Pour le poids personnalisé, garder le bottom sheet ouvert
+                            // et afficher un dialogue pour saisir le poids
+                            Navigator.pop(context);
+                            _showCustomWeightDialog(context);
+                          } else {
+                            // Pour les autres, fermer le bottom sheet
+                            Navigator.pop(context);
+                          }
+                        },
+                      );
+                    });
+                  },
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  /// Dialogue pour saisir un poids personnalisé
+  void _showCustomWeightDialog(BuildContext context) {
+    Get.dialog(
+      AlertDialog(
+        title: const Text('Poids personnalisé'),
+        content: TextField(
+          controller: controller.weightKgController,
+          keyboardType: TextInputType.number,
+          autofocus: true,
+          decoration: InputDecoration(
+            labelText: 'Poids en KG',
+            hintText: 'Ex: 25.5',
+            suffixText: 'KG',
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            prefixIcon: const Icon(Icons.fitness_center),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              controller.selectedWeightType.value = null;
+              controller.weightKgController.clear();
+              Get.back();
+            },
+            child: const Text('Annuler'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              if (controller.weightKgController.text.trim().isEmpty) {
+                Get.snackbar(
+                  'Erreur',
+                  'Veuillez entrer un poids',
+                  snackPosition: SnackPosition.BOTTOM,
+                );
+                return;
+              }
+              Get.back();
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppThemeSystem.primaryColor,
+            ),
+            child: const Text(
+              'Confirmer',
+              style: TextStyle(color: Colors.white),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Section Stock
+  Widget _buildStockSection(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Quantité en stock *',
+          style: context.subtitle1.copyWith(
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        SizedBox(height: context.elementSpacing),
+        TextField(
+          controller: controller.stockController,
+          keyboardType: TextInputType.number,
+          decoration: InputDecoration(
+            hintText: 'Ex: 200',
+            filled: true,
+            fillColor: context.surfaceColor,
+            prefixIcon: const Icon(Icons.inventory_outlined),
+            suffixText: 'unités',
             border: OutlineInputBorder(
               borderRadius: context.borderRadius(BorderRadiusType.medium),
               borderSide: BorderSide(color: context.borderColor),
@@ -1034,91 +1192,142 @@ class AddProductView extends GetView<AddProductController> {
         ),
         SizedBox(height: context.elementSpacing),
 
-        Obx(() => Column(
-          children: controller.storageList.map((storage) {
-            final isSelected = controller.selectedStorage.value?['id'] == storage['id'];
-            final available = storage['available'] as double;
-            final total = storage['total'] as double;
-            final percentage = (available / total * 100).toInt();
-
+        Obx(() {
+          if (controller.selectedStorage.value == null) {
             return Container(
-              margin: const EdgeInsets.only(bottom: 12),
-              child: GestureDetector(
-                onTap: () => controller.selectedStorage.value = storage,
-                child: Container(
-                  padding: EdgeInsets.all(context.horizontalPadding),
-                  decoration: BoxDecoration(
-                    color: isSelected
-                        ? AppThemeSystem.primaryColor.withValues(alpha: 0.1)
-                        : context.surfaceColor,
-                    borderRadius: context.borderRadius(BorderRadiusType.medium),
-                    border: Border.all(
-                      color: isSelected
-                          ? AppThemeSystem.primaryColor
-                          : context.borderColor,
-                      width: isSelected ? 2 : 1,
-                    ),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Icon(
-                            Icons.storage,
-                            color: isSelected
-                                ? AppThemeSystem.primaryColor
-                                : context.secondaryTextColor,
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Text(
-                              storage['name'],
-                              style: context.body1.copyWith(
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
-                          if (isSelected)
-                            Icon(
-                              Icons.check_circle,
-                              color: AppThemeSystem.successColor,
-                            ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-
-                      // Barre de progression
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(4),
-                        child: LinearProgressIndicator(
-                          value: available / total,
-                          backgroundColor: context.borderColor,
-                          valueColor: AlwaysStoppedAnimation<Color>(
-                            percentage > 50
-                                ? AppThemeSystem.successColor
-                                : percentage > 20
-                                    ? AppThemeSystem.warningColor
-                                    : AppThemeSystem.errorColor,
-                          ),
-                          minHeight: 6,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-
-                      Text(
-                        '${available.toStringAsFixed(1)} GB disponible sur ${total.toStringAsFixed(0)} GB ($percentage%)',
-                        style: context.caption.copyWith(
-                          color: context.secondaryTextColor,
-                        ),
-                      ),
-                    ],
-                  ),
+              padding: EdgeInsets.all(context.horizontalPadding),
+              decoration: BoxDecoration(
+                color: AppThemeSystem.warningColor.withValues(alpha: 0.1),
+                borderRadius: context.borderRadius(BorderRadiusType.medium),
+                border: Border.all(
+                  color: AppThemeSystem.warningColor,
+                  width: 1,
                 ),
               ),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.warning_amber_rounded,
+                    color: AppThemeSystem.warningColor,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'Aucun package actif. Veuillez souscrire à un package.',
+                      style: context.body2.copyWith(
+                        color: AppThemeSystem.warningColor,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             );
-          }).toList(),
-        )),
+          }
+
+          final storage = controller.selectedStorage.value!;
+          final available = storage['available'] as double;
+          final total = storage['total'] as double;
+          final used = total - available;
+          final percentageUsed = total > 0 ? (used / total * 100) : 0.0;
+
+          return Container(
+            padding: EdgeInsets.all(context.horizontalPadding),
+            decoration: BoxDecoration(
+              color: AppThemeSystem.primaryColor.withValues(alpha: 0.1),
+              borderRadius: context.borderRadius(BorderRadiusType.medium),
+              border: Border.all(
+                color: AppThemeSystem.primaryColor,
+                width: 2,
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(
+                      Icons.storage,
+                      color: AppThemeSystem.primaryColor,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        storage['name'],
+                        style: context.body1.copyWith(
+                          fontWeight: FontWeight.w600,
+                          color: AppThemeSystem.primaryColor,
+                        ),
+                      ),
+                    ),
+                    Icon(
+                      Icons.check_circle,
+                      color: AppThemeSystem.successColor,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+
+                // Barre de progression
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(10),
+                  child: LinearProgressIndicator(
+                    value: percentageUsed / 100,
+                    backgroundColor: context.borderColor,
+                    valueColor: AlwaysStoppedAnimation<Color>(
+                      percentageUsed > 80
+                          ? AppThemeSystem.errorColor
+                          : percentageUsed > 50
+                              ? AppThemeSystem.warningColor
+                              : AppThemeSystem.successColor,
+                    ),
+                    minHeight: 14,
+                  ),
+                ),
+                const SizedBox(height: 10),
+
+                // Storage stats
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      '${used.toStringAsFixed(1)} GB utilisés',
+                      style: context.body2.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    Text(
+                      '${total.toStringAsFixed(0)} GB',
+                      style: context.body2.copyWith(
+                        color: context.secondaryTextColor,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Row(
+                  children: [
+                    Icon(
+                      Icons.circle,
+                      size: 8,
+                      color: percentageUsed > 80
+                          ? AppThemeSystem.errorColor
+                          : percentageUsed > 50
+                              ? AppThemeSystem.warningColor
+                              : AppThemeSystem.successColor,
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      '${percentageUsed.toStringAsFixed(1)}% utilisé • ${available.toStringAsFixed(1)} GB disponible',
+                      style: context.caption.copyWith(
+                        color: context.secondaryTextColor,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          );
+        }),
       ],
     );
   }

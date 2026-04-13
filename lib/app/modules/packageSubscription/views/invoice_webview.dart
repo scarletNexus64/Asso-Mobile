@@ -1,6 +1,11 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:webview_flutter/webview_flutter.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:http/http.dart' as http;
+import 'dart:io';
 import '../../../core/utils/app_theme_system.dart';
 import '../../../data/providers/api_provider.dart';
 
@@ -33,6 +38,12 @@ class _InvoiceWebViewState extends State<InvoiceWebView> {
 
       _controller = WebViewController()
         ..setJavaScriptMode(JavaScriptMode.unrestricted)
+        ..addJavaScriptChannel(
+          'FlutterChannel',
+          onMessageReceived: (JavaScriptMessage message) {
+            _handleJavaScriptMessage(message.message);
+          },
+        )
         ..setNavigationDelegate(
           NavigationDelegate(
             onPageStarted: (url) {
@@ -78,6 +89,89 @@ class _InvoiceWebViewState extends State<InvoiceWebView> {
           _error = 'Erreur d\'initialisation: $e';
         });
       }
+    }
+  }
+
+  void _handleJavaScriptMessage(String message) {
+    try {
+      final data = json.decode(message);
+      if (data['action'] == 'downloadInvoice') {
+        _downloadAndShareInvoice(data['url']);
+      }
+    } catch (e) {
+      debugPrint('Error handling JavaScript message: $e');
+    }
+  }
+
+  Future<void> _downloadAndShareInvoice(String url) async {
+    try {
+      // Show loading
+      Get.dialog(
+        Center(
+          child: Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                CircularProgressIndicator(
+                  valueColor: AlwaysStoppedAnimation<Color>(
+                    AppThemeSystem.primaryColor,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                const Text('Préparation de la facture...'),
+              ],
+            ),
+          ),
+        ),
+        barrierDismissible: false,
+      );
+
+      // Download the invoice HTML
+      final token = ApiProvider.token;
+      final response = await http.get(
+        Uri.parse(url),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Accept': 'text/html',
+        },
+      );
+
+      Get.back(); // Close loading dialog
+
+      if (response.statusCode == 200) {
+        // Save to temporary file
+        final dir = await getTemporaryDirectory();
+        final timestamp = DateTime.now().millisecondsSinceEpoch;
+        final file = File('${dir.path}/facture_$timestamp.html');
+        await file.writeAsBytes(response.bodyBytes);
+
+        // Share the file
+        await Share.shareXFiles(
+          [XFile(file.path)],
+          subject: 'Facture ASSO',
+          text: 'Voici votre facture ASSO',
+        );
+      } else {
+        Get.snackbar(
+          'Erreur',
+          'Impossible de télécharger la facture',
+          backgroundColor: AppThemeSystem.errorColor,
+          colorText: Colors.white,
+        );
+      }
+    } catch (e) {
+      Get.back(); // Close loading dialog if open
+      Get.snackbar(
+        'Erreur',
+        'Erreur lors du téléchargement: $e',
+        backgroundColor: AppThemeSystem.errorColor,
+        colorText: Colors.white,
+      );
     }
   }
 
@@ -149,7 +243,7 @@ class _InvoiceWebViewState extends State<InvoiceWebView> {
             WebViewWidget(controller: _controller),
           if (_isLoading)
             Container(
-              color: context.backgroundColor.withOpacity(0.8),
+              color: context.backgroundColor.withValues(alpha: 0.8),
               child: Center(
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,

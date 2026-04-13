@@ -322,7 +322,7 @@ class VendorDashboardView extends GetView<VendorDashboardController> {
                 context,
                 icon: Icons.star_outline,
                 title: 'Note',
-                value: '${controller.rating.value.toStringAsFixed(1)} ⭐',
+                value: '${controller.rating.value.toStringAsFixed(1)}',
               )),
             ),
           ],

@@ -49,7 +49,10 @@ class EditStoreView extends GetView<StoreManagementController> {
       'Autres',
     ];
 
-    final selectedCategories = RxList<String>([]);
+    // Pré-sélectionner les catégories actuelles de la boutique
+    final selectedCategories = RxList<String>(
+      controller.storeInfo.value?.categories ?? [],
+    );
 
     return Scaffold(
       backgroundColor: context.backgroundColor,
@@ -420,6 +423,7 @@ class EditStoreView extends GetView<StoreManagementController> {
                           phone: phone,
                           latitude: selectedPosition.value.latitude,
                           longitude: selectedPosition.value.longitude,
+                          categories: selectedCategories.toList(),
                         );
                       },
                       style: ElevatedButton.styleFrom(

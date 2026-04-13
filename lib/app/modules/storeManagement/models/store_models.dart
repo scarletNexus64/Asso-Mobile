@@ -327,6 +327,7 @@ class StoreInfo {
   final String address;
   final String city;
   final String phone;
+  final List<String> categories;
 
   StoreInfo({
     required this.id,
@@ -338,6 +339,7 @@ class StoreInfo {
     required this.address,
     required this.city,
     required this.phone,
+    this.categories = const [],
   });
 
   factory StoreInfo.fromJson(Map<String, dynamic> json) {
@@ -351,6 +353,9 @@ class StoreInfo {
       address: json['address'] as String,
       city: json['city'] as String,
       phone: json['phone'] as String,
+      categories: json['categories'] != null
+          ? List<String>.from(json['categories'] as List)
+          : [],
     );
   }
 
@@ -365,6 +370,7 @@ class StoreInfo {
       'address': address,
       'city': city,
       'phone': phone,
+      'categories': categories,
     };
   }
 
@@ -377,6 +383,7 @@ class StoreInfo {
     String? address,
     String? city,
     String? phone,
+    List<String>? categories,
   }) {
     return StoreInfo(
       id: id,
@@ -388,6 +395,7 @@ class StoreInfo {
       address: address ?? this.address,
       city: city ?? this.city,
       phone: phone ?? this.phone,
+      categories: categories ?? this.categories,
     );
   }
 }

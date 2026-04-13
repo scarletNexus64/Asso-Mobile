@@ -29,6 +29,7 @@ class _MapLocationPickerViewState extends State<MapLocationPickerView> {
   late LatLng selectedPosition;
   String selectedAddress = '';
   bool isLoading = false;
+  bool isGeocodingInProgress = false; // Pour suivre si le géocodage est en cours
   bool showDeliveryPartners = true; // Toggle pour afficher/masquer les partenaires
 
   // Recherche
@@ -149,6 +150,12 @@ class _MapLocationPickerViewState extends State<MapLocationPickerView> {
 
   /// Géocodage inverse : obtenir l'adresse depuis les coordonnées
   Future<void> _reverseGeocode(LatLng position) async {
+    if (mounted) {
+      setState(() {
+        isGeocodingInProgress = true;
+      });
+    }
+
     try {
       final url = Uri.parse(
         'https://nominatim.openstreetmap.org/reverse?'
@@ -170,12 +177,14 @@ class _MapLocationPickerViewState extends State<MapLocationPickerView> {
           setState(() {
             selectedAddress = data['display_name'] ??
               'Lat: ${position.latitude.toStringAsFixed(4)}, Lng: ${position.longitude.toStringAsFixed(4)}';
+            isGeocodingInProgress = false;
           });
         }
       } else {
         if (mounted) {
           setState(() {
             selectedAddress = 'Lat: ${position.latitude.toStringAsFixed(4)}, Lng: ${position.longitude.toStringAsFixed(4)}';
+            isGeocodingInProgress = false;
           });
         }
       }
@@ -183,6 +192,7 @@ class _MapLocationPickerViewState extends State<MapLocationPickerView> {
       if (mounted) {
         setState(() {
           selectedAddress = 'Lat: ${position.latitude.toStringAsFixed(4)}, Lng: ${position.longitude.toStringAsFixed(4)}';
+          isGeocodingInProgress = false;
         });
       }
     }
@@ -1010,7 +1020,11 @@ class _MapLocationPickerViewState extends State<MapLocationPickerView> {
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton(
-                        onPressed: selectedAddress.isEmpty ? null : _confirmLocation,
+                        onPressed: (selectedAddress.isEmpty ||
+                                   isGeocodingInProgress ||
+                                   selectedAddress.contains('Chargement'))
+                            ? null
+                            : _confirmLocation,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppThemeSystem.primaryColor,
                           foregroundColor: Colors.white,
@@ -1022,7 +1036,9 @@ class _MapLocationPickerViewState extends State<MapLocationPickerView> {
                           ),
                         ),
                         child: Text(
-                          'Confirmer cette position',
+                          isGeocodingInProgress
+                              ? 'Chargement de l\'adresse...'
+                              : 'Confirmer cette position',
                           style: context.button.copyWith(
                             color: Colors.white,
                             fontWeight: FontWeight.w600,
