@@ -65,6 +65,14 @@ class OrderService {
     });
   }
 
+  /// Rate a delivered order
+  static Future<ApiResponse> rateOrder(int orderId, {required int rating, String? comment}) async {
+    return await ApiProvider.post('${AppConstants.ordersUrl}/$orderId/rate', body: {
+      'rating': rating,
+      if (comment != null && comment.isNotEmpty) 'comment': comment,
+    });
+  }
+
   /// Check payment status
   static Future<ApiResponse> checkPaymentStatus(String reference) async {
     return await ApiProvider.get('${AppConstants.paymentStatusUrl}/$reference');
