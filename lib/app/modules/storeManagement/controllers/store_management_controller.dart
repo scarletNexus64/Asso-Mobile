@@ -153,7 +153,9 @@ class StoreManagementController extends GetxController {
                 : CertificationStatus.notCertified,
             expiryDate: expiresAt != null ? DateTime.parse(expiresAt) : null,
           );
-          print('✅ CONTROLLER: Certification loaded (isCertified: $isCertified)');
+          print(
+            '✅ CONTROLLER: Certification loaded (isCertified: $isCertified)',
+          );
         } else {
           print('⚠️ CONTROLLER: No certification data');
           certification.value = Certification(
@@ -359,12 +361,11 @@ class StoreManagementController extends GetxController {
   }
 
   /// Améliorer le stockage
-  void upgradeStorage() {
-    Get.snackbar(
-      'Stockage',
-      'Fonctionnalité d\'upgrade en cours de développement',
-      snackPosition: SnackPosition.BOTTOM,
-    );
+  void upgradeStorage() async {
+    // Naviguer vers la page de souscription et rafraîchir les données au retour
+    await Get.toNamed('/package-subscription');
+    // Rafraîchir toutes les données après le retour
+    await loadData();
   }
 
   /// Booster les produits
@@ -377,12 +378,11 @@ class StoreManagementController extends GetxController {
   }
 
   /// Demander la certification
-  void requestCertification() {
-    Get.snackbar(
-      'Certification',
-      'Demande de certification en cours de développement',
-      snackPosition: SnackPosition.BOTTOM,
-    );
+  void requestCertification() async {
+    // Navigate to certification packages page
+    await Get.toNamed('/certification-packages');
+    // Reload data when user returns to refresh certification status
+    await loadData();
   }
 
   /// Passer en premium

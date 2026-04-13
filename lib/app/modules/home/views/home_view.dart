@@ -5,6 +5,7 @@ import '../../../core/utils/app_theme_system.dart';
 import '../../../core/utils/auth_guard.dart';
 import '../../../core/values/constants.dart';
 import '../../../core/widgets/shimmer_widgets.dart';
+import '../../../core/widgets/verified_badge.dart';
 import '../../../data/providers/auth_service.dart';
 import '../../../data/providers/storage_service.dart';
 import '../../../routes/app_pages.dart';
@@ -1998,6 +1999,29 @@ class HomeItemView extends GetView<HomeController> {
                     ),
                   ),
                   const SizedBox(height: 8),
+                  // Vendor name with verified badge
+                  if (product['shop'] != null && product['shop']['name'] != null)
+                    Row(
+                      children: [
+                        Icon(Icons.store_outlined, size: 14, color: AppThemeSystem.grey600),
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: Text(
+                            product['shop']['name'],
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: context.textStyle(FontSizeType.caption, color: AppThemeSystem.grey700),
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        VerifiedBadge(
+                          isCertified: product['shop']['is_certified'] ?? false,
+                          size: 14,
+                        ),
+                      ],
+                    ),
+                  if (product['shop'] != null && product['shop']['name'] != null)
+                    const SizedBox(height: 8),
                   if (_getLocation(product).isNotEmpty)
                     Row(
                       children: [

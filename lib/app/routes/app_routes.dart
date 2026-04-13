@@ -37,6 +37,7 @@ abstract class Routes {
   static const FAQ = _Paths.FAQ;
   static const ABOUT = _Paths.ABOUT;
   static const PACKAGE_SUBSCRIPTION = _Paths.PACKAGE_SUBSCRIPTION;
+  static const CERTIFICATION_PACKAGES = _Paths.CERTIFICATION_PACKAGES;
   static const PRODUCT_MANAGEMENT = _Paths.PRODUCT_MANAGEMENT;
   static const ADD_PRODUCT = _Paths.ADD_PRODUCT;
   static const USSD_WAITING = _Paths.USSD_WAITING;
@@ -79,6 +80,7 @@ abstract class _Paths {
   static const FAQ = '/faq';
   static const ABOUT = '/about';
   static const PACKAGE_SUBSCRIPTION = '/package-subscription';
+  static const CERTIFICATION_PACKAGES = '/certification-packages';
   static const PRODUCT_MANAGEMENT = '/product-management';
   static const ADD_PRODUCT = '/add-product';
   static const USSD_WAITING = '/ussd-waiting';

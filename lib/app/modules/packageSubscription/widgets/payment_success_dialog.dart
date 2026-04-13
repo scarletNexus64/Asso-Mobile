@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../../../core/utils/app_theme_system.dart';
 import '../views/invoice_webview.dart';
 import '../../vendorDashboard/controllers/vendor_dashboard_controller.dart';
+import '../../storeManagement/controllers/store_management_controller.dart';
 
 class PaymentSuccessDialog extends StatefulWidget {
   final String packageName;
@@ -238,23 +239,27 @@ class _PaymentSuccessDialogState extends State<PaymentSuccessDialog>
                           // Close dialog
                           Get.back();
 
-                          // Go back to vendor dashboard
+                          // Go back to previous page
                           Get.back();
 
                           // Wait a moment for navigation animation
                           await Future.delayed(const Duration(milliseconds: 200));
 
-                          // Force refresh the dashboard
+                          // Force refresh the dashboard and store management
                           try {
                             if (Get.isRegistered<VendorDashboardController>()) {
                               final controller = Get.find<VendorDashboardController>();
                               print('[PaymentSuccess] Refreshing VendorDashboard');
                               await controller.refreshData();
-                            } else {
-                              print('[PaymentSuccess] VendorDashboardController not registered');
+                            }
+
+                            if (Get.isRegistered<StoreManagementController>()) {
+                              final controller = Get.find<StoreManagementController>();
+                              print('[PaymentSuccess] Refreshing StoreManagement');
+                              await controller.loadData();
                             }
                           } catch (e) {
-                            print('[PaymentSuccess] Error refreshing dashboard: $e');
+                            print('[PaymentSuccess] Error refreshing: $e');
                           }
                         },
                         style: ElevatedButton.styleFrom(

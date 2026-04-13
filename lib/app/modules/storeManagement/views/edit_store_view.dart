@@ -435,7 +435,6 @@ class EditStoreView extends GetView<StoreManagementController> {
                   ),
                 ],
               ),
-
               SizedBox(height: context.sectionSpacing),
             ],
           ),

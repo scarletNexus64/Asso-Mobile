@@ -7,6 +7,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:http/http.dart' as http;
 import 'dart:io';
 import '../../../core/utils/app_theme_system.dart';
+import '../../../core/values/constants.dart';
 import '../../../data/providers/api_provider.dart';
 
 class InvoiceWebView extends StatefulWidget {
@@ -38,6 +39,7 @@ class _InvoiceWebViewState extends State<InvoiceWebView> {
 
       _controller = WebViewController()
         ..setJavaScriptMode(JavaScriptMode.unrestricted)
+        ..enableZoom(false)
         ..addJavaScriptChannel(
           'FlutterChannel',
           onMessageReceived: (JavaScriptMessage message) {
@@ -93,17 +95,25 @@ class _InvoiceWebViewState extends State<InvoiceWebView> {
   }
 
   void _handleJavaScriptMessage(String message) {
+    debugPrint('📨 JavaScript message received: $message');
     try {
       final data = json.decode(message);
+      debugPrint('📨 Decoded data: $data');
+
       if (data['action'] == 'downloadInvoice') {
-        _downloadAndShareInvoice(data['url']);
+        final vendorPackageId = data['vendorPackageId'];
+        debugPrint('📨 Download invoice requested for package: $vendorPackageId');
+        _downloadAndShareInvoice(vendorPackageId.toString());
+      } else {
+        debugPrint('⚠️ Unknown action: ${data['action']}');
       }
-    } catch (e) {
-      debugPrint('Error handling JavaScript message: $e');
+    } catch (e, stackTrace) {
+      debugPrint('❌ Error handling JavaScript message: $e');
+      debugPrint('❌ StackTrace: $stackTrace');
     }
   }
 
-  Future<void> _downloadAndShareInvoice(String url) async {
+  Future<void> _downloadAndShareInvoice(String vendorPackageId) async {
     try {
       // Show loading
       Get.dialog(
@@ -122,8 +132,8 @@ class _InvoiceWebViewState extends State<InvoiceWebView> {
                     AppThemeSystem.primaryColor,
                   ),
                 ),
-                const SizedBox(height: 16),
-                const Text('Préparation de la facture...'),
+                // const SizedBox(height: 16),
+                // const Text('Téléchargement du PDF...'),
               ],
             ),
           ),
@@ -131,46 +141,66 @@ class _InvoiceWebViewState extends State<InvoiceWebView> {
         barrierDismissible: false,
       );
 
-      // Download the invoice HTML
+      // Download the invoice PDF
       final token = ApiProvider.token;
+      final pdfUrl = '${AppConstants.baseUrl}/v1/invoices/pdf/$vendorPackageId';
+
+      debugPrint('📥 Downloading PDF from: $pdfUrl');
+
       final response = await http.get(
-        Uri.parse(url),
+        Uri.parse(pdfUrl),
         headers: {
           'Authorization': 'Bearer $token',
-          'Accept': 'text/html',
+          'Accept': 'application/pdf',
         },
       );
 
       Get.back(); // Close loading dialog
 
+      debugPrint('📥 PDF Response Status: ${response.statusCode}');
+      debugPrint('📥 PDF Response Body: ${response.body.substring(0, response.body.length > 200 ? 200 : response.body.length)}');
+
       if (response.statusCode == 200) {
         // Save to temporary file
         final dir = await getTemporaryDirectory();
         final timestamp = DateTime.now().millisecondsSinceEpoch;
-        final file = File('${dir.path}/facture_$timestamp.html');
+        final file = File('${dir.path}/facture_$timestamp.pdf');
         await file.writeAsBytes(response.bodyBytes);
 
-        // Share the file
+        debugPrint('📥 PDF saved to: ${file.path}');
+
+        // Share the PDF file
         await Share.shareXFiles(
           [XFile(file.path)],
           subject: 'Facture ASSO',
           text: 'Voici votre facture ASSO',
         );
+
+        Get.snackbar(
+          'Succès',
+          'Facture téléchargée avec succès',
+          backgroundColor: AppThemeSystem.successColor,
+          colorText: Colors.white,
+        );
       } else {
+        debugPrint('❌ PDF Download Error: ${response.statusCode}');
         Get.snackbar(
           'Erreur',
-          'Impossible de télécharger la facture',
+          'Impossible de télécharger la facture (${response.statusCode})',
           backgroundColor: AppThemeSystem.errorColor,
           colorText: Colors.white,
         );
       }
-    } catch (e) {
+    } catch (e, stackTrace) {
+      debugPrint('❌ Exception during PDF download: $e');
+      debugPrint('❌ StackTrace: $stackTrace');
       Get.back(); // Close loading dialog if open
       Get.snackbar(
         'Erreur',
         'Erreur lors du téléchargement: $e',
         backgroundColor: AppThemeSystem.errorColor,
         colorText: Colors.white,
+        duration: const Duration(seconds: 5),
       );
     }
   }
