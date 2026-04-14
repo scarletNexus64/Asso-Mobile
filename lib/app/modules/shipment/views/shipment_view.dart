@@ -5,12 +5,9 @@ import 'package:intl/intl.dart';
 import '../../../core/utils/app_theme_system.dart';
 import '../../myOrder/controllers/my_order_controller.dart';
 import '../../myOrder/models/customer_order_models.dart';
-import '../controllers/shipment_controller.dart';
 
-class ShipmentView extends GetView<ShipmentController> {
+class ShipmentView extends GetView<MyOrderController> {
   const ShipmentView({super.key});
-
-  MyOrderController get orderCtrl => Get.find<MyOrderController>();
 
   @override
   Widget build(BuildContext context) {
@@ -30,7 +27,7 @@ class ShipmentView extends GetView<ShipmentController> {
         actions: [
           IconButton(
             icon: Icon(Icons.refresh_rounded, color: context.secondaryTextColor),
-            onPressed: () => orderCtrl.loadOrders(refresh: true),
+            onPressed: () => controller.loadOrders(refresh: true),
           ),
         ],
       ),
@@ -40,22 +37,22 @@ class ShipmentView extends GetView<ShipmentController> {
           SizedBox(height: context.elementSpacing),
           Expanded(
             child: Obx(() {
-              if (orderCtrl.isLoading.value && orderCtrl.filteredOrders.isEmpty) {
+              if (controller.isLoading.value && controller.filteredOrders.isEmpty) {
                 return const Center(child: CircularProgressIndicator());
               }
 
-              if (orderCtrl.filteredOrders.isEmpty) {
+              if (controller.filteredOrders.isEmpty) {
                 return _buildEmptyState(context);
               }
 
               return RefreshIndicator(
-                onRefresh: () => orderCtrl.loadOrders(refresh: true),
+                onRefresh: () => controller.loadOrders(refresh: true),
                 child: ListView.separated(
                   padding: EdgeInsets.all(context.horizontalPadding),
-                  itemCount: orderCtrl.filteredOrders.length,
+                  itemCount: controller.filteredOrders.length,
                   separatorBuilder: (_, __) => SizedBox(height: context.elementSpacing),
                   itemBuilder: (context, index) {
-                    final order = orderCtrl.filteredOrders[index];
+                    final order = controller.filteredOrders[index];
                     return _buildOrderCard(context, order);
                   },
                 ),
@@ -87,12 +84,12 @@ class ShipmentView extends GetView<ShipmentController> {
           separatorBuilder: (_, __) => const SizedBox(width: 8),
           itemBuilder: (context, index) {
             final filter = filters[index];
-            final isSelected = orderCtrl.selectedStatus.value == filter['value'];
+            final isSelected = controller.selectedStatus.value == filter['value'];
 
             return FilterChip(
               label: Text(filter['label'] as String),
               selected: isSelected,
-              onSelected: (_) => orderCtrl.filterByStatus(filter['value'] as String),
+              onSelected: (_) => controller.filterByStatus(filter['value'] as String),
               backgroundColor: context.surfaceColor,
               selectedColor: AppThemeSystem.primaryColor.withValues(alpha: 0.2),
               labelStyle: TextStyle(
@@ -140,7 +137,7 @@ class ShipmentView extends GetView<ShipmentController> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header : numéro + statut + date
+          // Header
           Padding(
             padding: const EdgeInsets.all(16),
             child: Row(
@@ -316,11 +313,10 @@ class ShipmentView extends GetView<ShipmentController> {
       padding: const EdgeInsets.all(12),
       child: Row(
         children: [
-          // Annuler (pending seulement)
           if (order.status == CustomerOrderStatus.pending)
             Expanded(
               child: OutlinedButton.icon(
-                onPressed: () => orderCtrl.cancelOrder(order.id),
+                onPressed: () => controller.cancelOrder(order.id),
                 icon: const Icon(Icons.cancel_outlined, size: 18),
                 label: const Text('Annuler'),
                 style: OutlinedButton.styleFrom(
@@ -331,11 +327,10 @@ class ShipmentView extends GetView<ShipmentController> {
               ),
             ),
 
-          // Appeler le livreur (shipped)
           if (order.status == CustomerOrderStatus.shipped && order.deliveryPersonPhone != null) ...[
             if (order.status == CustomerOrderStatus.pending) const SizedBox(width: 8),
             IconButton(
-              onPressed: () => orderCtrl.contactDelivery(order.deliveryPersonPhone!),
+              onPressed: () => controller.contactDelivery(order.deliveryPersonPhone!),
               icon: const Icon(Icons.phone),
               style: IconButton.styleFrom(
                 backgroundColor: Colors.green.withValues(alpha: 0.1),
@@ -344,11 +339,10 @@ class ShipmentView extends GetView<ShipmentController> {
             ),
           ],
 
-          // Noter (delivered + pas encore note)
           if (order.canRate)
             Expanded(
               child: ElevatedButton.icon(
-                onPressed: () => orderCtrl.showRatingDialog(order),
+                onPressed: () => controller.showRatingDialog(order),
                 icon: const Icon(Icons.star_rounded, size: 18, color: Colors.white),
                 label: const Text('Noter', style: TextStyle(color: Colors.white)),
                 style: ElevatedButton.styleFrom(
