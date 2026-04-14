@@ -247,12 +247,47 @@ class VendorDashboardView extends GetView<VendorDashboardController> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Obx(() => Text(
-                  controller.shopName.value,
-                  style: context.h5.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-                )),
+                // Nom de la boutique avec badge de certification
+                Row(
+                  children: [
+                    Flexible(
+                      child: Obx(() => Text(
+                        controller.shopName.value,
+                        style: context.h5.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      )),
+                    ),
+                    // Badge de certification bleu
+                    Obx(() {
+                      if (controller.isCertified.value) {
+                        return Padding(
+                          padding: const EdgeInsets.only(left: 6),
+                          child: Container(
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              boxShadow: [
+                                BoxShadow(
+                                  color: const Color(0xFF1DA1F2).withValues(alpha: 0.5),
+                                  blurRadius: 8,
+                                  spreadRadius: 1,
+                                ),
+                              ],
+                            ),
+                            child: Icon(
+                              Icons.verified,
+                              color: const Color(0xFF1DA1F2),
+                              size: 22,
+                            ),
+                          ),
+                        );
+                      }
+                      return const SizedBox.shrink();
+                    }),
+                  ],
+                ),
                 SizedBox(height: 4),
                 Obx(() => _buildVerificationBadge(context)),
               ],
@@ -495,21 +530,32 @@ class VendorDashboardView extends GetView<VendorDashboardController> {
                 // Badge
                 if (badge != null && badge > 0)
                   Positioned(
-                    top: -4,
-                    right: -4,
+                    top: -2,
+                    right: 2,
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                       decoration: BoxDecoration(
                         color: AppThemeSystem.errorColor,
-                        borderRadius: BorderRadius.circular(10),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: Colors.white,
+                          width: 2,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppThemeSystem.errorColor.withValues(alpha: 0.4),
+                            blurRadius: 6,
+                            offset: Offset(0, 2),
+                          ),
+                        ],
                       ),
-                      constraints: const BoxConstraints(minWidth: 20, minHeight: 20),
+                      constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
                       child: Text(
                         badge > 99 ? '99+' : badge.toString(),
                         style: context.caption.copyWith(
                           color: Colors.white,
                           fontWeight: FontWeight.bold,
-                          fontSize: 10,
+                          fontSize: 11,
                         ),
                         textAlign: TextAlign.center,
                       ),
@@ -938,4 +984,5 @@ class VendorDashboardView extends GetView<VendorDashboardController> {
       );
     });
   }
+
 }

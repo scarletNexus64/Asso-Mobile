@@ -5,6 +5,9 @@ import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import '../models/store_models.dart';
 import '../../../data/providers/shop_service.dart';
+import '../../../data/providers/delivery_service.dart';
+import '../../../data/providers/vendor_service.dart';
+import '../../../core/utils/app_theme_system.dart';
 
 class StoreManagementController extends GetxController {
   // État de chargement
@@ -12,6 +15,11 @@ class StoreManagementController extends GetxController {
 
   // Informations de la boutique
   final Rx<StoreInfo?> storeInfo = Rx<StoreInfo?>(null);
+
+  // Vérification de zone de livraison
+  final isDeliveryAvailable = false.obs;
+  final isCheckingDeliveryAvailability = false.obs;
+  final deliveryAvailabilityMessage = ''.obs;
 
   // Statistiques de stockage
   final Rx<StorageStats?> storageStats = Rx<StorageStats?>(null);
@@ -34,10 +42,15 @@ class StoreManagementController extends GetxController {
   final ImagePicker _picker = ImagePicker();
   final Rx<File?> selectedLogo = Rx<File?>(null);
 
+  // Location change requests
+  final RxList<dynamic> locationRequests = <dynamic>[].obs;
+  final RxBool hasLocationUpdatePending = false.obs;
+
   @override
   void onInit() {
     super.onInit();
     loadData();
+    loadLocationRequests();
     _setupBanners();
   }
 
@@ -153,7 +166,9 @@ class StoreManagementController extends GetxController {
                 : CertificationStatus.notCertified,
             expiryDate: expiresAt != null ? DateTime.parse(expiresAt) : null,
           );
-          print('✅ CONTROLLER: Certification loaded (isCertified: $isCertified)');
+          print(
+            '✅ CONTROLLER: Certification loaded (isCertified: $isCertified)',
+          );
         } else {
           print('⚠️ CONTROLLER: No certification data');
           certification.value = Certification(
@@ -266,11 +281,86 @@ class StoreManagementController extends GetxController {
 
   /// Sélectionne une image pour le logo
   Future<void> pickLogo() async {
+    // Show bottom sheet to choose source
+    final ImageSource? source = await Get.bottomSheet<ImageSource>(
+      Container(
+        decoration: BoxDecoration(
+          color: Get.theme.scaffoldBackgroundColor,
+          borderRadius: const BorderRadius.only(
+            topLeft: Radius.circular(20),
+            topRight: Radius.circular(20),
+          ),
+        ),
+        child: SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(height: 12),
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey[300],
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(height: 20),
+              Text(
+                'Choisir une source',
+                style: Get.textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 20),
+              ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: AppThemeSystem.primaryColor.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(
+                    Icons.photo_library,
+                    color: AppThemeSystem.primaryColor,
+                  ),
+                ),
+                title: const Text('Galerie'),
+                subtitle: const Text('Choisir une photo existante'),
+                onTap: () => Get.back(result: ImageSource.gallery),
+              ),
+              ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: AppThemeSystem.primaryColor.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(
+                    Icons.camera_alt,
+                    color: AppThemeSystem.primaryColor,
+                  ),
+                ),
+                title: const Text('Caméra'),
+                subtitle: const Text('Prendre une nouvelle photo'),
+                onTap: () => Get.back(result: ImageSource.camera),
+              ),
+              const SizedBox(height: 20),
+            ],
+          ),
+        ),
+      ),
+      isDismissible: true,
+      enableDrag: true,
+    );
+
+    if (source == null) return;
+
     try {
       final XFile? image = await _picker.pickImage(
-        source: ImageSource.gallery,
+        source: source,
         maxWidth: 1024,
         maxHeight: 1024,
+        imageQuality: 85,
       );
 
       if (image != null) {
@@ -279,6 +369,8 @@ class StoreManagementController extends GetxController {
           'Succès',
           'Logo sélectionné. N\'oubliez pas de sauvegarder.',
           snackPosition: SnackPosition.BOTTOM,
+          backgroundColor: AppThemeSystem.successColor,
+          colorText: Colors.white,
         );
       }
     } catch (e) {
@@ -286,9 +378,95 @@ class StoreManagementController extends GetxController {
         'Erreur',
         'Impossible de sélectionner l\'image',
         snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: Colors.red,
+        backgroundColor: AppThemeSystem.errorColor,
         colorText: Colors.white,
       );
+    }
+  }
+
+  /// Load location change requests
+  Future<void> loadLocationRequests() async {
+    try {
+      final response = await ShopService.getLocationRequests();
+
+      if (response.success && response.data != null) {
+        locationRequests.value = response.data!['requests'] as List? ?? [];
+        final pendingCount = response.data!['pending_count'] as int? ?? 0;
+        hasLocationUpdatePending.value = pendingCount > 0;
+
+        print('✅ CONTROLLER: Location requests loaded');
+        print('  ├─ Total requests: ${locationRequests.length}');
+        print('  └─ Pending requests: $pendingCount');
+      } else {
+        locationRequests.value = [];
+        hasLocationUpdatePending.value = false;
+      }
+    } catch (e) {
+      print('⚠️ CONTROLLER: Failed to load location requests: $e');
+      locationRequests.value = [];
+      hasLocationUpdatePending.value = false;
+    }
+  }
+
+  /// Vérifie si la livraison est disponible à une position donnée
+  Future<void> checkDeliveryAvailability(double latitude, double longitude) async {
+    print('');
+    print('========================================');
+    print('🚚 STORE MANAGEMENT: Checking delivery availability');
+    print('========================================');
+    print('  └─ Latitude: $latitude');
+    print('  └─ Longitude: $longitude');
+
+    isCheckingDeliveryAvailability.value = true;
+    deliveryAvailabilityMessage.value = '';
+
+    try {
+      final response = await DeliveryService.checkDeliveryAvailability(
+        latitude: latitude,
+        longitude: longitude,
+      );
+
+      print('📥 STORE MANAGEMENT: Delivery availability response received');
+      print('  └─ Success: ${response.success}');
+      print('  └─ Status Code: ${response.statusCode}');
+      print('  └─ Message: ${response.message}');
+
+      if (response.success && response.data != null) {
+        final available = response.data!['available'] as bool? ?? false;
+        final message = response.data!['message'] as String? ?? '';
+
+        isDeliveryAvailable.value = available;
+        deliveryAvailabilityMessage.value = message;
+
+        print('');
+        print('🔔 DELIVERY AVAILABILITY RESULT:');
+        print('  ├─ Available: $available');
+        print('  ├─ Message: $message');
+        print('  └─ isDeliveryAvailable.value is now: ${isDeliveryAvailable.value}');
+
+        if (available) {
+          print('✅ STORE MANAGEMENT: Delivery is available');
+        } else {
+          print('❌ STORE MANAGEMENT: Delivery is NOT available');
+        }
+      } else {
+        isDeliveryAvailable.value = false;
+        deliveryAvailabilityMessage.value = response.message;
+
+        print('⚠️ STORE MANAGEMENT: API returned error');
+        print('  └─ Message: ${response.message}');
+      }
+    } catch (e, stackTrace) {
+      print('💥 STORE MANAGEMENT: Exception caught during delivery check!');
+      print('  └─ Error: $e');
+      print('  └─ Stack Trace:');
+      print(stackTrace.toString().split('\n').take(3).join('\n'));
+
+      isDeliveryAvailable.value = false;
+      deliveryAvailabilityMessage.value = 'Erreur lors de la vérification';
+    } finally {
+      isCheckingDeliveryAvailability.value = false;
+      print('========================================');
     }
   }
 
@@ -306,7 +484,90 @@ class StoreManagementController extends GetxController {
     try {
       isLoading.value = true;
 
+      print('');
+      print('========================================');
+      print('💾 STORE MANAGEMENT: SAVE STORE INFO START');
+      print('========================================');
+      print('📝 Data to save:');
+      print('  ├─ Name: $name');
+      print('  ├─ Description: $description');
+      print('  ├─ Address: $address');
+      print('  ├─ Phone: $phone');
+      print('  ├─ Latitude: $latitude');
+      print('  ├─ Longitude: $longitude');
+      print('  ├─ Categories: $categories');
+      print('  └─ City: $city');
+
+      print('');
+      print('📊 Current store info BEFORE save:');
+      print('  ├─ Name: ${storeInfo.value?.name}');
+      print('  ├─ Description: ${storeInfo.value?.description}');
+      print('  ├─ Address: ${storeInfo.value?.address}');
+      print('  ├─ Phone: ${storeInfo.value?.phone}');
+      print('  ├─ Latitude: ${storeInfo.value?.latitude}');
+      print('  ├─ Longitude: ${storeInfo.value?.longitude}');
+      print('  └─ Categories: ${storeInfo.value?.categories}');
+
+      // Vérifier si la position a changé
+      final oldLat = storeInfo.value?.latitude ?? 0.0;
+      final oldLng = storeInfo.value?.longitude ?? 0.0;
+      final newLat = latitude ?? oldLat;
+      final newLng = longitude ?? oldLng;
+
+      final hasLocationChanged = (newLat - oldLat).abs() > 0.0001 || (newLng - oldLng).abs() > 0.0001;
+
+      print('');
+      print('========================================');
+      print('📍 STORE MANAGEMENT: Checking location change');
+      print('  ├─ Old position: ($oldLat, $oldLng)');
+      print('  ├─ New position: ($newLat, $newLng)');
+      print('  └─ Location changed: $hasLocationChanged');
+      print('========================================');
+
+      if (hasLocationChanged) {
+        // 1. Vérifier qu'il n'y a pas de commandes en cours
+        print('📦 Checking active orders...');
+        final ordersResponse = await VendorService.checkActiveOrders();
+
+        if (ordersResponse.success && ordersResponse.data != null) {
+          final hasActiveOrders = ordersResponse.data!['has_active_orders'] as bool? ?? false;
+          final activeOrdersCount = ordersResponse.data!['active_orders_count'] as int? ?? 0;
+
+          if (hasActiveOrders) {
+            Get.snackbar(
+              'Commandes en cours',
+              'Vous avez $activeOrdersCount commande(s) en cours. Veuillez les terminer avant de modifier votre emplacement.',
+              snackPosition: SnackPosition.BOTTOM,
+              backgroundColor: AppThemeSystem.warningColor,
+              colorText: Colors.white,
+              duration: const Duration(seconds: 4),
+            );
+            return;
+          }
+          print('✅ No active orders');
+        }
+
+        // 2. Vérifier que la nouvelle position est dans une zone de livraison
+        print('🚚 Checking delivery availability...');
+        await checkDeliveryAvailability(newLat, newLng);
+
+        if (!isDeliveryAvailable.value) {
+          Get.snackbar(
+            'Hors zone de livraison',
+            'La nouvelle position est en dehors des zones de livraison disponibles. Veuillez choisir un emplacement dans une zone desservie.',
+            snackPosition: SnackPosition.BOTTOM,
+            backgroundColor: AppThemeSystem.errorColor,
+            colorText: Colors.white,
+            duration: const Duration(seconds: 4),
+          );
+          return;
+        }
+        print('✅ Delivery available at new location');
+      }
+
       // Appel API pour sauvegarder
+      print('');
+      print('🌐 Calling ShopService.updateShop...');
       final response = await ShopService.updateShop(
         shopName: name,
         shopDescription: description,
@@ -318,21 +579,106 @@ class StoreManagementController extends GetxController {
         categories: categories,
       );
 
-      if (response.success) {
-        // Recharger les données depuis l'API
-        await loadData();
+      print('');
+      print('📥 Response received from API:');
+      print('  ├─ Success: ${response.success}');
+      print('  ├─ Status Code: ${response.statusCode}');
+      print('  ├─ Message: ${response.message}');
+      print('  └─ Data: ${response.data}');
+
+      if (response.success && response.data != null) {
+        print('');
+        print('✅ API call successful, processing response data...');
+        // Mettre à jour directement avec les données de la réponse
+        final shop = response.data!['shop'];
+        if (shop != null) {
+          // Nettoyer l'adresse (gérer les valeurs placeholder)
+          String? updatedAddress = shop['address']?.toString();
+          if (updatedAddress != null &&
+              (updatedAddress.contains('Chargement de l') || updatedAddress.isEmpty)) {
+            updatedAddress = '';
+          }
+
+          // Extraire la ville de l'adresse si présente
+          String updatedCity = '';
+          if (updatedAddress != null && updatedAddress.isNotEmpty && updatedAddress.contains(',')) {
+            updatedCity = updatedAddress.split(',').last.trim();
+          }
+
+          // Parser les catégories
+          List<String> updatedCategories = [];
+          if (shop['categories'] != null) {
+            if (shop['categories'] is List) {
+              updatedCategories = List<String>.from(shop['categories'] as List);
+            }
+          }
+
+          print('');
+          print('🔄 Updating storeInfo from API response...');
+          print('  ├─ ID: ${shop['id']}');
+          print('  ├─ Name: ${shop['name']}');
+          print('  ├─ Description: ${shop['description']}');
+          print('  ├─ Address: $updatedAddress');
+          print('  ├─ Phone: ${shop['phone']}');
+          print('  ├─ Latitude: ${shop['latitude']}');
+          print('  ├─ Longitude: ${shop['longitude']}');
+          print('  └─ Categories: $updatedCategories');
+
+          storeInfo.value = StoreInfo(
+            id: shop['id']?.toString() ?? '',
+            name: shop['name'] ?? '',
+            logoUrl: shop['logo'],
+            description: shop['description'] ?? '',
+            latitude: _toDouble(shop['latitude']),
+            longitude: _toDouble(shop['longitude']),
+            address: updatedAddress ?? '',
+            city: updatedCity,
+            phone: shop['phone'] ?? '',
+            categories: updatedCategories,
+          );
+
+          print('');
+          print('✅ CONTROLLER: Store info updated from API response');
+          print('📊 New storeInfo.value:');
+          print('  ├─ Name: ${storeInfo.value?.name}');
+          print('  ├─ Description: ${storeInfo.value?.description}');
+          print('  ├─ Address: ${storeInfo.value?.address}');
+          print('  ├─ Phone: ${storeInfo.value?.phone}');
+          print('  ├─ Latitude: ${storeInfo.value?.latitude}');
+          print('  ├─ Longitude: ${storeInfo.value?.longitude}');
+          print('  └─ Categories: ${storeInfo.value?.categories}');
+        }
 
         // Réinitialiser le logo sélectionné
         selectedLogo.value = null;
 
+        // Reload location requests to check for new pending requests
+        print('');
+        print('🔄 Reloading location requests...');
+        await loadLocationRequests();
+
         Get.back(); // Fermer le formulaire d'édition
+
+        // Determine success message based on whether location request was created
+        final hasLocationRequest = response.data!['location_request'] != null;
+        final message = hasLocationRequest
+            ? 'Informations mises à jour. Votre demande de changement de localisation sera validée par un administrateur.'
+            : 'Informations de la boutique mises à jour avec succès';
+
+        print('');
+        print('========================================');
+        print('✅ SAVE COMPLETED SUCCESSFULLY');
+        print('  ├─ Location request created: $hasLocationRequest');
+        print('  └─ Message: $message');
+        print('========================================');
 
         Get.snackbar(
           'Succès',
-          'Informations de la boutique mises à jour',
+          message,
           snackPosition: SnackPosition.BOTTOM,
           backgroundColor: Colors.green,
           colorText: Colors.white,
+          duration: const Duration(seconds: 4),
         );
       } else {
         Get.snackbar(
@@ -359,12 +705,11 @@ class StoreManagementController extends GetxController {
   }
 
   /// Améliorer le stockage
-  void upgradeStorage() {
-    Get.snackbar(
-      'Stockage',
-      'Fonctionnalité d\'upgrade en cours de développement',
-      snackPosition: SnackPosition.BOTTOM,
-    );
+  void upgradeStorage() async {
+    // Naviguer vers la page de souscription et rafraîchir les données au retour
+    await Get.toNamed('/package-subscription');
+    // Rafraîchir toutes les données après le retour
+    await loadData();
   }
 
   /// Booster les produits
@@ -377,12 +722,11 @@ class StoreManagementController extends GetxController {
   }
 
   /// Demander la certification
-  void requestCertification() {
-    Get.snackbar(
-      'Certification',
-      'Demande de certification en cours de développement',
-      snackPosition: SnackPosition.BOTTOM,
-    );
+  void requestCertification() async {
+    // Navigate to certification packages page
+    await Get.toNamed('/certification-packages');
+    // Reload data when user returns to refresh certification status
+    await loadData();
   }
 
   /// Passer en premium

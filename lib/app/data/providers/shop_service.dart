@@ -78,17 +78,20 @@ class ShopService {
     }
     print('  └─ Total files: ${files.length}');
 
+    // Laravel doesn't parse multipart for PUT, so use POST with _method=PUT
+    fields['_method'] = 'PUT';
+
     print('🌐 SHOP SERVICE: Calling API (multipart)...');
     print('  └─ Endpoint: ${AppConstants.vendorShopUrl}');
-    print('  └─ Method: PUT');
+    print('  └─ Method: POST with _method=PUT (Laravel method spoofing)');
 
     try {
-      // Use multipart for file uploads with PUT method
+      // Use multipart for file uploads with POST (method spoofing for PUT)
       final response = await ApiProvider.multipart(
         AppConstants.vendorShopUrl,
         fields: fields,
         files: files.isNotEmpty ? files : null,
-        method: 'PUT',
+        method: 'POST',  // Changed from PUT to POST
       );
 
       print('✅ SHOP SERVICE: API call completed');
@@ -151,6 +154,37 @@ class ShopService {
       print('✅ SHOP SERVICE: API call completed');
       print('  └─ Success: ${response.success}');
       print('  └─ Status: ${response.statusCode}');
+      print('========================================');
+
+      return response;
+    } catch (e, stackTrace) {
+      print('💥 SHOP SERVICE: Exception!');
+      print('  └─ Error: $e');
+      print('  └─ Stack trace:');
+      print(stackTrace.toString().split('\n').take(3).join('\n'));
+      print('========================================');
+      rethrow;
+    }
+  }
+
+  /// Get location change requests for the authenticated vendor's shop
+  static Future<ApiResponse> getLocationRequests() async {
+    print('');
+    print('========================================');
+    print('📍 SHOP SERVICE: Get Location Requests START');
+    print('========================================');
+    print('🌐 SHOP SERVICE: Calling API...');
+    print('  └─ Endpoint: ${AppConstants.vendorShopUrl}/location-requests');
+
+    try {
+      final response = await ApiProvider.get(
+        '${AppConstants.vendorShopUrl}/location-requests',
+      );
+
+      print('✅ SHOP SERVICE: API call completed');
+      print('  └─ Success: ${response.success}');
+      print('  └─ Status: ${response.statusCode}');
+      print('  └─ Pending count: ${response.data?['pending_count']}');
       print('========================================');
 
       return response;

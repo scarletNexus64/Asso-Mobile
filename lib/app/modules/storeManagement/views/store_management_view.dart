@@ -56,6 +56,9 @@ class StoreManagementView extends GetView<StoreManagementController> {
 
                 SizedBox(height: context.sectionSpacing),
 
+                // Location request notification
+                _LocationRequestNotification(),
+
                 // Carte de stockage
                 _StorageCard(),
 
@@ -409,68 +412,173 @@ class _CertificationCard extends GetView<StoreManagementController> {
       final cert = controller.certification.value;
       if (cert == null) return const SizedBox.shrink();
 
-      // Si certifié : afficher un badge élégant
+      // Si certifié : afficher un badge élégant avec délai d'expiration
       if (cert.isCertified) {
+        final daysRemaining = cert.daysUntilExpiry ?? 0;
+        final isExpiringSoon = cert.isExpiringSoon;
+        final isExpired = cert.isExpired;
+
+        // Couleur basée sur le statut d'expiration
+        final certColor = isExpired
+            ? AppThemeSystem.errorColor
+            : isExpiringSoon
+                ? AppThemeSystem.warningColor
+                : const Color(0xFF1DA1F2);
+
         return Container(
           padding: EdgeInsets.all(context.horizontalPadding),
           decoration: BoxDecoration(
             gradient: LinearGradient(
               colors: [
-                const Color(0xFF1DA1F2).withValues(alpha: 0.1),
-                const Color(0xFF0D7FC6).withValues(alpha: 0.05),
+                certColor.withValues(alpha: 0.15),
+                certColor.withValues(alpha: 0.05),
               ],
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),
             borderRadius: context.borderRadius(BorderRadiusType.medium),
             border: Border.all(
-              color: const Color(0xFF1DA1F2).withValues(alpha: 0.3),
-              width: 1.5,
+              color: certColor.withValues(alpha: 0.4),
+              width: 2,
             ),
-          ),
-          child: Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF1DA1F2),
-                  borderRadius: context.borderRadius(BorderRadiusType.small),
-                ),
-                child: const Icon(
-                  Icons.verified,
-                  color: Colors.white,
-                  size: 28,
-                ),
+            boxShadow: [
+              BoxShadow(
+                color: certColor.withValues(alpha: 0.2),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
               ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Text(
-                          'Boutique Certifiée',
-                          style: context.h6.copyWith(
-                            fontWeight: FontWeight.bold,
-                            color: const Color(0xFF1DA1F2),
-                          ),
-                        ),
-                        const SizedBox(width: 6),
-                        Icon(
-                          Icons.check_circle,
-                          color: const Color(0xFF1DA1F2),
-                          size: 18,
+            ],
+          ),
+          child: Column(
+            children: [
+              Row(
+                children: [
+                  // Badge avec animation shimmer subtile
+                  Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: certColor,
+                      borderRadius: context.borderRadius(BorderRadiusType.small),
+                      boxShadow: [
+                        BoxShadow(
+                          color: certColor.withValues(alpha: 0.4),
+                          blurRadius: 8,
+                          spreadRadius: 2,
                         ),
                       ],
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Votre boutique bénéficie d\'une confiance accrue',
-                      style: context.caption.copyWith(
-                        color: context.secondaryTextColor,
+                    child: const Icon(
+                      Icons.verified,
+                      color: Colors.white,
+                      size: 32,
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Text(
+                              'Boutique Certifiée',
+                              style: context.h6.copyWith(
+                                fontWeight: FontWeight.bold,
+                                color: certColor,
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            Icon(
+                              Icons.stars,
+                              color: certColor,
+                              size: 20,
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          isExpired
+                              ? 'Certification expirée'
+                              : isExpiringSoon
+                                  ? 'Expire bientôt - Renouvelez!'
+                                  : 'Badge de confiance actif',
+                          style: context.caption.copyWith(
+                            color: context.secondaryTextColor,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              // Délai d'expiration
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: context.backgroundColor,
+                  borderRadius: context.borderRadius(BorderRadiusType.small),
+                  border: Border.all(
+                    color: certColor.withValues(alpha: 0.3),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      isExpired
+                          ? Icons.error_outline
+                          : isExpiringSoon
+                              ? Icons.warning_amber
+                              : Icons.schedule,
+                      color: certColor,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            isExpired
+                                ? 'Expirée'
+                                : daysRemaining == 1
+                                    ? 'Expire demain'
+                                    : 'Expire dans',
+                            style: context.caption.copyWith(
+                              color: context.secondaryTextColor,
+                            ),
+                          ),
+                          if (!isExpired) ...[
+                            const SizedBox(height: 2),
+                            Text(
+                              '$daysRemaining jour${daysRemaining > 1 ? 's' : ''}',
+                              style: context.body1.copyWith(
+                                fontWeight: FontWeight.bold,
+                                color: certColor,
+                              ),
+                            ),
+                          ],
+                        ],
                       ),
                     ),
+                    if (isExpiringSoon || isExpired)
+                      TextButton(
+                        onPressed: controller.requestCertification,
+                        style: TextButton.styleFrom(
+                          foregroundColor: certColor,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 6,
+                          ),
+                        ),
+                        child: Text(
+                          'Renouveler',
+                          style: context.caption.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
                   ],
                 ),
               ),
@@ -1225,5 +1333,184 @@ class _InfoRow extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+/// Location Request Notification Card
+class _LocationRequestNotification extends GetView<StoreManagementController> {
+  @override
+  Widget build(BuildContext context) {
+    return Obx(() {
+      if (!controller.hasLocationUpdatePending.value) {
+        return const SizedBox.shrink();
+      }
+
+      // Get the most recent pending request
+      final pendingRequests = controller.locationRequests
+          .where((req) => req['status'] == 'pending')
+          .toList();
+
+      if (pendingRequests.isEmpty) {
+        return const SizedBox.shrink();
+      }
+
+      final latestRequest = pendingRequests.first;
+
+      return Container(
+        margin: EdgeInsets.only(bottom: context.elementSpacing),
+        padding: EdgeInsets.all(context.horizontalPadding),
+        decoration: BoxDecoration(
+          color: AppThemeSystem.warningColor.withValues(alpha: 0.1),
+          borderRadius: context.borderRadius(BorderRadiusType.medium),
+          border: Border.all(
+            color: AppThemeSystem.warningColor.withValues(alpha: 0.3),
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: AppThemeSystem.warningColor.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(
+                    Icons.pending_actions,
+                    color: AppThemeSystem.warningColor,
+                    size: 20,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Demande de changement de localisation',
+                        style: context.body1.copyWith(
+                          color: AppThemeSystem.warningColor,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'En attente de validation',
+                        style: context.caption.copyWith(
+                          color: AppThemeSystem.warningColor,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Column(
+                children: [
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.location_on,
+                        size: 16,
+                        color: context.secondaryTextColor,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Nouvelle position demandée',
+                          style: context.caption.copyWith(
+                            color: context.secondaryTextColor,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      const SizedBox(width: 24),
+                      Expanded(
+                        child: Text(
+                          'Lat: ${_formatCoordinate(latestRequest['latitude'])}, '
+                          'Lng: ${_formatCoordinate(latestRequest['longitude'])}',
+                          style: context.caption.copyWith(
+                            color: context.primaryTextColor,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (latestRequest['created_at'] != null) ...[
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.access_time,
+                          size: 16,
+                          color: context.secondaryTextColor,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Soumis le ${_formatDate(latestRequest['created_at'])}',
+                            style: context.caption.copyWith(
+                              color: context.secondaryTextColor,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Votre demande sera examinée par un administrateur. Vous serez notifié de la décision.',
+              style: context.caption.copyWith(
+                color: AppThemeSystem.warningColor,
+              ),
+            ),
+          ],
+        ),
+      );
+    });
+  }
+
+  String _formatDate(String? dateStr) {
+    if (dateStr == null) return '';
+    try {
+      final date = DateTime.parse(dateStr);
+      return DateFormat('dd/MM/yyyy à HH:mm').format(date);
+    } catch (e) {
+      return dateStr;
+    }
+  }
+
+  String _formatCoordinate(dynamic value) {
+    if (value == null) return '0.0';
+    try {
+      if (value is double) {
+        return value.toStringAsFixed(6);
+      } else if (value is int) {
+        return value.toDouble().toStringAsFixed(6);
+      } else if (value is String) {
+        final parsed = double.tryParse(value);
+        return parsed?.toStringAsFixed(6) ?? value;
+      }
+      return value.toString();
+    } catch (e) {
+      return value.toString();
+    }
   }
 }

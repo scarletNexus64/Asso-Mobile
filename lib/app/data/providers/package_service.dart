@@ -79,6 +79,38 @@ class PackageService {
     }
   }
 
+  /// Get all available certification packages
+  static Future<ApiResponse> getCertificationPackages() async {
+    print('');
+    print('========================================');
+    print('✅ PACKAGE SERVICE: Get Certification Packages START');
+    print('========================================');
+
+    try {
+      print('🌐 Calling API: GET /v1/packages/certification');
+
+      final response = await ApiProvider.get('/v1/packages/certification');
+
+      print('✅ PACKAGE SERVICE: API call completed');
+      print('  └─ Success: ${response.success}');
+      print('  └─ Status: ${response.statusCode}');
+      if (response.data != null) {
+        final packages = response.data!['packages'] ?? [];
+        print('  └─ Certification Packages count: ${packages.length}');
+      }
+      print('========================================');
+
+      return response;
+    } catch (e, stackTrace) {
+      print('💥 PACKAGE SERVICE: Exception!');
+      print('  └─ Error: $e');
+      print('  └─ Stack trace:');
+      print(stackTrace.toString().split('\n').take(3).join('\n'));
+      print('========================================');
+      rethrow;
+    }
+  }
+
   /// Get current active package for vendor
   static Future<ApiResponse> getCurrentPackage() async {
     print('');

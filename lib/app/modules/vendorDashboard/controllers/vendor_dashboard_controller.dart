@@ -40,6 +40,11 @@ class VendorDashboardController extends GetxController {
   final packageExpiresAt = Rx<String?>(null);
   final daysRemaining = 0.obs;
 
+  // Certification info
+  final isCertified = false.obs;
+  final certificationExpiresAt = Rx<String?>(null);
+  final certificationDaysRemaining = Rx<int?>(null);
+
   @override
   void onInit() {
     super.onInit();
@@ -116,6 +121,20 @@ class VendorDashboardController extends GetxController {
           print('  └─ Verification Message: ${verificationMessage.value}');
         } else {
           print('  └─ ⚠️ No verification data in response');
+        }
+
+        // Parse certification info
+        if (data['certification'] != null) {
+          final certification = data['certification'];
+          isCertified.value = certification['is_certified'] ?? false;
+          certificationExpiresAt.value = certification['certification_expires_at'];
+          certificationDaysRemaining.value = certification['days_until_expiry'];
+          print('  └─ Is Certified: ${isCertified.value}');
+          if (isCertified.value) {
+            print('  └─ Certification Days Remaining: ${certificationDaysRemaining.value}');
+          }
+        } else {
+          print('  └─ ⚠️ No certification data in response');
         }
 
         // Parse package info

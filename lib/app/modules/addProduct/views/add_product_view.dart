@@ -21,12 +21,12 @@ class AddProductView extends GetView<AddProductController> {
           ),
           onPressed: () => Get.back(),
         ),
-        title: Text(
-          'Ajouter un produit',
+        title: Obx(() => Text(
+          controller.isEditMode.value ? 'Modifier le produit' : 'Ajouter un produit',
           style: context.h5.copyWith(
             fontWeight: FontWeight.w600,
           ),
-        ),
+        )),
       ),
       body: Obx(() {
         if (controller.isLoading.value) {
@@ -34,15 +34,39 @@ class AddProductView extends GetView<AddProductController> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                CircularProgressIndicator(
-                  color: AppThemeSystem.primaryColor,
+                // Animation de chargement
+                Container(
+                  padding: EdgeInsets.all(context.horizontalPadding * 1.5),
+                  decoration: BoxDecoration(
+                    color: context.surfaceColor,
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppThemeSystem.primaryColor.withValues(alpha: 0.1),
+                        blurRadius: 20,
+                        offset: const Offset(0, 10),
+                      ),
+                    ],
+                  ),
+                  child: CircularProgressIndicator(
+                    color: AppThemeSystem.primaryColor,
+                    strokeWidth: 3,
+                  ),
                 ),
-                const SizedBox(height: 16),
+                SizedBox(height: context.sectionSpacing),
                 Text(
-                  'Chargement...',
-                  style: context.body1.copyWith(
+                  'Chargement des données...',
+                  style: context.h6.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                SizedBox(height: context.elementSpacing * 0.5),
+                Text(
+                  'Récupération des catégories et packages',
+                  style: context.caption.copyWith(
                     color: context.secondaryTextColor,
                   ),
+                  textAlign: TextAlign.center,
                 ),
               ],
             ),
@@ -50,59 +74,45 @@ class AddProductView extends GetView<AddProductController> {
         }
 
         return SingleChildScrollView(
-        padding: EdgeInsets.all(context.horizontalPadding),
+        padding: EdgeInsets.only(
+          left: context.horizontalPadding,
+          right: context.horizontalPadding,
+          top: context.verticalPadding,
+          bottom: MediaQuery.of(context).viewPadding.bottom + context.verticalPadding * 2,
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Section Images
             _buildImagesSection(context),
-
             SizedBox(height: context.sectionSpacing),
-
             // Nom du produit
             _buildNameSection(context),
-
             SizedBox(height: context.sectionSpacing),
-
             // Catégorie (Bottom sheet)
             _buildCategorySelector(context),
-
             SizedBox(height: context.sectionSpacing),
-
             // Sous-catégorie (Bottom sheet)
             _buildSubcategorySelector(context),
-
             SizedBox(height: context.sectionSpacing),
-
             // Prix
             _buildPriceSection(context),
-
             SizedBox(height: context.sectionSpacing),
-
             // Description
             _buildDescriptionSection(context),
-
             SizedBox(height: context.sectionSpacing),
-
             // Poids du produit
             _buildWeightSection(context),
-
             SizedBox(height: context.sectionSpacing),
-
             // Stock
             _buildStockSection(context),
-
             SizedBox(height: context.sectionSpacing),
-
             // Espace de stockage
             _buildStorageSection(context),
-
-            SizedBox(height: context.sectionSpacing * 2),
-
+            SizedBox(height: context.sectionSpacing),
             // Bouton de soumission
             _buildSubmitButton(context),
-
-            SizedBox(height: context.verticalPadding),
+            SizedBox(height: context.elementSpacing),
           ],
         ),
       );
@@ -160,14 +170,14 @@ class AddProductView extends GetView<AddProductController> {
                   context,
                   icon: Icons.add_photo_alternate,
                   label: 'Upload Images',
-                  onTap: controller.pickImages,
+                  onTap: () => _showImageSourceBottomSheet(context),
                 ),
-                const SizedBox(width: 12),
+                SizedBox(width: context.elementSpacing),
 
                 // Liste des images
                 ...List.generate(controller.productImages.length, (index) {
                   return Padding(
-                    padding: const EdgeInsets.only(right: 12),
+                    padding: EdgeInsets.only(right: context.elementSpacing),
                     child: _buildImageThumbnail(context, index),
                   );
                 }),
@@ -489,6 +499,148 @@ class AddProductView extends GetView<AddProductController> {
     });
   }
 
+  /// Bottom sheet pour choisir la source de l'image (caméra ou galerie)
+  void _showImageSourceBottomSheet(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return Container(
+          padding: EdgeInsets.only(
+            left: context.horizontalPadding,
+            right: context.horizontalPadding,
+            top: context.verticalPadding,
+            bottom: context.bottomSheetPadding,
+          ),
+          decoration: BoxDecoration(
+            color: context.backgroundColor,
+            borderRadius: BorderRadius.vertical(
+              top: Radius.circular(
+                AppThemeSystem.getBorderRadius(context, BorderRadiusType.large),
+              ),
+            ),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Handle
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: context.borderColor,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              SizedBox(height: context.elementSpacing),
+
+              // Titre
+              Text(
+                'Ajouter des images',
+                style: context.h5.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              SizedBox(height: context.sectionSpacing),
+
+              // Option Caméra
+              _buildImageSourceOption(
+                context,
+                icon: Icons.camera_alt,
+                title: 'Appareil photo',
+                subtitle: 'Prendre une photo',
+                onTap: () {
+                  Navigator.pop(context);
+                  controller.takePhoto();
+                },
+              ),
+              SizedBox(height: context.elementSpacing),
+
+              // Option Galerie
+              _buildImageSourceOption(
+                context,
+                icon: Icons.photo_library,
+                title: 'Galerie',
+                subtitle: 'Sélectionner depuis la galerie',
+                onTap: () {
+                  Navigator.pop(context);
+                  controller.pickImages();
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  /// Widget pour une option de source d'image
+  Widget _buildImageSourceOption(
+    BuildContext context, {
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: context.borderRadius(BorderRadiusType.medium),
+      child: Container(
+        padding: EdgeInsets.all(context.horizontalPadding),
+        decoration: BoxDecoration(
+          color: context.surfaceColor,
+          borderRadius: context.borderRadius(BorderRadiusType.medium),
+          border: Border.all(
+            color: context.borderColor,
+            width: 1,
+          ),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: EdgeInsets.all(context.elementSpacing),
+              decoration: BoxDecoration(
+                color: AppThemeSystem.primaryColor.withValues(alpha: 0.1),
+                borderRadius: context.borderRadius(BorderRadiusType.small),
+              ),
+              child: Icon(
+                icon,
+                color: AppThemeSystem.primaryColor,
+                size: 28,
+              ),
+            ),
+            SizedBox(width: context.elementSpacing),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: context.subtitle1.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    style: context.caption.copyWith(
+                      color: context.secondaryTextColor,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(
+              Icons.arrow_forward_ios,
+              size: 16,
+              color: context.secondaryTextColor,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   /// Bottom sheet pour sélectionner la catégorie
   void _showCategoryBottomSheet(BuildContext context) {
     final searchController = TextEditingController();
@@ -504,7 +656,11 @@ class AddProductView extends GetView<AddProductController> {
           height: MediaQuery.of(context).size.height * 0.7,
           decoration: BoxDecoration(
             color: context.backgroundColor,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+            borderRadius: BorderRadius.vertical(
+              top: Radius.circular(
+                AppThemeSystem.getBorderRadius(context, BorderRadiusType.large),
+              ),
+            ),
           ),
           child: Column(
             children: [
@@ -513,7 +669,11 @@ class AddProductView extends GetView<AddProductController> {
                 padding: EdgeInsets.all(context.horizontalPadding),
                 decoration: BoxDecoration(
                   color: context.surfaceColor,
-                  borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+                  borderRadius: BorderRadius.vertical(
+                    top: Radius.circular(
+                      AppThemeSystem.getBorderRadius(context, BorderRadiusType.large),
+                    ),
+                  ),
                   border: Border(
                     bottom: BorderSide(color: context.borderColor),
                   ),
@@ -529,7 +689,7 @@ class AddProductView extends GetView<AddProductController> {
                         borderRadius: BorderRadius.circular(2),
                       ),
                     ),
-                    const SizedBox(height: 16),
+                    SizedBox(height: context.elementSpacing),
                     Row(
                       children: [
                         Expanded(
@@ -546,7 +706,7 @@ class AddProductView extends GetView<AddProductController> {
                         ),
                       ],
                     ),
-                    const SizedBox(height: 12),
+                    SizedBox(height: context.elementSpacing),
                     // Barre de recherche
                     TextField(
                       controller: searchController,
@@ -556,10 +716,12 @@ class AddProductView extends GetView<AddProductController> {
                         filled: true,
                         fillColor: context.backgroundColor,
                         border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
+                          borderRadius: context.borderRadius(BorderRadiusType.medium),
                           borderSide: BorderSide.none,
                         ),
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+                        contentPadding: EdgeInsets.symmetric(
+                          horizontal: context.horizontalPadding,
+                        ),
                       ),
                       onChanged: (value) {
                         if (value.isEmpty) {
@@ -575,11 +737,16 @@ class AddProductView extends GetView<AddProductController> {
                 ),
               ),
 
-              // Liste
+              // Liste avec padding bottom pour la barre de navigation
               Expanded(
                 child: Obx(() {
                   return ListView.separated(
-                    padding: EdgeInsets.all(context.horizontalPadding),
+                    padding: EdgeInsets.only(
+                      left: context.horizontalPadding,
+                      right: context.horizontalPadding,
+                      top: context.horizontalPadding,
+                      bottom: context.bottomSheetPadding,
+                    ),
                     itemCount: filteredCategories.length,
                     separatorBuilder: (context, index) => Divider(
                       height: 1,
@@ -649,7 +816,11 @@ class AddProductView extends GetView<AddProductController> {
           height: MediaQuery.of(context).size.height * 0.7,
           decoration: BoxDecoration(
             color: context.backgroundColor,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+            borderRadius: BorderRadius.vertical(
+              top: Radius.circular(
+                AppThemeSystem.getBorderRadius(context, BorderRadiusType.large),
+              ),
+            ),
           ),
           child: Column(
             children: [
@@ -658,7 +829,11 @@ class AddProductView extends GetView<AddProductController> {
                 padding: EdgeInsets.all(context.horizontalPadding),
                 decoration: BoxDecoration(
                   color: context.surfaceColor,
-                  borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+                  borderRadius: BorderRadius.vertical(
+                    top: Radius.circular(
+                      AppThemeSystem.getBorderRadius(context, BorderRadiusType.large),
+                    ),
+                  ),
                   border: Border(
                     bottom: BorderSide(color: context.borderColor),
                   ),
@@ -674,7 +849,7 @@ class AddProductView extends GetView<AddProductController> {
                         borderRadius: BorderRadius.circular(2),
                       ),
                     ),
-                    const SizedBox(height: 16),
+                    SizedBox(height: context.elementSpacing),
                     Row(
                       children: [
                         Expanded(
@@ -693,7 +868,7 @@ class AddProductView extends GetView<AddProductController> {
                         ),
                       ],
                     ),
-                    const SizedBox(height: 12),
+                    SizedBox(height: context.elementSpacing),
                     // Barre de recherche
                     TextField(
                       controller: searchController,
@@ -703,10 +878,12 @@ class AddProductView extends GetView<AddProductController> {
                         filled: true,
                         fillColor: context.backgroundColor,
                         border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
+                          borderRadius: context.borderRadius(BorderRadiusType.medium),
                           borderSide: BorderSide.none,
                         ),
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+                        contentPadding: EdgeInsets.symmetric(
+                          horizontal: context.horizontalPadding,
+                        ),
                       ),
                       onChanged: (value) {
                         if (value.isEmpty) {
@@ -723,24 +900,33 @@ class AddProductView extends GetView<AddProductController> {
                 ),
               ),
 
-              // Liste
+              // Liste avec padding bottom pour la barre de navigation
               Expanded(
                 child: Obx(() {
                   if (filteredSubcategories.isEmpty) {
                     return Center(
-                      child: Text(
-                        category != null
-                            ? 'Aucune sous-catégorie trouvée'
-                            : 'Veuillez sélectionner une catégorie d\'abord',
-                        style: context.body1.copyWith(
-                          color: context.secondaryTextColor,
+                      child: Padding(
+                        padding: EdgeInsets.all(context.horizontalPadding),
+                        child: Text(
+                          category != null
+                              ? 'Aucune sous-catégorie trouvée'
+                              : 'Veuillez sélectionner une catégorie d\'abord',
+                          style: context.body1.copyWith(
+                            color: context.secondaryTextColor,
+                          ),
+                          textAlign: TextAlign.center,
                         ),
                       ),
                     );
                   }
 
                   return ListView.separated(
-                    padding: EdgeInsets.all(context.horizontalPadding),
+                    padding: EdgeInsets.only(
+                      left: context.horizontalPadding,
+                      right: context.horizontalPadding,
+                      top: context.horizontalPadding,
+                      bottom: context.bottomSheetPadding,
+                    ),
                     itemCount: filteredSubcategories.length,
                     separatorBuilder: (context, index) => Divider(
                       height: 1,
@@ -981,7 +1167,7 @@ class AddProductView extends GetView<AddProductController> {
                         borderRadius: BorderRadius.circular(2),
                       ),
                     ),
-                    const SizedBox(height: 16),
+                    SizedBox(height: context.elementSpacing),
                     Row(
                       children: [
                         Expanded(
@@ -1002,10 +1188,15 @@ class AddProductView extends GetView<AddProductController> {
                 ),
               ),
 
-              // Liste des poids
+              // Liste des poids avec padding bottom pour la barre de navigation
               Expanded(
                 child: ListView.separated(
-                  padding: EdgeInsets.all(context.horizontalPadding),
+                  padding: EdgeInsets.only(
+                    left: context.horizontalPadding,
+                    right: context.horizontalPadding,
+                    top: context.horizontalPadding,
+                    bottom: context.bottomSheetPadding,
+                  ),
                   itemCount: controller.weightTypes.length,
                   separatorBuilder: (context, index) => Divider(
                     height: 1,
@@ -1360,13 +1551,13 @@ class AddProductView extends GetView<AddProductController> {
                     valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                   ),
                 )
-              : Text(
-                  'Ajouter le produit',
+              : Obx(() => Text(
+                  controller.isEditMode.value ? 'Modifier le produit' : 'Ajouter le produit',
                   style: context.button.copyWith(
                     color: Colors.white,
                     fontWeight: FontWeight.w600,
                   ),
-                ),
+                )),
         ),
       );
     });
