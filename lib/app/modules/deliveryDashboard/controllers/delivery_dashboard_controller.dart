@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:get/get.dart';
@@ -6,6 +7,7 @@ import '../models/delivery_models.dart';
 import '../../../data/providers/deliverer_service.dart';
 import '../../../data/providers/delivery_service.dart';
 import '../../../data/providers/vendor_service.dart';
+import '../../../data/services/fcm_service.dart';
 import '../../shipConfig/models/sync_models.dart';
 
 class DeliveryDashboardController extends GetxController {
@@ -41,14 +43,15 @@ class DeliveryDashboardController extends GetxController {
   final isLoading = false.obs;
   final isLoadingCompany = false.obs;
 
+  StreamSubscription? _orderFcmSubscription;
+
   @override
   void onInit() {
     super.onInit();
-    // Charger d'abord les infos de l'entreprise pour avoir les zones
     loadCompanyInfo();
     loadDeliveries();
+    _listenToDeliveryNotifications();
 
-    // Écouter les changements de filtre
     ever(selectedStatus, (_) => _applyFilter());
   }
 
@@ -106,7 +109,27 @@ class DeliveryDashboardController extends GetxController {
 
   @override
   void onClose() {
+    _orderFcmSubscription?.cancel();
     super.onClose();
+  }
+
+  /// Écoute les notifications FCM pour auto-refresh du dashboard livreur
+  void _listenToDeliveryNotifications() {
+    try {
+      final fcmService = Get.find<FcmService>();
+      _orderFcmSubscription = fcmService.orderNotificationStream.listen((data) {
+        final type = data['type'] as String? ?? '';
+        // Rafraîchir quand une nouvelle livraison arrive ou qu'un statut change
+        if (type == 'new_delivery_request' ||
+            type == 'delivery_assigned' ||
+            type == 'order_confirmed' ||
+            type.startsWith('order_')) {
+          loadDeliveries();
+        }
+      });
+    } catch (e) {
+      // FcmService pas encore initialisé
+    }
   }
 
   /// Charge les demandes de livraison depuis l'API
