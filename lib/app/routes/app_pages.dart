@@ -70,10 +70,10 @@ import '../modules/packageSubscription/bindings/package_subscription_binding.dar
 import '../modules/packageSubscription/views/package_subscription_view.dart';
 import '../modules/certificationPackages/bindings/certification_packages_binding.dart';
 import '../modules/certificationPackages/views/certification_packages_view.dart';
-import '../modules/productManagement/bindings/product_management_binding.dart';
-import '../modules/productManagement/views/product_management_view.dart';
 import '../modules/addProduct/bindings/add_product_binding.dart';
 import '../modules/addProduct/views/add_product_view.dart';
+import '../modules/productManagement/bindings/product_management_binding.dart';
+import '../modules/productManagement/views/product_management_view.dart';
 
 part 'app_routes.dart';
 

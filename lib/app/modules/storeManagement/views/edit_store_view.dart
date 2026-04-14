@@ -11,27 +11,36 @@ class EditStoreView extends GetView<StoreManagementController> {
 
   @override
   Widget build(BuildContext context) {
-    // Controllers pour les champs de texte
+    // Text editing controllers - Initialize once
     final nameController = TextEditingController(
-      text: controller.storeInfo.value?.name,
+      text: controller.storeInfo.value?.name ?? '',
     );
     final descriptionController = TextEditingController(
-      text: controller.storeInfo.value?.description,
-    );
-    final addressController = TextEditingController(
-      text: controller.storeInfo.value?.address,
+      text: controller.storeInfo.value?.description ?? '',
     );
     final phoneController = TextEditingController(
-      text: controller.storeInfo.value?.phone,
+      text: controller.storeInfo.value?.phone ?? '',
+    );
+    final addressController = TextEditingController(
+      text: controller.storeInfo.value?.address ?? '',
     );
 
-    // Position GPS
+    // Position GPS - Initialize once, will be updated via map interaction
     final selectedPosition = Rx<LatLng>(
       LatLng(
         controller.storeInfo.value?.latitude ?? 4.0511,
         controller.storeInfo.value?.longitude ?? 9.7679,
       ),
     );
+
+    // Vérifier la zone de livraison au chargement
+    Future.delayed(Duration.zero, () {
+      final oldLat = controller.storeInfo.value?.latitude ?? 0.0;
+      final oldLng = controller.storeInfo.value?.longitude ?? 0.0;
+      if (oldLat != 0.0 && oldLng != 0.0) {
+        controller.checkDeliveryAvailability(oldLat, oldLng);
+      }
+    });
 
     final mapController = MapController();
 
@@ -78,7 +87,11 @@ class EditStoreView extends GetView<StoreManagementController> {
           return const Center(child: CircularProgressIndicator());
         }
 
+        // Force rebuild when storeInfo changes by using a unique key
+        final storeKey = '${controller.storeInfo.value?.id ?? ''}_${controller.storeInfo.value?.name ?? ''}_${controller.storeInfo.value?.description ?? ''}_${controller.storeInfo.value?.phone ?? ''}';
+
         return SingleChildScrollView(
+          key: ValueKey(storeKey),
           padding: EdgeInsets.all(context.horizontalPadding),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -165,7 +178,7 @@ class EditStoreView extends GetView<StoreManagementController> {
               const SizedBox(height: 12),
 
               // Nom de la boutique
-              _buildTextField(
+              _buildTextFieldWithController(
                 context,
                 controller: nameController,
                 label: 'Nom de la boutique *',
@@ -176,7 +189,7 @@ class EditStoreView extends GetView<StoreManagementController> {
               SizedBox(height: context.elementSpacing),
 
               // Description
-              _buildTextField(
+              _buildTextFieldWithController(
                 context,
                 controller: descriptionController,
                 label: 'Description',
@@ -188,7 +201,7 @@ class EditStoreView extends GetView<StoreManagementController> {
               SizedBox(height: context.elementSpacing),
 
               // Téléphone
-              _buildTextField(
+              _buildTextFieldWithController(
                 context,
                 controller: phoneController,
                 label: 'Téléphone *',
@@ -240,7 +253,7 @@ class EditStoreView extends GetView<StoreManagementController> {
               const SizedBox(height: 12),
 
               // Adresse
-              _buildTextField(
+              _buildTextFieldWithController(
                 context,
                 controller: addressController,
                 label: 'Adresse complète *',
@@ -267,6 +280,11 @@ class EditStoreView extends GetView<StoreManagementController> {
                             initialZoom: 15.0,
                             onTap: (tapPosition, point) {
                               selectedPosition.value = point;
+                              // Vérifier la zone de livraison quand l'utilisateur change la position
+                              controller.checkDeliveryAvailability(
+                                point.latitude,
+                                point.longitude,
+                              );
                             },
                           ),
                           children: [
@@ -331,6 +349,11 @@ class EditStoreView extends GetView<StoreManagementController> {
                                   selectedPosition.value,
                                   15.0,
                                 );
+                                // Vérifier la zone de livraison
+                                controller.checkDeliveryAvailability(
+                                  position.latitude,
+                                  position.longitude,
+                                );
                               } catch (e) {
                                 Get.snackbar(
                                   'Erreur',
@@ -358,6 +381,157 @@ class EditStoreView extends GetView<StoreManagementController> {
                     ),
                   )),
 
+              SizedBox(height: context.elementSpacing),
+
+              // Pending location request warning
+              Obx(() {
+                if (controller.hasLocationUpdatePending.value) {
+                  return Container(
+                    margin: EdgeInsets.only(bottom: context.elementSpacing),
+                    padding: EdgeInsets.all(context.verticalPadding),
+                    decoration: BoxDecoration(
+                      color: AppThemeSystem.warningColor.withValues(alpha: 0.1),
+                      borderRadius: context.borderRadius(BorderRadiusType.medium),
+                      border: Border.all(
+                        color: AppThemeSystem.warningColor.withValues(alpha: 0.3),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.pending_actions,
+                          color: AppThemeSystem.warningColor,
+                          size: 20,
+                        ),
+                        SizedBox(width: context.elementSpacing),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Demande de changement de localisation en attente',
+                                style: context.body2.copyWith(
+                                  color: AppThemeSystem.warningColor,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                'Votre nouvelle localisation sera effective après validation par un administrateur.',
+                                style: context.caption.copyWith(
+                                  color: AppThemeSystem.warningColor,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }
+                return SizedBox.shrink();
+              }),
+
+              // Statut de la zone de livraison
+              Obx(() {
+                if (controller.isCheckingDeliveryAvailability.value) {
+                  return Container(
+                    padding: EdgeInsets.all(context.verticalPadding),
+                    decoration: BoxDecoration(
+                      color: AppThemeSystem.primaryColor.withValues(alpha: 0.1),
+                      borderRadius: context.borderRadius(BorderRadiusType.medium),
+                      border: Border.all(
+                        color: AppThemeSystem.primaryColor.withValues(alpha: 0.3),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              AppThemeSystem.primaryColor,
+                            ),
+                          ),
+                        ),
+                        SizedBox(width: context.elementSpacing),
+                        Expanded(
+                          child: Text(
+                            'Vérification de la zone de livraison...',
+                            style: context.body2.copyWith(
+                              color: AppThemeSystem.primaryColor,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                } else if (controller.isDeliveryAvailable.value) {
+                  return Container(
+                    padding: EdgeInsets.all(context.verticalPadding),
+                    decoration: BoxDecoration(
+                      color: AppThemeSystem.successColor.withValues(alpha: 0.1),
+                      borderRadius: context.borderRadius(BorderRadiusType.medium),
+                      border: Border.all(
+                        color: AppThemeSystem.successColor.withValues(alpha: 0.3),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.check_circle,
+                          color: AppThemeSystem.successColor,
+                          size: 20,
+                        ),
+                        SizedBox(width: context.elementSpacing),
+                        Expanded(
+                          child: Text(
+                            'Zone de livraison disponible',
+                            style: context.body2.copyWith(
+                              color: AppThemeSystem.successColor,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                } else if (controller.deliveryAvailabilityMessage.value.isNotEmpty) {
+                  return Container(
+                    padding: EdgeInsets.all(context.verticalPadding),
+                    decoration: BoxDecoration(
+                      color: AppThemeSystem.errorColor.withValues(alpha: 0.1),
+                      borderRadius: context.borderRadius(BorderRadiusType.medium),
+                      border: Border.all(
+                        color: AppThemeSystem.errorColor.withValues(alpha: 0.3),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.error,
+                          color: AppThemeSystem.errorColor,
+                          size: 20,
+                        ),
+                        SizedBox(width: context.elementSpacing),
+                        Expanded(
+                          child: Text(
+                            'Hors zone de livraison - Veuillez choisir un autre emplacement',
+                            style: context.body2.copyWith(
+                              color: AppThemeSystem.errorColor,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }
+                return SizedBox.shrink();
+              }),
+
               SizedBox(height: context.sectionSpacing),
 
               // ========== BOUTONS D'ACTION ==========
@@ -377,10 +551,26 @@ class EditStoreView extends GetView<StoreManagementController> {
                     flex: 2,
                     child: ElevatedButton(
                       onPressed: () {
+                        print('');
+                        print('========================================');
+                        print('🔘 EDIT STORE VIEW: Save button clicked');
+                        print('========================================');
+
+                        // Get values from controllers
                         final name = nameController.text.trim();
                         final description = descriptionController.text.trim();
                         final address = addressController.text.trim();
                         final phone = phoneController.text.trim();
+
+                        print('');
+                        print('📝 Values to be sent to saveStoreInfo:');
+                        print('  ├─ Name: $name');
+                        print('  ├─ Description: $description');
+                        print('  ├─ Address: $address');
+                        print('  ├─ Phone: $phone');
+                        print('  ├─ Categories: ${selectedCategories.toList()}');
+                        print('  ├─ Latitude: ${selectedPosition.value.latitude}');
+                        print('  └─ Longitude: ${selectedPosition.value.longitude}');
 
                         if (name.isEmpty) {
                           Get.snackbar(
@@ -414,6 +604,10 @@ class EditStoreView extends GetView<StoreManagementController> {
                           );
                           return;
                         }
+
+                        print('');
+                        print('🚀 Calling controller.saveStoreInfo...');
+                        print('========================================');
 
                         controller.saveStoreInfo(
                           name: name,
@@ -467,6 +661,46 @@ class EditStoreView extends GetView<StoreManagementController> {
 
   Widget _buildTextField(
     BuildContext context, {
+    required String initialValue,
+    required String label,
+    required String hint,
+    required IconData icon,
+    required Function(String) onChanged,
+    TextInputType? keyboardType,
+    int maxLines = 1,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: context.body2.copyWith(
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: 8),
+        TextFormField(
+          key: ValueKey(initialValue),
+          initialValue: initialValue,
+          keyboardType: keyboardType,
+          maxLines: maxLines,
+          onChanged: onChanged,
+          decoration: InputDecoration(
+            hintText: hint,
+            border: OutlineInputBorder(
+              borderRadius: context.borderRadius(BorderRadiusType.small),
+            ),
+            prefixIcon: Icon(icon),
+            filled: true,
+            fillColor: context.surfaceColor,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTextFieldWithController(
+    BuildContext context, {
     required TextEditingController controller,
     required String label,
     required String hint,
@@ -484,7 +718,7 @@ class EditStoreView extends GetView<StoreManagementController> {
           ),
         ),
         const SizedBox(height: 8),
-        TextField(
+        TextFormField(
           controller: controller,
           keyboardType: keyboardType,
           maxLines: maxLines,

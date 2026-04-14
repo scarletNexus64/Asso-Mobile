@@ -150,4 +150,29 @@ class VendorService {
   static Future<ApiResponse> getAvailableDeliveryPersons() async {
     return await ApiProvider.get(AppConstants.deliveryPersonsUrl);
   }
+
+  /// Check if vendor has active orders
+  static Future<ApiResponse> checkActiveOrders() async {
+    print('');
+    print('========================================');
+    print('📦 VENDOR SERVICE: Check Active Orders');
+    print('========================================');
+
+    try {
+      final response = await ApiProvider.get('${AppConstants.vendorOrdersUrl}/check-active');
+
+      print('✅ VENDOR SERVICE: Response received');
+      print('  └─ Success: ${response.success}');
+      print('  └─ Has Active Orders: ${response.data?['has_active_orders']}');
+      print('  └─ Count: ${response.data?['active_orders_count']}');
+      print('========================================');
+
+      return response;
+    } catch (e) {
+      print('💥 VENDOR SERVICE: Exception!');
+      print('  └─ Error: $e');
+      print('========================================');
+      rethrow;
+    }
+  }
 }

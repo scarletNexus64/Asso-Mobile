@@ -56,6 +56,9 @@ class StoreManagementView extends GetView<StoreManagementController> {
 
                 SizedBox(height: context.sectionSpacing),
 
+                // Location request notification
+                _LocationRequestNotification(),
+
                 // Carte de stockage
                 _StorageCard(),
 
@@ -1330,5 +1333,184 @@ class _InfoRow extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+/// Location Request Notification Card
+class _LocationRequestNotification extends GetView<StoreManagementController> {
+  @override
+  Widget build(BuildContext context) {
+    return Obx(() {
+      if (!controller.hasLocationUpdatePending.value) {
+        return const SizedBox.shrink();
+      }
+
+      // Get the most recent pending request
+      final pendingRequests = controller.locationRequests
+          .where((req) => req['status'] == 'pending')
+          .toList();
+
+      if (pendingRequests.isEmpty) {
+        return const SizedBox.shrink();
+      }
+
+      final latestRequest = pendingRequests.first;
+
+      return Container(
+        margin: EdgeInsets.only(bottom: context.elementSpacing),
+        padding: EdgeInsets.all(context.horizontalPadding),
+        decoration: BoxDecoration(
+          color: AppThemeSystem.warningColor.withValues(alpha: 0.1),
+          borderRadius: context.borderRadius(BorderRadiusType.medium),
+          border: Border.all(
+            color: AppThemeSystem.warningColor.withValues(alpha: 0.3),
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: AppThemeSystem.warningColor.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(
+                    Icons.pending_actions,
+                    color: AppThemeSystem.warningColor,
+                    size: 20,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Demande de changement de localisation',
+                        style: context.body1.copyWith(
+                          color: AppThemeSystem.warningColor,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'En attente de validation',
+                        style: context.caption.copyWith(
+                          color: AppThemeSystem.warningColor,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Column(
+                children: [
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.location_on,
+                        size: 16,
+                        color: context.secondaryTextColor,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Nouvelle position demandée',
+                          style: context.caption.copyWith(
+                            color: context.secondaryTextColor,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      const SizedBox(width: 24),
+                      Expanded(
+                        child: Text(
+                          'Lat: ${_formatCoordinate(latestRequest['latitude'])}, '
+                          'Lng: ${_formatCoordinate(latestRequest['longitude'])}',
+                          style: context.caption.copyWith(
+                            color: context.primaryTextColor,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (latestRequest['created_at'] != null) ...[
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.access_time,
+                          size: 16,
+                          color: context.secondaryTextColor,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Soumis le ${_formatDate(latestRequest['created_at'])}',
+                            style: context.caption.copyWith(
+                              color: context.secondaryTextColor,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Votre demande sera examinée par un administrateur. Vous serez notifié de la décision.',
+              style: context.caption.copyWith(
+                color: AppThemeSystem.warningColor,
+              ),
+            ),
+          ],
+        ),
+      );
+    });
+  }
+
+  String _formatDate(String? dateStr) {
+    if (dateStr == null) return '';
+    try {
+      final date = DateTime.parse(dateStr);
+      return DateFormat('dd/MM/yyyy à HH:mm').format(date);
+    } catch (e) {
+      return dateStr;
+    }
+  }
+
+  String _formatCoordinate(dynamic value) {
+    if (value == null) return '0.0';
+    try {
+      if (value is double) {
+        return value.toStringAsFixed(6);
+      } else if (value is int) {
+        return value.toDouble().toStringAsFixed(6);
+      } else if (value is String) {
+        final parsed = double.tryParse(value);
+        return parsed?.toStringAsFixed(6) ?? value;
+      }
+      return value.toString();
+    } catch (e) {
+      return value.toString();
+    }
   }
 }
