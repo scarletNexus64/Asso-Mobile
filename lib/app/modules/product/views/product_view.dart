@@ -960,7 +960,7 @@ class ProductView extends GetView<ProductController> {
         duration: Duration(seconds: 4),
       );
       // Naviguer vers mes commandes
-      Get.toNamed('/my-order');
+      Get.toNamed('/shipment');
     }
   }
 

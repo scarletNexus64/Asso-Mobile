@@ -86,21 +86,31 @@ class OrderManagementController extends GetxController {
   List<OrderModel> _parseOrdersFromApi(List<dynamic> rawOrders) {
     return rawOrders.map((item) {
       final order = item as Map<String, dynamic>;
+      // L'API retourne 'user' (objet) pour le client, pas des champs plats
+      final customer = order['customer'] as Map<String, dynamic>?
+          ?? order['user'] as Map<String, dynamic>?;
+
       return OrderModel(
-        id: order['id'] ?? 'CMD${DateTime.now().millisecondsSinceEpoch}',
-        clientId: order['client_id'] ?? order['customer_id'] ?? '',
-        clientName: order['client_name'] ?? order['customer_name'] ?? 'Client',
-        clientPhone: order['client_phone'] ?? order['customer_phone'] ?? '',
-        clientAvatar: order['client_avatar'] ?? order['customer_avatar'] ?? '',
+        id: (order['id'] ?? '').toString(),
+        clientId: (customer?['id'] ?? order['user_id'] ?? '').toString(),
+        clientName: customer?['name']
+            ?? '${customer?['first_name'] ?? ''} ${customer?['last_name'] ?? ''}'.trim(),
+        clientPhone: (customer?['phone'] ?? '').toString(),
+        clientAvatar: (customer?['avatar'] ?? '').toString(),
         items: _parseOrderItems(order['items'] ?? []),
-        totalAmount: (order['total_amount'] ?? order['total'] ?? 0).toDouble(),
+        totalAmount: double.tryParse(order['total']?.toString() ?? '0') ?? 0,
         status: _parseOrderStatus(order['status']),
-        city: order['city'] ?? 'Douala',
-        address: order['address'] ?? order['delivery_address'] ?? '',
-        orderDate: _parseDate(order['created_at'] ?? order['order_date']),
-        validatedDate: order['validated_at'] != null ? _parseDate(order['validated_at']) : null,
+        city: order['city'] ?? '',
+        address: order['delivery_address'] ?? '',
+        orderDate: _parseDate(order['created_at']),
+        validatedDate: order['confirmed_at'] != null ? _parseDate(order['confirmed_at']) : null,
         cancelledDate: order['cancelled_at'] != null ? _parseDate(order['cancelled_at']) : null,
-        cancelReason: order['cancel_reason'] ?? '',
+        cancelReason: order['cancel_reason'],
+        deliveryPersonId: order['delivery_person_id']?.toString(),
+        deliveryPersonName: order['delivery_person'] != null
+            ? (order['delivery_person']['name'] ?? '${order['delivery_person']['first_name'] ?? ''} ${order['delivery_person']['last_name'] ?? ''}'.trim())
+            : null,
+        notes: order['notes'],
       );
     }).toList();
   }
@@ -109,12 +119,15 @@ class OrderManagementController extends GetxController {
   List<OrderItem> _parseOrderItems(List<dynamic> rawItems) {
     return rawItems.map((item) {
       final orderItem = item as Map<String, dynamic>;
+      // L'API retourne 'product' (objet) dans chaque item
+      final product = orderItem['product'] as Map<String, dynamic>?;
+
       return OrderItem(
-        productId: orderItem['product_id'] ?? '',
-        productName: orderItem['product_name'] ?? 'Produit',
+        productId: (orderItem['product_id'] ?? '').toString(),
+        productName: orderItem['product_name'] ?? product?['name'] ?? 'Produit',
         quantity: orderItem['quantity'] ?? 1,
-        unitPrice: (orderItem['unit_price'] ?? orderItem['price'] ?? 0).toDouble(),
-        totalPrice: (orderItem['total_price'] ?? orderItem['total'] ?? 0).toDouble(),
+        unitPrice: double.tryParse(orderItem['unit_price']?.toString() ?? '0') ?? 0,
+        totalPrice: double.tryParse(orderItem['total_price']?.toString() ?? '0') ?? 0,
       );
     }).toList();
   }
