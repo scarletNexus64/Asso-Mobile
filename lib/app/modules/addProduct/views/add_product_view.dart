@@ -13,6 +13,7 @@ import '../../../core/widgets/image_source_sheet.dart';
 import '../../../core/widgets/offline_badge.dart';
 import '../controllers/add_product_controller.dart';
 import '../controllers/product_draft_store.dart';
+import '../controllers/product_video_upload.dart';
 import '../../../core/widgets/product_variant_selector.dart';
 import '../../../routes/app_pages.dart';
 import 'variant_editor_page.dart';
@@ -382,8 +383,201 @@ class AddProductView extends GetView<AddProductController> {
           subtitle: 'add_product.view.photos_subtitle'.tr,
         ),
         _buildImagesSection(context),
+        SizedBox(height: AppDesign.space6),
+        _buildVideoSection(context),
       ],
     );
+  }
+
+  /// Vidéo de présentation (facultative) : lue en boucle et muette sur les
+  /// cartes, avec le son sur la fiche produit.
+  Widget _buildVideoSection(BuildContext context) {
+    final ds = context.ds;
+    final video = controller.video;
+
+    return Obx(() {
+      final phase = video.phase.value;
+      final existing = video.existing.value;
+      final file = video.picked.value;
+
+      Widget status;
+      switch (phase) {
+        case ProductVideoPhase.uploading:
+          status = Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'add_product.video.uploading'.trParams({
+                  'percent': '${(video.progress.value * 100).round()}',
+                }),
+                style: context.body2.copyWith(color: ds.textSecondary),
+              ),
+              SizedBox(height: AppDesign.space2),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(AppDesign.radiusPill),
+                child: LinearProgressIndicator(
+                  value: video.progress.value,
+                  minHeight: 6,
+                  color: AppDesign.accent,
+                  backgroundColor: ds.surfaceMuted,
+                ),
+              ),
+            ],
+          );
+        case ProductVideoPhase.processing:
+          status = _videoStatusLine(
+            context,
+            Icons.hourglass_top_rounded,
+            'add_product.video.processing'.tr,
+            ds.textSecondary,
+          );
+        case ProductVideoPhase.ready:
+          status = _videoStatusLine(
+            context,
+            Icons.check_circle_rounded,
+            existing?.durationLabel == null
+                ? 'add_product.video.ready'.tr
+                : 'add_product.video.ready_duration'.trParams({
+                    'duration': existing!.durationLabel!,
+                  }),
+            AppDesign.success,
+          );
+        case ProductVideoPhase.failed:
+          status = _videoStatusLine(
+            context,
+            Icons.error_outline_rounded,
+            (video.errorKey.value ?? 'add_product.video.upload_failed')
+                .trParams(video.errorParams.value ?? const {}),
+            AppDesign.danger,
+          );
+        case ProductVideoPhase.none:
+          status = const SizedBox.shrink();
+      }
+
+      final hasVideo = phase != ProductVideoPhase.none &&
+          (file != null || existing != null || phase == ProductVideoPhase.processing);
+
+      return AppCard(
+        padding: EdgeInsets.all(AppDesign.space4),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.videocam_outlined, color: AppDesign.accent),
+                SizedBox(width: AppDesign.space2),
+                Expanded(
+                  child: Text(
+                    'add_product.video.title'.tr,
+                    style: context.subtitle2.copyWith(
+                      fontWeight: FontWeight.w700,
+                      color: ds.textPrimary,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            SizedBox(height: AppDesign.space1),
+            Text(
+              'add_product.video.subtitle'.trParams({
+                'max': '${ProductVideoUpload.maxSizeMb}',
+              }),
+              style: context.caption.copyWith(color: ds.textTertiary),
+            ),
+            if (hasVideo || phase == ProductVideoPhase.failed) ...[
+              SizedBox(height: AppDesign.space4),
+              if (existing?.posterUrl != null && file == null) ...[
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(AppDesign.radiusMd),
+                  child: SizedBox(
+                    height: 120,
+                    child: AspectRatio(
+                      aspectRatio: existing!.aspectRatio,
+                      child: Image.network(
+                        existing.posterUrl!,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) =>
+                            ColoredBox(color: ds.surfaceMuted),
+                      ),
+                    ),
+                  ),
+                ),
+                SizedBox(height: AppDesign.space3),
+              ],
+              if (file != null) ...[
+                Text(
+                  file.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: context.body2.copyWith(color: ds.textPrimary),
+                ),
+                SizedBox(height: AppDesign.space2),
+              ],
+              status,
+            ],
+            SizedBox(height: AppDesign.space4),
+            Row(
+              children: [
+                Expanded(
+                  child: AppButton(
+                    label: hasVideo
+                        ? 'add_product.video.replace'.tr
+                        : 'add_product.video.add'.tr,
+                    icon: Icons.video_library_outlined,
+                    variant: AppButtonVariant.secondary,
+                    size: AppButtonSize.small,
+                    onPressed: phase == ProductVideoPhase.uploading
+                        ? null
+                        : () => _showVideoSourceSheet(context),
+                  ),
+                ),
+                if (hasVideo || phase == ProductVideoPhase.failed) ...[
+                  SizedBox(width: AppDesign.space3),
+                  Expanded(
+                    child: AppButton(
+                      label: phase == ProductVideoPhase.uploading
+                          ? 'add_product.cancel'.tr
+                          : 'add_product.video.remove'.tr,
+                      icon: Icons.delete_outline_rounded,
+                      variant: AppButtonVariant.ghost,
+                      size: AppButtonSize.small,
+                      onPressed: video.remove,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ],
+        ),
+      );
+    });
+  }
+
+  Widget _videoStatusLine(
+    BuildContext context,
+    IconData icon,
+    String label,
+    Color color,
+  ) {
+    return Row(
+      children: [
+        Icon(icon, size: 18, color: color),
+        SizedBox(width: AppDesign.space2),
+        Expanded(
+          child: Text(label, style: context.body2.copyWith(color: color)),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _showVideoSourceSheet(BuildContext context) async {
+    final source = await showImageSourceSheet(
+      context,
+      title: 'add_product.video.source_title'.tr,
+      cameraSubtitle: 'add_product.video.source_camera'.tr,
+      gallerySubtitle: 'add_product.video.source_gallery'.tr,
+    );
+    if (source != null) controller.pickVideo(source);
   }
 
   Widget _buildIdentityStep(BuildContext context) {
@@ -697,11 +891,11 @@ class AddProductView extends GetView<AddProductController> {
                 _buildReviewRow(
                   context,
                   'add_product.delivery_delay.title'.tr,
-                  controller.deliveryDaysMax.value == null
+                  controller.deliveryDelay == null
                       ? 'add_product.delivery_delay.auto'.tr
                       : 'product.delivery_delay.range'.trParams({
-                          'min': '${controller.deliveryDaysMin.value ?? controller.deliveryDaysMax.value}',
-                          'max': '${controller.deliveryDaysMax.value}',
+                          'min': '${controller.deliveryDelay!.min}',
+                          'max': '${controller.deliveryDelay!.max}',
                         }),
                   onEdit: () => controller.goToStep(2),
                 ),
@@ -2334,89 +2528,72 @@ class AddProductView extends GetView<AddProductController> {
   }
 
   /// Section Poids du produit : poids réel en kg, obligatoire pour un article.
-  /// Délai de livraison annoncé au client (jours ouvrables, 1 à 20).
-  /// « Auto » = délai de la catégorie, réglé par ASSO.
+  /// Délai de livraison annoncé au client (jours ouvrables, 1 minimum,
+  /// sans maximum). Vide = « Auto » : délai de la catégorie, réglé par ASSO.
   Widget _buildDeliveryDelaySection(BuildContext context) {
-    return Obx(() {
-      final min = controller.deliveryDaysMin.value;
-      final max = controller.deliveryDaysMax.value;
-
-      Widget picker({
-        required String label,
-        required int? value,
-        required ValueChanged<int?> onChanged,
-      }) {
-        return DropdownButtonFormField<int?>(
-          value: value,
-          isExpanded: true,
-          decoration: InputDecoration(
-            labelText: label,
-            filled: true,
-            fillColor: context.inputFieldColor,
-            border: OutlineInputBorder(
-              borderRadius: context.borderRadius(BorderRadiusType.medium),
-              borderSide: BorderSide(color: context.borderColor),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: context.borderRadius(BorderRadiusType.medium),
-              borderSide: BorderSide(color: context.borderColor),
-            ),
+    Widget field({
+      required String label,
+      required TextEditingController textController,
+      required ValueChanged<String> onChanged,
+    }) {
+      return TextField(
+        controller: textController,
+        keyboardType: TextInputType.number,
+        inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+        onChanged: onChanged,
+        decoration: InputDecoration(
+          labelText: label,
+          hintText: 'add_product.delivery_delay.auto'.tr,
+          suffixText: 'add_product.delivery_delay.unit'.tr,
+          filled: true,
+          fillColor: context.inputFieldColor,
+          border: OutlineInputBorder(
+            borderRadius: context.borderRadius(BorderRadiusType.medium),
+            borderSide: BorderSide(color: context.borderColor),
           ),
-          items: [
-            DropdownMenuItem<int?>(
-              value: null,
-              child: Text('add_product.delivery_delay.auto'.tr),
-            ),
-            for (var day = 1; day <= AddProductController.maxDeliveryDays; day++)
-              DropdownMenuItem<int?>(
-                value: day,
-                child: Text(
-                  (day > 1
-                          ? 'add_product.delivery_delay.days'
-                          : 'add_product.delivery_delay.day')
-                      .trParams({'count': '$day'}),
-                ),
-              ),
-          ],
-          onChanged: onChanged,
-        );
-      }
-
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'add_product.delivery_delay.title'.tr,
-            style: context.subtitle1.copyWith(fontWeight: FontWeight.w600),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: context.borderRadius(BorderRadiusType.medium),
+            borderSide: BorderSide(color: context.borderColor),
           ),
-          SizedBox(height: context.elementSpacing),
-          Row(
-            children: [
-              Expanded(
-                child: picker(
-                  label: 'add_product.delivery_delay.min'.tr,
-                  value: min,
-                  onChanged: controller.setDeliveryDaysMin,
-                ),
-              ),
-              SizedBox(width: context.elementSpacing),
-              Expanded(
-                child: picker(
-                  label: 'add_product.delivery_delay.max'.tr,
-                  value: max,
-                  onChanged: controller.setDeliveryDaysMax,
-                ),
-              ),
-            ],
-          ),
-          SizedBox(height: AppDesign.space2),
-          Text(
-            'add_product.delivery_delay.helper'.tr,
-            style: context.caption.copyWith(color: context.secondaryTextColor),
-          ),
-        ],
+        ),
       );
-    });
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'add_product.delivery_delay.title'.tr,
+          style: context.subtitle1.copyWith(fontWeight: FontWeight.w600),
+        ),
+        SizedBox(height: context.elementSpacing),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: field(
+                label: 'add_product.delivery_delay.min'.tr,
+                textController: controller.deliveryDaysMinController,
+                onChanged: controller.setDeliveryDaysMin,
+              ),
+            ),
+            SizedBox(width: context.elementSpacing),
+            Expanded(
+              child: field(
+                label: 'add_product.delivery_delay.max'.tr,
+                textController: controller.deliveryDaysMaxController,
+                onChanged: controller.setDeliveryDaysMax,
+              ),
+            ),
+          ],
+        ),
+        SizedBox(height: AppDesign.space2),
+        Text(
+          'add_product.delivery_delay.helper'.tr,
+          style: context.caption.copyWith(color: context.secondaryTextColor),
+        ),
+      ],
+    );
   }
 
   Widget _buildWeightSection(BuildContext context) {

@@ -18,6 +18,7 @@ import '../../../data/services/connectivity_service.dart';
 import '../../../data/services/offline_product_sync_service.dart';
 import '../../vendorDashboard/controllers/vendor_dashboard_controller.dart';
 import 'product_draft_store.dart';
+import 'product_video_upload.dart';
 import 'variant_editor_state.dart';
 import '../../../core/utils/app_design.dart';
 import '../../../core/utils/app_navigation.dart';
@@ -221,24 +222,38 @@ class AddProductController extends GetxController {
     freeDeliveryOverride.value = value == shopFreeDelivery.value ? null : value;
   }
 
-  // Délai de livraison annoncé au client, en jours ouvrables (1 à 20).
-  // null = délai de la catégorie, sinon le délai par défaut d'ASSO.
-  static const maxDeliveryDays = 20;
+  // Délai de livraison annoncé au client, en jours ouvrables (1 minimum,
+  // sans maximum). Vide = délai de la catégorie, sinon le défaut d'ASSO.
   final deliveryDaysMin = Rxn<int>();
   final deliveryDaysMax = Rxn<int>();
+  final deliveryDaysMinController = TextEditingController();
+  final deliveryDaysMaxController = TextEditingController();
 
-  void setDeliveryDaysMin(int? days) {
-    deliveryDaysMin.value = days;
-    final max = deliveryDaysMax.value;
-    if (days != null && (max == null || max < days)) deliveryDaysMax.value = days;
-    if (days == null) deliveryDaysMax.value = null;
+  static int? _parseDays(String text) {
+    final days = int.tryParse(text.trim());
+    return days != null && days >= 1 ? days : null;
   }
 
-  void setDeliveryDaysMax(int? days) {
-    deliveryDaysMax.value = days;
-    final min = deliveryDaysMin.value;
-    if (days != null && (min == null || min > days)) deliveryDaysMin.value = days;
-    if (days == null) deliveryDaysMin.value = null;
+  void setDeliveryDaysMin(String text) =>
+      deliveryDaysMin.value = _parseDays(text);
+
+  void setDeliveryDaysMax(String text) =>
+      deliveryDaysMax.value = _parseDays(text);
+
+  void _loadDeliveryDays(int? min, int? max) {
+    deliveryDaysMin.value = min;
+    deliveryDaysMax.value = max;
+    deliveryDaysMinController.text = min?.toString() ?? '';
+    deliveryDaysMaxController.text = max?.toString() ?? '';
+  }
+
+  /// Délai envoyé et affiché : une seule borne saisie vaut pour les deux, et
+  /// le maximum n'est jamais sous le minimum. null = Auto.
+  ({int min, int max})? get deliveryDelay {
+    final min = deliveryDaysMin.value ?? deliveryDaysMax.value;
+    final max = deliveryDaysMax.value ?? deliveryDaysMin.value;
+    if (min == null || max == null) return null;
+    return min <= max ? (min: min, max: max) : (min: max, max: min);
   }
 
   // Commande avec acompte (produit sur commande / importé) : % du prix client
@@ -491,8 +506,10 @@ class AddProductController extends GetxController {
     weightKgController.text = draft.fields['weight'] ?? '';
     depositEnabled.value = draft.fields['depositEnabled'] == '1';
     depositRateController.text = draft.fields['depositRate'] ?? '';
-    deliveryDaysMin.value = int.tryParse(draft.fields['deliveryDaysMin'] ?? '');
-    deliveryDaysMax.value = int.tryParse(draft.fields['deliveryDaysMax'] ?? '');
+    _loadDeliveryDays(
+      int.tryParse(draft.fields['deliveryDaysMin'] ?? ''),
+      int.tryParse(draft.fields['deliveryDaysMax'] ?? ''),
+    );
 
     final category = draft.fields['category'] ?? '';
     if (category.isNotEmpty) selectedCategory.value = category;
@@ -529,6 +546,9 @@ class AddProductController extends GetxController {
   final Map<String, dynamic>? editProductData = Get.arguments?['product'];
 
   final ImagePicker _picker = ImagePicker();
+
+  /// Vidéo de présentation (facultative), envoyée dès qu'elle est choisie.
+  final video = ProductVideoUpload();
 
   /// Catégories du serveur par nom, avec leurs sous-catégories.
   final Map<String, List<Map<String, String>>> categoriesData = {};
@@ -693,6 +713,7 @@ class AddProductController extends GetxController {
   @override
   void onClose() {
     _previewDebounce?.cancel();
+    video.dispose();
     _onlineWorker?.dispose();
     // Les images sont des XFile (mémoire/cache géré par la plateforme) :
     // aucun nettoyage manuel de fichiers n'est nécessaire (et impossible sur le web).
@@ -703,6 +724,8 @@ class AddProductController extends GetxController {
     priceController.dispose();
     stockController.dispose();
     weightKgController.dispose();
+    deliveryDaysMinController.dispose();
+    deliveryDaysMaxController.dispose();
     depositRateController.dispose();
     super.onClose();
   }
@@ -963,6 +986,8 @@ class AddProductController extends GetxController {
       print('📝 ADD_PRODUCT: Populating edit data...');
       print('📝 ADD_PRODUCT: Product data structure: ${product.keys.toList()}');
 
+      video.loadExisting(product);
+
       // Champs texte
       nameController.text = product['name'] ?? '';
       descriptionController.text = product['description'] ?? '';
@@ -1043,8 +1068,10 @@ class AddProductController extends GetxController {
           : readFreeDelivery(freeSetting);
 
       // Délai de livraison propre au produit (null = délai de la catégorie).
-      deliveryDaysMin.value = int.tryParse('${product['delivery_days_min'] ?? ''}');
-      deliveryDaysMax.value = int.tryParse('${product['delivery_days_max'] ?? ''}');
+      _loadDeliveryDays(
+        int.tryParse('${product['delivery_days_min'] ?? ''}'),
+        int.tryParse('${product['delivery_days_max'] ?? ''}'),
+      );
 
       // Commande avec acompte.
       depositEnabled.value = readFreeDelivery(product['deposit_enabled']);
@@ -1178,6 +1205,33 @@ class AddProductController extends GetxController {
       Get.snackbar(
         'add_product.error'.tr,
         'add_product.snack.take_photo_failed'.tr,
+        snackPosition: SnackPosition.BOTTOM,
+      );
+    }
+  }
+
+  /// Choisit une vidéo (galerie ou caméra) et l'envoie aussitôt.
+  ///
+  /// L'envoi demande le serveur : hors ligne, la vidéo n'est pas proposée.
+  Future<void> pickVideo(ImageSource source) async {
+    if (!await ConnectivityService.ensureFresh()) {
+      _warnMissingField(
+        'add_product.offline'.tr,
+        'add_product.video.offline'.tr,
+      );
+      return;
+    }
+    try {
+      final file = await _picker.pickVideo(
+        source: source,
+        maxDuration: const Duration(seconds: 60),
+      );
+      if (file != null) await video.upload(file);
+    } catch (e) {
+      print('❌ ADD_PRODUCT: Erreur lors de la sélection de la vidéo: $e');
+      Get.snackbar(
+        'add_product.error'.tr,
+        'add_product.video.pick_failed'.tr,
         snackPosition: SnackPosition.BOTTOM,
       );
     }
@@ -1546,6 +1600,15 @@ class AddProductController extends GetxController {
     //   return;
     // }
 
+    // La vidéo doit avoir fini de partir pour être rattachée au produit.
+    if (video.isUploading) {
+      _warnMissingField(
+        'add_product.video.title'.tr,
+        'add_product.video.wait_upload'.tr,
+      );
+      return;
+    }
+
     isLoading.value = true;
 
     try {
@@ -1647,6 +1710,9 @@ class AddProductController extends GetxController {
       fieldsMap['category_id'] = categoryId;
       if (subcategoryId != null) fieldsMap['subcategory_id'] = subcategoryId;
 
+      // Vidéo déjà envoyée : seul son identifiant part avec la fiche.
+      fieldsMap.addAll(video.toFields());
+
       // Ajouter stock si disponible
       if (stockController.text.trim().isNotEmpty) {
         fieldsMap['stock'] = stockController.text.trim();
@@ -1670,8 +1736,9 @@ class AddProductController extends GetxController {
           : (freeOverride ? '1' : '0');
 
       // Délai de livraison en jours ouvrables : vide = délai de la catégorie.
-      fieldsMap['delivery_days_min'] = '${deliveryDaysMin.value ?? ''}';
-      fieldsMap['delivery_days_max'] = '${deliveryDaysMax.value ?? ''}';
+      final delay = deliveryDelay;
+      fieldsMap['delivery_days_min'] = '${delay?.min ?? ''}';
+      fieldsMap['delivery_days_max'] = '${delay?.max ?? ''}';
 
       // Commande avec acompte : % du prix client, solde après vérification ASSO.
       fieldsMap['deposit_enabled'] = depositEnabled.value ? '1' : '0';
