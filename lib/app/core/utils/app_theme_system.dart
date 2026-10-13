@@ -297,7 +297,7 @@ class AppThemeSystem {
     FontWeight? fontWeight,
     Color? color,
     double? height,
-    String fontFamily = 'SF-Pro',
+    String? fontFamily,
   }) {
     final theme = Theme.of(context);
     final isDark = enableDynamicTheming && theme.brightness == Brightness.dark;
@@ -747,7 +747,6 @@ class AppThemeSystem {
       primaryColor: AppDesign.accent,
       scaffoldBackgroundColor: canvas,
       canvasColor: canvas,
-      fontFamily: 'SF-Pro',
       splashFactory: InkSparkle.splashFactory,
 
       colorScheme: ColorScheme(
@@ -784,7 +783,6 @@ class AppThemeSystem {
         scrolledUnderElevation: 0,
         centerTitle: false,
         titleTextStyle: TextStyle(
-          fontFamily: 'SF-Pro',
           color: textPrimary,
           fontSize: 17,
           fontWeight: FontWeight.w600,
@@ -818,7 +816,6 @@ class AppThemeSystem {
           elevation: 0,
           minimumSize: const Size(double.infinity, AppDesign.minTapTarget),
           textStyle: const TextStyle(
-            fontFamily: 'SF-Pro',
             fontSize: 15,
             fontWeight: FontWeight.w600,
           ),
@@ -832,7 +829,6 @@ class AppThemeSystem {
           minimumSize: const Size(0, AppDesign.minTapTarget),
           side: BorderSide(color: borderStrong),
           textStyle: const TextStyle(
-            fontFamily: 'SF-Pro',
             fontSize: 15,
             fontWeight: FontWeight.w600,
           ),
@@ -845,7 +841,6 @@ class AppThemeSystem {
           foregroundColor: AppDesign.accent,
           minimumSize: const Size(0, AppDesign.minTapTarget),
           textStyle: const TextStyle(
-            fontFamily: 'SF-Pro',
             fontSize: 15,
             fontWeight: FontWeight.w600,
           ),
@@ -883,11 +878,10 @@ class AppThemeSystem {
           horizontal: AppDesign.space4,
           vertical: AppDesign.space3 + 2,
         ),
-        hintStyle: TextStyle(color: textTertiary, fontFamily: 'SF-Pro'),
-        labelStyle: TextStyle(color: textSecondary, fontFamily: 'SF-Pro'),
+        hintStyle: TextStyle(color: textTertiary),
+        labelStyle: TextStyle(color: textSecondary),
         floatingLabelStyle: const TextStyle(
           color: AppDesign.accent,
-          fontFamily: 'SF-Pro',
         ),
         prefixIconColor: textTertiary,
         suffixIconColor: textTertiary,
@@ -905,7 +899,6 @@ class AppThemeSystem {
         side: BorderSide(color: border),
         labelStyle: TextStyle(
           color: textSecondary,
-          fontFamily: 'SF-Pro',
           fontSize: 13,
           fontWeight: FontWeight.w500,
         ),
@@ -933,13 +926,11 @@ class AppThemeSystem {
           borderRadius: BorderRadius.circular(AppDesign.radiusLg),
         ),
         titleTextStyle: TextStyle(
-          fontFamily: 'SF-Pro',
           color: textPrimary,
           fontSize: 18,
           fontWeight: FontWeight.w600,
         ),
         contentTextStyle: TextStyle(
-          fontFamily: 'SF-Pro',
           color: textSecondary,
           fontSize: 14,
           height: 1.5,
@@ -949,7 +940,6 @@ class AppThemeSystem {
       snackBarTheme: SnackBarThemeData(
         backgroundColor: isDark ? AppDesign.neutral100 : AppDesign.neutral900,
         contentTextStyle: TextStyle(
-          fontFamily: 'SF-Pro',
           color: isDark ? AppDesign.neutral900 : Colors.white,
           fontSize: 14,
         ),
@@ -965,12 +955,10 @@ class AppThemeSystem {
         indicatorSize: TabBarIndicatorSize.label,
         dividerColor: border,
         labelStyle: const TextStyle(
-          fontFamily: 'SF-Pro',
           fontSize: 14,
           fontWeight: FontWeight.w600,
         ),
         unselectedLabelStyle: const TextStyle(
-          fontFamily: 'SF-Pro',
           fontSize: 14,
           fontWeight: FontWeight.w500,
         ),
@@ -984,12 +972,10 @@ class AppThemeSystem {
         elevation: 0,
         showUnselectedLabels: true,
         selectedLabelStyle: const TextStyle(
-          fontFamily: 'SF-Pro',
           fontSize: 11,
           fontWeight: FontWeight.w600,
         ),
         unselectedLabelStyle: const TextStyle(
-          fontFamily: 'SF-Pro',
           fontSize: 11,
         ),
       ),
@@ -1041,7 +1027,6 @@ class AppThemeSystem {
         foregroundColor: Colors.white,
         elevation: 2,
         extendedTextStyle: TextStyle(
-          fontFamily: 'SF-Pro',
           fontSize: 15,
           fontWeight: FontWeight.w600,
           color: Colors.white,
@@ -1166,7 +1151,7 @@ extension TextStyleExtension on BuildContext {
     FontWeight? fontWeight,
     Color? color,
     double? height,
-    String fontFamily = 'SF-Pro',
+    String? fontFamily,
   }) => AppThemeSystem.getTextStyle(
     this,
     type,

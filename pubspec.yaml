@@ -4,7 +4,7 @@ description: "Asso market place app."
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 
-version: 1.1.0+12
+version: 1.1.2+14
 
 environment:
   sdk: ^3.10.4
@@ -85,11 +85,6 @@ flutter:
     - assets/i18n/
     - Politique de confidentialité.md
     - shorebird.yaml
-
-  fonts:
-    - family: SF-Pro
-      fonts:
-        - asset: assets/fonts/SF-Pro/SF-Pro.ttf
 
 flutter_launcher_icons:
   android: true

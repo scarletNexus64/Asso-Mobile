@@ -200,7 +200,6 @@ class OtpView extends GetView<OtpController> {
           fontSize: fontSize,
           fontWeight: FontWeight.bold,
           color: context.primaryTextColor,
-          fontFamily: 'SF-Pro',
         ),
         decoration: InputDecoration(
           counterText: '',
