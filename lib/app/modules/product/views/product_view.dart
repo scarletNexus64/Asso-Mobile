@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import '../../../data/providers/currency_service.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../core/utils/app_design.dart';
 import '../../../core/utils/app_theme_system.dart';
@@ -684,6 +685,8 @@ class ProductView extends GetView<ProductController> {
     final weight = _weightDisplay(product);
     final origin = _originLabel(
       product['origin_country']?.toString().trim().toUpperCase(),
+      isLocalMade: product['is_local_made'] == true ||
+          '${product['is_local_made']}' == '1',
     );
     final deliveryDelay = DeliveryDelay.fromApi(product['delivery_delay']);
 
@@ -735,9 +738,12 @@ class ProductView extends GetView<ProductController> {
   }
 
   /// Pays d'origine en clair. Absent, l'article est considéré local.
-  String _originLabel(String? code) {
+  /// Sans pays : « Produit local » (fabriqué au Cameroun) ou « Produit
+  /// importé » (tous les produits publiés avant l'option locale).
+  String _originLabel(String? code, {bool isLocalMade = false}) {
     if (code == null || code.isEmpty || code == 'NULL') {
-      return 'product.origin.local'.tr;
+      return (isLocalMade ? 'product.origin.local' : 'product.origin.imported')
+          .tr;
     }
     final countries = {
       'CN': 'product.origin.china'.tr,
@@ -3527,10 +3533,7 @@ class ProductView extends GetView<ProductController> {
     final isOutOfStock = (productStock is num ? productStock : 0) <= 0;
     final productImage = _similarProductImageUrl(product);
 
-    final rawPrice = product['price_xaf'] ?? product['price'] ?? 0;
-    final price = controller.formatPrice(
-      double.tryParse(rawPrice.toString()) ?? 0,
-    );
+    final price = CurrencyService.formatProductPrice(product);
 
     return ProductCard(
       name: product['name']?.toString() ?? 'product.fallback_name'.tr,

@@ -5,7 +5,9 @@ import '../../../data/providers/wallet_service.dart';
 import '../../../data/models/wallet_model.dart';
 import '../../../data/providers/currency_service.dart';
 import '../../../core/utils/app_theme_system.dart';
+import '../../packageSubscription/widgets/package_details_sheet.dart';
 import '../../packageSubscription/widgets/sales_code_field.dart';
+import '../../vendorDashboard/controllers/vendor_dashboard_controller.dart';
 import '../../../core/utils/app_design.dart';
 
 class CertificationPackagesController extends GetxController {
@@ -22,6 +24,7 @@ class CertificationPackagesController extends GetxController {
 
   // P6 : code commercial facultatif, vérifié avant le paiement.
   final salesCode = SalesCodeInput();
+  RxBool get canUseSalesCode => salesCode.available;
 
   @override
   void onInit() {
@@ -37,6 +40,7 @@ class CertificationPackagesController extends GetxController {
       final response = await PackageService.getCertificationPackages();
       if (_isDisposed) return;
       if (response.success && response.data != null) {
+        salesCode.applyEligibility(response.data);
         final packagesData = response.data!['packages'] as List?;
         if (packagesData != null) {
           packages.value = packagesData.map((e) => e as Map<String, dynamic>).toList();
@@ -99,6 +103,7 @@ Future<int?> createOrder({
       provider: kpayProvider,
       phoneNumber: kpayPhone,
       salesCode: salesCode.code,
+      acceptOwnCode: salesCode.acceptOwnCode,
     );
 
     if (response.success) {
@@ -129,6 +134,7 @@ Future<String?> payWithWallet({required int packageId}) async {
       packageId,
       paymentMode: 'wallet',
       salesCode: salesCode.code,
+      acceptOwnCode: salesCode.acceptOwnCode,
     );
     if (salesCode.handleServerRejection(response)) return null;
     if (!response.success) {
@@ -158,6 +164,7 @@ Future<Map<String, dynamic>?> createCardOrder({required int packageId}) async {
       packageId,
       paymentMode: 'stripe_direct',
       salesCode: salesCode.code,
+      acceptOwnCode: salesCode.acceptOwnCode,
     );
 
     if (salesCode.handleServerRejection(response)) return null;
@@ -229,6 +236,49 @@ void _pollOrderPayment(int subscriptionId) async {
 
   /// Montant (prix en XAF) affiché dans la devise de l'utilisateur.
   String formatCurrency(double amountXaf) => CurrencyService.formatFromPivot(amountXaf);
+
+  /// Fiche détaillée avant paiement. Une boutique déjà certifiée voit sa
+  /// certification prolongée à partir de l'échéance en cours (même règle que
+  /// le serveur) : la fiche annonce la nouvelle date.
+  Future<bool> confirmDetails(Map<String, dynamic> package) {
+    final days = (package['duration_days'] as num?)?.toInt() ?? 0;
+    DateTime? currentEnd;
+    if (Get.isRegistered<VendorDashboardController>()) {
+      final dashboard = Get.find<VendorDashboardController>();
+      if (dashboard.isCertified.value) {
+        currentEnd = DateTime.tryParse(dashboard.certificationExpiresAt.value ?? '');
+      }
+    }
+    final renewing = currentEnd != null && currentEnd.isAfter(DateTime.now());
+    final end = (renewing ? currentEnd : DateTime.now()).add(Duration(days: days));
+    final endLabel = PackageDetailsSheet.formatDate(end);
+    final duration = '${package['formatted_duration'] ?? ''}';
+
+    return PackageDetailsSheet.show(
+      typeLabel: 'package_details.types.certification'.tr,
+      name: '${package['name'] ?? ''}',
+      priceXaf: (package['price'] ?? 0).toDouble(),
+      durationLabel: duration,
+      description: package['description']?.toString(),
+      facts: [
+        PackageDetailFact(Icons.verified_outlined, 'package_details.certification.badge'.tr, 'package_details.certification.badge_value'.tr),
+        PackageDetailFact(Icons.schedule_outlined, 'package_details.duration'.tr, duration),
+        PackageDetailFact(Icons.event_outlined, 'package_details.valid_until'.tr, endLabel),
+        PackageDetailFact(Icons.bolt_outlined, 'package_details.activation'.tr, 'package_details.activation_value'.tr),
+      ],
+      benefits: PackageDetailsSheet.benefitsOf(package['benefits']),
+      notes: [
+        renewing
+            ? 'package_details.certification.renewal'.trParams({
+                'from': PackageDetailsSheet.formatDate(currentEnd),
+                'to': endLabel,
+              })
+            : 'package_details.certification.new'.trParams({'date': endLabel}),
+        'package_details.certification.scope'.tr,
+      ],
+      salesCode: salesCode.code,
+    );
+  }
 
   @override
   void onClose() {

@@ -1,4 +1,3 @@
-import 'package:get/get.dart';
 import '../providers/currency_service.dart';
 import 'diaspo_offer.dart';
 
@@ -14,6 +13,9 @@ class DiaspoBooking {
   final double subtotal;
   final double commissionAmount;
   final double totalPrice;
+
+  /// Devise des montants (celle de l'offre).
+  final String currency;
 
   // Status
   final String status;
@@ -36,6 +38,14 @@ class DiaspoBooking {
 
   // Computed
   final String formattedTotal;
+
+  /// Total dans la devise de l'utilisateur (converti depuis celle de l'offre).
+  /// À afficher dans un Obx.
+  String get displayTotal {
+    final code = currency.isNotEmpty ? currency : diaspoOffer?.currency;
+    if (code == null || code.isEmpty) return formattedTotal;
+    return CurrencyService.formatFromCurrency(totalPrice, code);
+  }
   final bool isCompleted;
 
   // Relations
@@ -56,6 +66,7 @@ class DiaspoBooking {
     required this.subtotal,
     required this.commissionAmount,
     required this.totalPrice,
+    this.currency = '',
     required this.status,
     required this.confirmationCode,
     this.confirmedByBuyerAt,
@@ -87,6 +98,7 @@ class DiaspoBooking {
       subtotal: double.parse(json['subtotal'].toString()),
       commissionAmount: double.parse(json['commission_amount'].toString()),
       totalPrice: double.parse(json['total_price'].toString()),
+      currency: json['currency']?.toString() ?? '',
       status: json['status'] ?? 'pending',
       confirmationCode: json['confirmation_code'] ?? '',
       confirmedByBuyerAt: json['confirmed_by_buyer_at'] != null
@@ -123,6 +135,7 @@ class DiaspoBooking {
       'subtotal': subtotal,
       'commission_amount': commissionAmount,
       'total_price': totalPrice,
+      'currency': currency,
       'status': status,
       'confirmation_code': confirmationCode,
       'confirmed_by_buyer_at': confirmedByBuyerAt?.toIso8601String(),
@@ -139,19 +152,6 @@ class DiaspoBooking {
     };
   }
 
-  /// Prix total formaté avec conversion de devise
-  String get convertedFormattedTotal {
-    try {
-      if (Get.isRegistered<CurrencyService>()) {
-        // Le backend renvoie les prix en XOF, donc on convertit
-        return CurrencyService.to.formatPrice(totalPrice);
-      }
-    } catch (e) {
-      // Fallback si CurrencyService n'est pas encore initialisé
-    }
-    return formattedTotal; // Utilise le formattedTotal du backend
-  }
-
   DiaspoBooking copyWith({
     int? id,
     int? diaspoOfferId,
@@ -162,6 +162,7 @@ class DiaspoBooking {
     double? subtotal,
     double? commissionAmount,
     double? totalPrice,
+    String? currency,
     String? status,
     String? confirmationCode,
     DateTime? confirmedByBuyerAt,
@@ -191,6 +192,7 @@ class DiaspoBooking {
       subtotal: subtotal ?? this.subtotal,
       commissionAmount: commissionAmount ?? this.commissionAmount,
       totalPrice: totalPrice ?? this.totalPrice,
+      currency: currency ?? this.currency,
       status: status ?? this.status,
       confirmationCode: confirmationCode ?? this.confirmationCode,
       confirmedByBuyerAt: confirmedByBuyerAt ?? this.confirmedByBuyerAt,

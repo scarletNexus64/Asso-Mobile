@@ -9,6 +9,7 @@ import '../../../data/models/payment_method_option.dart';
 import '../../wallet/widgets/kpay_payment_sheet.dart';
 import '../widgets/payment_loading_dialog.dart';
 import '../widgets/payment_success_dialog.dart';
+import '../widgets/package_details_sheet.dart';
 import '../widgets/sales_code_field.dart';
 import '../../../data/services/stripe_native_service.dart';
 import '../../../core/utils/app_design.dart';
@@ -31,6 +32,7 @@ class PackageSubscriptionController extends GetxController {
 
   // P6 : code commercial facultatif, vérifié avant le paiement.
   final salesCode = SalesCodeInput();
+  RxBool get canUseSalesCode => salesCode.available;
 
   @override
   void onInit() {
@@ -57,6 +59,7 @@ class PackageSubscriptionController extends GetxController {
       if (_isDisposed) return;
 
       if (response.success && response.data != null) {
+        salesCode.applyEligibility(response.data);
         final packagesData = response.data!['packages'] as List?;
 
         if (packagesData != null) {
@@ -104,6 +107,7 @@ class PackageSubscriptionController extends GetxController {
       if (_isDisposed) return;
 
       if (response.success && response.data != null) {
+        salesCode.applyEligibility(response.data);
         hasPackage.value = response.data!['has_package'] ?? false;
 
         if (hasPackage.value) {
@@ -139,18 +143,22 @@ class PackageSubscriptionController extends GetxController {
     // 0) Code commercial saisi : il doit être valide avant de payer.
     if (!await salesCode.ensureReady() || _isDisposed) return;
 
-    // 1) Choix du moyen de paiement (tous affichés, grisés si indisponibles).
-    final display = CurrencyService.displayFromPivot(price);
+    // 1) Récapitulatif : ce qui est acheté, jusqu'à quand, effet sur l'espace actuel.
+    if (!await _confirmDetails(package) || _isDisposed) return;
+
+    // 2) Choix du moyen de paiement (tous affichés, grisés si indisponibles).
+    // Montant en FCFA (pivot) : le sélecteur l'affiche dans la devise de
+    // l'utilisateur, le serveur vérifie minimum et solde sur ce montant exact.
     final method = await PaymentMethodSelector.show(
-      amount: display.amount,
-      currency: display.currency,
+      amount: price,
+      currency: CurrencyService.pivot,
       amountLabel: 'package_subscription.package_price'.tr,
       allowedCodes: const {'kpay', 'stripe'},
       includeWallet: true,
     );
     if (method == null) return; // annulé
 
-    // 2) Sous-parcours selon le rail choisi.
+    // 3) Sous-parcours selon le rail choisi.
     switch (method.code) {
       case 'wallet':
         await _subscribeViaWallet(package, price, method);
@@ -169,6 +177,55 @@ class PackageSubscriptionController extends GetxController {
         );
     }
   }
+
+  /// Fiche détaillée du forfait avant paiement. Un forfait pris alors qu'un
+  /// espace est actif s'y ajoute (stockage cumulé, échéance prolongée) : la
+  /// fiche le dit, avec les chiffres.
+  Future<bool> _confirmDetails(Map<String, dynamic> package) {
+    final days = (package['duration_days'] as num?)?.toInt() ?? 0;
+    final addedMb = (package['storage_size_mb'] as num?)?.toDouble() ?? 0;
+    final current = hasPackage.value ? currentVendorPackage.value : null;
+    final currentEnd = DateTime.tryParse('${current?['expires_at'] ?? ''}');
+    final cumulative = current != null && currentEnd != null && currentEnd.isAfter(DateTime.now());
+    final end = (cumulative ? currentEnd : DateTime.now()).add(Duration(days: days));
+    final endLabel = PackageDetailsSheet.formatDate(end);
+
+    final notes = <String>[];
+    if (cumulative) {
+      final currentMb = (current['storage_total_mb'] as num?)?.toDouble() ?? 0;
+      notes.add('package_details.storage.cumulative'.trParams({
+        'added': _formatMb(addedMb),
+        'total': _formatMb(currentMb + addedMb),
+        'from': PackageDetailsSheet.formatDate(currentEnd),
+        'to': endLabel,
+      }));
+    } else {
+      notes.add('package_details.storage.new'.trParams({'date': endLabel}));
+    }
+    notes.add('package_details.storage.usage'.tr);
+
+    return PackageDetailsSheet.show(
+      typeLabel: 'package_details.types.storage'.tr,
+      name: '${package['name'] ?? ''}',
+      priceXaf: (package['price'] ?? 0).toDouble(),
+      durationLabel: '${package['formatted_duration'] ?? ''}',
+      description: package['description']?.toString(),
+      facts: [
+        PackageDetailFact(Icons.storage_outlined, 'package_details.storage.space'.tr, _formatMb(addedMb)),
+        PackageDetailFact(Icons.schedule_outlined, 'package_details.duration'.tr, '${package['formatted_duration'] ?? ''}'),
+        PackageDetailFact(Icons.event_outlined, 'package_details.valid_until'.tr, endLabel),
+        PackageDetailFact(Icons.bolt_outlined, 'package_details.activation'.tr, 'package_details.activation_value'.tr),
+      ],
+      benefits: PackageDetailsSheet.benefitsOf(package['benefits']),
+      notes: notes,
+      salesCode: salesCode.code,
+    );
+  }
+
+  /// Taille lisible : Mo sous 1 Go, Go au-delà.
+  String _formatMb(double mb) => mb >= 1024
+      ? 'package_details.gb'.trParams({'size': (mb / 1024).toStringAsFixed(mb % 1024 == 0 ? 0 : 1)})
+      : 'package_details.mb'.trParams({'size': mb.toStringAsFixed(0)});
 
   /// Abonnement payé avec le solde du Wallet ASSO : débit et activation immédiats.
   Future<void> _subscribeViaWallet(
@@ -192,6 +249,7 @@ class PackageSubscriptionController extends GetxController {
         package['id'] as int,
         paymentMode: 'wallet',
         salesCode: salesCode.code,
+        acceptOwnCode: salesCode.acceptOwnCode,
       );
       if (_isDisposed) return;
       PaymentLoadingDialog.hide();
@@ -238,6 +296,7 @@ class PackageSubscriptionController extends GetxController {
         provider: selection['provider'],
         phoneNumber: selection['phone'],
         salesCode: salesCode.code,
+        acceptOwnCode: salesCode.acceptOwnCode,
       );
 
       if (_isDisposed) return;
@@ -301,6 +360,7 @@ class PackageSubscriptionController extends GetxController {
         package['id'] as int,
         paymentMode: 'stripe_direct',
         salesCode: salesCode.code,
+        acceptOwnCode: salesCode.acceptOwnCode,
       );
 
       if (_isDisposed) return;

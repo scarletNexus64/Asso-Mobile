@@ -79,7 +79,6 @@ import '../modules/wallet/bindings/wallet_binding.dart';
 import '../modules/wallet/views/wallet_view.dart';
 import '../modules/stripeConnect/bindings/stripe_connect_binding.dart';
 import '../modules/stripeConnect/views/stripe_connect_view.dart';
-import '../modules/wallet/views/ussd_waiting_view.dart';
 import '../modules/wallet/views/wallet_history_view.dart';
 import '../modules/welcomer/bindings/welcomer_binding.dart';
 import '../modules/welcomer/views/welcomer_view.dart';
@@ -103,6 +102,9 @@ import '../modules/shopStatistics/bindings/shop_statistics_binding.dart';
 import '../modules/shopStatistics/views/shop_statistics_view.dart';
 import '../modules/countrySelection/bindings/country_selection_binding.dart';
 import '../modules/countrySelection/views/country_selection_view.dart';
+import '../modules/salesProgram/bindings/sales_program_binding.dart';
+import '../modules/salesProgram/views/sales_program_view.dart';
+import '../modules/salesProgram/views/sales_program_success_view.dart';
 
 import '../core/widgets/unknown_route_view.dart';
 
@@ -312,6 +314,15 @@ class AppPages {
       binding: CertificationPackagesBinding(),
     ),
     GetPage(
+      name: _Paths.SALES_PROGRAM,
+      page: () => const SalesProgramView(),
+      binding: SalesProgramBinding(),
+    ),
+    GetPage(
+      name: _Paths.SALES_PROGRAM_SUCCESS,
+      page: () => const SalesProgramSuccessView(),
+    ),
+    GetPage(
       name: _Paths.PRODUCT_MANAGEMENT,
       page: () => const ProductManagementView(),
       binding: ProductManagementBinding(),
@@ -320,11 +331,6 @@ class AppPages {
       name: _Paths.ADD_PRODUCT,
       page: () => const AddProductView(),
       binding: AddProductBinding(),
-    ),
-    GetPage(
-      name: _Paths.USSD_WAITING,
-      page: () => const UssdWaitingView(),
-      binding: WalletBinding(),
     ),
     GetPage(
       name: _Paths.WALLET_HISTORY,

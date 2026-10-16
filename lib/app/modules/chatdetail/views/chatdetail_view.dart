@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import '../../../data/providers/currency_service.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../../core/utils/app_design.dart';
 import '../../../core/utils/app_theme_system.dart';
@@ -1343,15 +1344,11 @@ class ChatdetailView extends GetView<ChatdetailController> {
 
   /// Formater le prix
   String _formatPrice(Map<String, dynamic> product) {
-    final price = product['price'];
-    if (price != null) {
-      final priceValue = price is num ? price.toDouble() : double.tryParse(price.toString());
-      if (priceValue != null) {
-        return controller.formatPrice(priceValue);
-      }
-      return '$price ${controller.currencySymbol}';
+    // `price` est dans la devise du produit : conversion depuis `price_xaf`.
+    if (product['price'] == null && product['price_xaf'] == null) {
+      return 'chatdetail.price_undefined'.tr;
     }
-    return 'chatdetail.price_undefined'.tr;
+    return CurrencyService.formatProductPrice(product);
   }
 
   /// Widget pour afficher l'offre Diaspo comme une citation dans le message (style WhatsApp)
@@ -1631,8 +1628,9 @@ class ChatdetailView extends GetView<ChatdetailController> {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
-                  Text(
-                    '${controller.formatPrice(double.tryParse(diaspoOffer['price_per_kg']?.toString() ?? '0') ?? 0)}/kg',
+                  Obx(() => Text(
+                    // Prix au kilo dans la devise de l'utilisateur, comme sur la fiche Diaspo.
+                    '${CurrencyService.formatFromCurrency(double.tryParse(diaspoOffer['price_per_kg']?.toString() ?? '0') ?? 0, '${diaspoOffer['currency'] ?? 'XAF'}')}/kg',
                     style: context.textStyle(
                       FontSizeType.caption,
                       color: isSentByMe
@@ -1640,7 +1638,7 @@ class ChatdetailView extends GetView<ChatdetailController> {
                           : AppThemeSystem.primaryColor,
                       fontWeight: FontWeight.w500,
                     ),
-                  ),
+                  )),
                 ],
               ),
             ),

@@ -135,6 +135,7 @@ class DiaspoBookingController extends GetxController {
       // Mobile Money : sélecteur pays → opérateur → numéro.
       final selection = await KpayDirectPaymentSheet.show(
         amount: totalPrice.value,
+        currency: currency, // total dans la devise de l'offre, pas en FCFA
         amountLabel: 'diaspo_booking.total_to_pay'.tr,
       );
       if (selection == null) return; // annulé
@@ -213,8 +214,8 @@ class DiaspoBookingController extends GetxController {
       // validé sur le téléphone. Le succès (+ code) n'est affiché qu'au statut « payé ».
       final outcome = await MobileMoneyWaiting.run(
         amount: totalPrice.value,
-        // Montant dans la devise de l'offre (pas forcément le FCFA).
-        formatAmount: (amount) => '${amount.toStringAsFixed(0)} $currency',
+        // Montant dans la devise de l'offre, affiché dans celle de l'utilisateur.
+        formatAmount: formatOfferAmount,
         provider: provider,
         phone: phone,
         check: () => _diaspoService.bookingPaymentState(booking.id),
@@ -427,29 +428,16 @@ class DiaspoBookingController extends GetxController {
   // ================================
 
   /// Format price with user's currency
-  String formatPrice(double priceInXOF, {bool showSymbol = true}) {
-    if (!Get.isRegistered<CurrencyService>()) {
-      return '${priceInXOF.toStringAsFixed(0)} FCFA';
-    }
-    return CurrencyService.to.formatPrice(priceInXOF, showSymbol: showSymbol);
+  String formatPrice(double amountXaf, {bool showSymbol = true}) {
+    return CurrencyService.formatFromPivot(amountXaf, showSymbol: showSymbol);
   }
 
   /// Symbole de la devise réelle de l'offre (pas celle de l'utilisateur).
   String get currencySymbol => CurrencyService.getSymbolForCode(currency);
 
-  /// Formate un montant DÉJÀ exprimé dans la devise de l'offre, SANS reconversion.
-  /// Le total est calculé à partir de `pricePerKg`
-  /// (devise de l'offre), il ne faut donc pas les reconvertir vers la devise user.
-  String formatOfferAmount(double amount) {
-    final hasDecimals = amount != amount.roundToDouble();
-    final raw = hasDecimals
-        ? amount.toStringAsFixed(2)
-        : amount.toStringAsFixed(0);
-    final parts = raw.split('.');
-    parts[0] = parts[0].replaceAllMapped(
-      RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
-      (m) => '${m[1]} ',
-    );
-    return '${parts.join('.')} $currencySymbol';
-  }
+  /// Montant exprimé dans la devise de l'offre (prix au kilo, total), affiché
+  /// dans la devise de l'utilisateur. Le débit, lui, reste calculé par le
+  /// serveur dans la devise de l'offre. À appeler dans un Obx.
+  String formatOfferAmount(double amount) =>
+      CurrencyService.formatFromCurrency(amount, currency);
 }

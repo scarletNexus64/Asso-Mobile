@@ -595,6 +595,8 @@ class AddProductView extends GetView<AddProductController> {
         SizedBox(height: AppDesign.space6),
         _buildSubcategorySelector(context),
         SizedBox(height: AppDesign.space6),
+        _buildOriginSection(context),
+        SizedBox(height: AppDesign.space6),
         _buildDescriptionSection(context),
         SizedBox(height: AppDesign.space6),
         EnglishVersionSection(
@@ -872,11 +874,19 @@ class AddProductView extends GetView<AddProductController> {
                 ),
                 _buildReviewRow(
                   context,
+                  'add_product.origin.title'.tr,
+                  controller.isLocalMade.value
+                      ? 'add_product.origin.local'.tr
+                      : 'add_product.origin.imported'.tr,
+                  onEdit: () => controller.goToStep(1),
+                ),
+                _buildReviewRow(
+                  context,
                   hasVariants
                       ? 'add_product.view.base_price'.tr
                       : 'add_product.view.price'.tr,
                   price > 0
-                      ? controller.formatPrice(price)
+                      ? controller.formatInSelectedCurrency(price)
                       : 'add_product.view.not_set_m'.tr,
                   onEdit: () => controller.goToStep(2),
                 ),
@@ -2403,6 +2413,43 @@ class AddProductView extends GetView<AddProductController> {
   }
 
   /// Section Description
+  /// Origine du produit : seulement « Produit importé » ou « Produit local »
+  /// pour un vendeur (les grossistes Chine / Dubaï / Turquie sont gérés par ASSO).
+  Widget _buildOriginSection(BuildContext context) {
+    return Obx(() {
+      final isLocal = controller.isLocalMade.value;
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'add_product.origin.title'.tr,
+            style: context.subtitle1.copyWith(fontWeight: FontWeight.w600),
+          ),
+          SizedBox(height: context.elementSpacing),
+          _buildKindCard(
+            context,
+            selected: !isLocal,
+            icon: Icons.public,
+            title: 'add_product.origin.imported'.tr,
+            subtitle: 'add_product.origin.imported_subtitle'.tr,
+            example: 'add_product.origin.imported_example'.tr,
+            onTap: () => controller.isLocalMade.value = false,
+          ),
+          SizedBox(height: AppDesign.space3),
+          _buildKindCard(
+            context,
+            selected: isLocal,
+            icon: Icons.flag_outlined,
+            title: 'add_product.origin.local'.tr,
+            subtitle: 'add_product.origin.local_subtitle'.tr,
+            example: 'add_product.origin.local_example'.tr,
+            onTap: () => controller.isLocalMade.value = true,
+          ),
+        ],
+      );
+    });
+  }
+
   Widget _buildDescriptionSection(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,

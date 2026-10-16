@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../providers/currency_service.dart';
 
@@ -62,45 +63,15 @@ class WalletModel {
   }
 
   String get formattedBalance {
-    try {
-      if (Get.isRegistered<CurrencyService>()) {
-        return CurrencyService.to.formatPrice(currentBalance);
-      }
-    } catch (e) {
-      // Fallback si CurrencyService n'est pas encore initialisé
-    }
-    return '${currentBalance.toStringAsFixed(0).replaceAllMapped(
-          RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
-          (match) => '${match[1]} ',
-        )} FCFA';
+    return CurrencyService.formatFromPivot(currentBalance);
   }
 
   String get formattedLockedBalance {
-    try {
-      if (Get.isRegistered<CurrencyService>()) {
-        return CurrencyService.to.formatPrice(totalLockedBalance);
-      }
-    } catch (e) {
-      // Fallback si CurrencyService n'est pas encore initialisé
-    }
-    return '${totalLockedBalance.toStringAsFixed(0).replaceAllMapped(
-          RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
-          (match) => '${match[1]} ',
-        )} FCFA';
+    return CurrencyService.formatFromPivot(totalLockedBalance);
   }
 
   String get formattedAvailableBalance {
-    try {
-      if (Get.isRegistered<CurrencyService>()) {
-        return CurrencyService.to.formatPrice(availableBalance);
-      }
-    } catch (e) {
-      // Fallback si CurrencyService n'est pas encore initialisé
-    }
-    return '${availableBalance.toStringAsFixed(0).replaceAllMapped(
-          RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
-          (match) => '${match[1]} ',
-        )} FCFA';
+    return CurrencyService.formatFromPivot(availableBalance);
   }
 
   bool get hasLockedFunds => totalLockedBalance > 0;
@@ -155,8 +126,9 @@ class WalletTransactionModel {
       description: json['description'] ?? '',
       referenceType: json['reference_type'],
       referenceId: json['reference_id'],
-      metadata: json['metadata'] != null
-          ? Map<String, dynamic>.from(json['metadata'])
+      // Un tableau PHP vide arrive en `[]` : seule une map est retenue.
+      metadata: json['metadata'] is Map
+          ? Map<String, dynamic>.from(json['metadata'] as Map)
           : null,
       createdAt: DateTime.parse(json['created_at']),
       completedAt: json['completed_at'] != null
@@ -193,24 +165,15 @@ class WalletTransactionModel {
     final sign = isCredit ? '+' : '-';
     final absAmount = amount.abs();
 
-    try {
-      if (Get.isRegistered<CurrencyService>()) {
-        final formattedPrice = CurrencyService.to.formatPrice(absAmount, showSymbol: false);
-        final symbol = CurrencyService.to.currencySymbol;
-        return '$sign $formattedPrice $symbol';
-      }
-    } catch (e) {
-      // Fallback si CurrencyService n'est pas encore initialisé
-    }
-
-    return '$sign ${absAmount.toStringAsFixed(0).replaceAllMapped(
-          RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
-          (match) => '${match[1]} ',
-        )} F';
+    return '$sign ${CurrencyService.formatFromPivot(absAmount)}';
   }
+
+  /// Commission versée à un commercial pour le premier abonnement d'un vendeur.
+  bool get isSalesCommission => metadata?['kind'] == 'sales_commission';
 
   /// Get type label in French
   String get typeLabel {
+    if (isSalesCommission) return 'data.wallet.type.sales_commission'.tr;
     switch (type) {
       case 'credit':
         return 'data.wallet.type.credit'.tr;
@@ -234,26 +197,46 @@ class WalletTransactionModel {
   }
 
   /// Get type icon emoji
-  String get typeIcon {
+  IconData get typeIcon {
+    if (isSalesCommission) return Icons.handshake_outlined;
     switch (type) {
       case 'credit':
-        return '💵';
+        return Icons.south_west_rounded;
       case 'debit':
-        return '💸';
+        return Icons.north_east_rounded;
       case 'refund':
-        return '↩️';
+        return Icons.replay_rounded;
       case 'bonus':
-        return '🎁';
+        return Icons.card_giftcard_rounded;
       case 'adjustment':
-        return '⚙️';
+        return Icons.tune_rounded;
       case 'lock':
-        return '🔒';
+        return Icons.lock_outline_rounded;
       case 'unlock':
-        return '🔓';
+        return Icons.lock_open_rounded;
       case 'escrow_release':
-        return '✅';
+        return Icons.verified_outlined;
       default:
-        return '💰';
+        return Icons.account_balance_wallet_outlined;
+    }
+  }
+
+  /// Icône du statut de paiement (réussi, en cours, en attente, échoué…).
+  IconData get statusIcon {
+    switch (status) {
+      case 'completed':
+        return Icons.check_circle_rounded;
+      case 'processing':
+        return Icons.autorenew_rounded;
+      case 'pending':
+        return Icons.schedule_rounded;
+      case 'failed':
+        return Icons.error_rounded;
+      case 'cancelled':
+      case 'canceled':
+        return Icons.cancel_rounded;
+      default:
+        return Icons.info_rounded;
     }
   }
 

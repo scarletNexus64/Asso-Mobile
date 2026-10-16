@@ -76,6 +76,7 @@ class ProductController extends GetxController {
 
   /// Texte saisi, observé pour activer/désactiver le bouton de paiement.
   final customerPhone = ''.obs;
+  final addressDetails = ''.obs;
   final PageController imagePageController = PageController();
 
   final deliveryPartners = <Map<String, dynamic>>[].obs;
@@ -272,6 +273,9 @@ class ProductController extends GetxController {
   void onInit() {
     super.onInit();
 
+    addressDetailsController.addListener(
+      () => addressDetails.value = addressDetailsController.text.trim(),
+    );
     customerPhoneController.addListener(
       () => customerPhone.value = customerPhoneController.text.trim(),
     );
@@ -350,17 +354,16 @@ class ProductController extends GetxController {
   ) {
     final variantPrice = variant?['price_xaf'];
     if (variantPrice is num) return variantPrice.toDouble();
-    final base =
-        double.tryParse(
-          (product['price_xaf'] ?? product['price'] ?? 0).toString().replaceAll(
-            ' ',
-            '',
-          ),
-        ) ??
-        0;
+    final base = CurrencyService.productPriceXaf(product) ?? 0;
+    // `price_adjustment` est dans la devise du produit : utilisable tel quel
+    // seulement si le produit est lui-même en FCFA.
+    final productInPivot = CurrencyService.productPriceXaf(
+          {'price': 0, 'currency': product['currency']},
+        ) !=
+        null;
     final adjustment =
         (variant?['price_adjustment_xaf'] as num?)?.toDouble() ??
-        (variant?['price_adjustment'] as num?)?.toDouble() ??
+        (productInPivot ? (variant?['price_adjustment'] as num?)?.toDouble() : null) ??
         0;
     return base + adjustment;
   }
@@ -465,6 +468,7 @@ class ProductController extends GetxController {
     else if (orderQuantity.value < 1)
       'product.order.step_quantity'.tr,
     if (!hasValidLocation) 'product.order.step_address'.tr,
+    if (addressDetails.value.isEmpty) 'product.order.step_address_details'.tr,
     if (!hasValidPhone) 'product.order.step_phone'.tr,
     if (deliveryBlockedMessage.value != null)
       'product.order.step_weight_missing'.tr

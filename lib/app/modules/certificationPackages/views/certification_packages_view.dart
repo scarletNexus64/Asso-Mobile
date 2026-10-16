@@ -92,11 +92,13 @@ class CertificationPackagesView
                       else
                         _buildPackagesList(context),
 
-                      SizedBox(height: AppDesign.space8),
-
                       // Code commercial (P6) : secondaire, donc après le
                       // choix de la formule, comme sur les forfaits.
-                      SalesCodeField(input: controller.salesCode),
+                      // Réservé au premier abonnement payant.
+                      if (controller.canUseSalesCode.value) ...[
+                        SizedBox(height: AppDesign.space8),
+                        SalesCodeField(input: controller.salesCode),
+                      ],
                     ],
                   ),
                 ),
@@ -276,6 +278,7 @@ class CertificationPackagesView
     final name = package['name']?.toString() ?? '';
     final priceXaf = (package['price'] ?? 0).toDouble();
     final duration = package['formatted_duration']?.toString() ?? '';
+    final description = (package['description'] ?? '').toString().trim();
 
     return Obx(() {
       final isSelected =
@@ -327,6 +330,13 @@ class CertificationPackagesView
                     ],
                   ],
                 ),
+                if (description.isNotEmpty) ...[
+                  SizedBox(height: AppDesign.space2),
+                  Text(
+                    description,
+                    style: context.body2.copyWith(color: ds.textSecondary),
+                  ),
+                ],
                 SizedBox(height: AppDesign.space4),
 
                 // Prix : l'information la plus lourde de la carte, dans la
@@ -426,11 +436,14 @@ class CertificationPackagesView
     // Code commercial saisi : il doit être valide avant de payer (P6).
     if (!await controller.salesCode.ensureReady()) return;
 
-    final display = CurrencyService.displayFromPivot(price);
+    // Récapitulatif : ce qui est acheté et jusqu'à quand, avant de payer.
+    if (!await controller.confirmDetails(package)) return;
 
+    // Montant en FCFA (pivot) : le sélecteur l'affiche dans la devise de
+    // l'utilisateur, le serveur vérifie minimum et solde sur ce montant exact.
     final method = await PaymentMethodSelector.show(
-      amount: display.amount,
-      currency: display.currency,
+      amount: price,
+      currency: CurrencyService.pivot,
       amountLabel: 'certification.view.price'.tr,
       allowedCodes: const {'kpay', 'stripe'},
       includeWallet: true,
