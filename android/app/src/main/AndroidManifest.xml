@@ -76,5 +76,21 @@
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>
         </intent>
+        <!-- Depuis Android 11, canLaunchUrl répond « non » pour tout lien
+             https non déclaré ici : le bouton « Mettre à jour » (upgrader,
+             vers le Play Store) et les liens externes restaient sans effet. -->
+        <intent>
+            <action android:name="android.intent.action.VIEW"/>
+            <data android:scheme="https"/>
+        </intent>
+        <!-- Même règle pour l'appel et l'e-mail (aide, commandes, livreur). -->
+        <intent>
+            <action android:name="android.intent.action.VIEW"/>
+            <data android:scheme="tel"/>
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW"/>
+            <data android:scheme="mailto"/>
+        </intent>
     </queries>
 </manifest>

@@ -141,7 +141,7 @@ Future<void> _bootstrap() async {
       // indéfiniment en mémoire.
       navigatorObservers: [RouteStackGuard()],
       // Enveloppe le navigateur : la fenêtre de mise à jour s'y ouvre via
-      // `Get.key`, et se tait tant que l'écran de démarrage est affiché.
+      // `Get.key`, et ne s'ouvre que sur l'accueil.
       //
       // Le toucher hors d'un champ referme le clavier partout, feuilles et
       // dialogues compris : ils vivent sous ce navigateur.
