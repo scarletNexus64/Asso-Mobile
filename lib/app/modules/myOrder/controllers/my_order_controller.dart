@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../data/providers/order_service.dart';
+import '../../../data/providers/storage_service.dart';
 import '../../../data/providers/wallet_service.dart';
 import '../../../data/providers/currency_service.dart';
 import '../models/customer_order_models.dart';
@@ -22,7 +23,8 @@ class MyOrderController extends GetxController {
   @override
   void onInit() {
     super.onInit();
-    loadOrders();
+    // Visiteur sans compte : rien à charger (et pas d'alerte d'erreur).
+    if (StorageService.isAuthenticated) loadOrders();
   }
 
   Future<void> loadOrders({bool refresh = false}) async {
@@ -286,6 +288,55 @@ class MyOrderController extends GetxController {
       if (response.success && disputeId != null) {
         openDispute(disputeId);
       }
+    } finally {
+      controlBusyOrderId.value = null;
+      await loadOrders(refresh: true);
+    }
+  }
+
+  /// Produit de remplacement conforme : la vente est conclue.
+  Future<void> confirmReplacement(CustomerOrder order, CustomerOrderItem item) async {
+    final disputeId = item.dispute?.id;
+    if (disputeId == null || controlBusyOrderId.value != null) return;
+    final ok = await Get.dialog<bool>(AlertDialog(
+      title: Text('disputes.control.conform_title'.tr),
+      content: Text('disputes.control.replacement_conform_confirm'.tr),
+      actions: [
+        TextButton(onPressed: () => Get.back(result: false), child: Text('common.cancel'.tr)),
+        TextButton(onPressed: () => Get.back(result: true), child: Text('common.confirm'.tr)),
+      ],
+    ));
+    if (ok != true) return;
+
+    controlBusyOrderId.value = order.id;
+    try {
+      final response = await DisputeService.confirmReplacement(disputeId);
+      _controlSnack(response.message, error: !response.success);
+    } finally {
+      controlBusyOrderId.value = null;
+      await loadOrders(refresh: true);
+    }
+  }
+
+  /// Problème sur le produit de remplacement : la réclamation est rouverte.
+  Future<void> reportReplacement(CustomerOrder order, CustomerOrderItem item) async {
+    final disputeId = item.dispute?.id;
+    if (disputeId == null || controlBusyOrderId.value != null) return;
+    final form = await DisputeFormSheet.show(
+      productName: item.displayName,
+      title: 'disputes.form.replacement_title'.tr,
+    );
+    if (form == null) return;
+
+    controlBusyOrderId.value = order.id;
+    try {
+      final response = await DisputeService.reportReplacement(
+        disputeId,
+        description: form.description,
+        reason: form.reason,
+        photos: form.photos,
+      );
+      _controlSnack(response.message, error: !response.success);
     } finally {
       controlBusyOrderId.value = null;
       await loadOrders(refresh: true);

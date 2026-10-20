@@ -300,6 +300,8 @@ class StripeConnectView extends GetView<StripeConnectController> {
             ),
           ],
         ),
+        const SizedBox(height: 8),
+        _unlinkButton(),
       ],
     );
   }
@@ -308,6 +310,28 @@ class StripeConnectView extends GetView<StripeConnectController> {
   ///
   /// Le vendeur n'a plus rien à saisir — lui reproposer les champs laisse croire
   /// que sa demande n'a pas abouti.
+  /// Désynchroniser l'IBAN (validé ou en attente de validation).
+  Widget _unlinkButton() {
+    return Obx(() => SizedBox(
+          width: double.infinity,
+          child: TextButton.icon(
+            onPressed: controller.isUnlinking.value ? null : controller.unlink,
+            icon: controller.isUnlinking.value
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.link_off_rounded, size: 18),
+            label: Text('stripe_connect.unlink.button'.tr),
+            style: TextButton.styleFrom(
+              foregroundColor: AppDesign.danger,
+              padding: const EdgeInsets.symmetric(vertical: 12),
+            ),
+          ),
+        ));
+  }
+
   Widget _approvedCard(BuildContext context) {
     const green = AppDesign.success;
     final holder = controller.holderName.value;
@@ -370,6 +394,8 @@ class StripeConnectView extends GetView<StripeConnectController> {
             ),
           ),
         ),
+        const SizedBox(height: 8),
+        _unlinkButton(),
         const SizedBox(height: 12),
         Row(
           children: [
@@ -449,8 +475,12 @@ class StripeConnectView extends GetView<StripeConnectController> {
   }
 
   Widget _form(BuildContext context) {
-    return Form(
+    return Obx(() => Form(
       key: controller.formKey,
+      // Après un premier envoi, chaque champ se revérifie pendant la saisie.
+      autovalidateMode: controller.submitAttempted.value
+          ? AutovalidateMode.onUserInteraction
+          : AutovalidateMode.disabled,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -464,34 +494,40 @@ class StripeConnectView extends GetView<StripeConnectController> {
             ),
           TextFormField(
             controller: controller.holderController,
+            onChanged: (_) => controller.clearFieldError('account_holder_name'),
             textCapitalization: TextCapitalization.words,
             decoration: InputDecoration(
               labelText: 'stripe_connect.view.holder_label'.tr,
               hintText: 'stripe_connect.view.holder_hint'.tr,
               border: const OutlineInputBorder(),
+              errorMaxLines: 3,
             ),
             validator: controller.validateHolder,
           ),
           const SizedBox(height: 14),
           TextFormField(
             controller: controller.ibanController,
+            onChanged: (_) => controller.clearFieldError('iban'),
             textCapitalization: TextCapitalization.characters,
             decoration: const InputDecoration(
               labelText: 'IBAN',
               hintText: 'FR76 3000 6000 0112 3456 7890 189',
               border: OutlineInputBorder(),
+              errorMaxLines: 3,
             ),
             validator: controller.validateIban,
           ),
           const SizedBox(height: 14),
           TextFormField(
             controller: controller.countryController,
+            onChanged: (_) => controller.clearFieldError('country'),
             textCapitalization: TextCapitalization.characters,
             maxLength: 2,
             decoration: InputDecoration(
               labelText: 'stripe_connect.view.country_label'.tr,
               hintText: 'FR',
               border: const OutlineInputBorder(),
+              errorMaxLines: 3,
             ),
             validator: controller.validateCountry,
           ),
@@ -515,10 +551,8 @@ class StripeConnectView extends GetView<StripeConnectController> {
                     labelText: 'stripe_connect.birth_date'.tr,
                     border: const OutlineInputBorder(),
                     suffixIcon: const Icon(Icons.calendar_today, size: 18),
-                    errorText: controller.birthDate.value == null &&
-                            controller.isSubmitting.value
-                        ? 'stripe_connect.birth_date_required_title'.tr
-                        : null,
+                    errorText: controller.birthDateError,
+                    errorMaxLines: 3,
                   ),
                   child: Text(
                     controller.birthDateLabel.isEmpty
@@ -535,22 +569,26 @@ class StripeConnectView extends GetView<StripeConnectController> {
           const SizedBox(height: 14),
           TextFormField(
             controller: controller.phoneController,
+            onChanged: (_) => controller.clearFieldError('phone'),
             keyboardType: TextInputType.phone,
             decoration: InputDecoration(
               labelText: 'stripe_connect.view.phone_label'.tr,
               hintText: '+33 6 12 34 56 78',
               border: const OutlineInputBorder(),
+              errorMaxLines: 3,
             ),
             validator: controller.validatePhone,
           ),
           const SizedBox(height: 14),
           TextFormField(
             controller: controller.addressLine1Controller,
+            onChanged: (_) => controller.clearFieldError('address_line1'),
             textCapitalization: TextCapitalization.words,
             decoration: InputDecoration(
               labelText: 'stripe_connect.view.address_label'.tr,
               hintText: 'stripe_connect.view.address_hint'.tr,
               border: const OutlineInputBorder(),
+              errorMaxLines: 3,
             ),
             validator: controller.validateAddressLine,
           ),
@@ -562,10 +600,12 @@ class StripeConnectView extends GetView<StripeConnectController> {
                 flex: 2,
                 child: TextFormField(
                   controller: controller.addressCityController,
+                  onChanged: (_) => controller.clearFieldError('address_city'),
                   textCapitalization: TextCapitalization.words,
                   decoration: InputDecoration(
                     labelText: 'stripe_connect.view.city_label'.tr,
                     border: const OutlineInputBorder(),
+                    errorMaxLines: 3,
                   ),
                   validator: controller.validateCity,
                 ),
@@ -574,9 +614,11 @@ class StripeConnectView extends GetView<StripeConnectController> {
               Expanded(
                 child: TextFormField(
                   controller: controller.addressPostalController,
+                  onChanged: (_) => controller.clearFieldError('address_postal_code'),
                   decoration: InputDecoration(
                     labelText: 'stripe_connect.view.postal_label'.tr,
                     border: const OutlineInputBorder(),
+                    errorMaxLines: 3,
                   ),
                   validator: controller.validatePostalCode,
                 ),
@@ -584,6 +626,30 @@ class StripeConnectView extends GetView<StripeConnectController> {
             ],
           ),
           const SizedBox(height: 18),
+          if (controller.formError.value != null)
+            Container(
+              width: double.infinity,
+              margin: const EdgeInsets.only(bottom: 12),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppDesign.danger.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: AppDesign.danger.withValues(alpha: 0.4)),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Icon(Icons.error_outline, color: AppDesign.danger, size: 20),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      controller.formError.value!,
+                      style: const TextStyle(color: AppDesign.danger, fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           SizedBox(
             width: double.infinity,
             child: Obx(() => ElevatedButton(
@@ -602,6 +668,6 @@ class StripeConnectView extends GetView<StripeConnectController> {
           ),
         ],
       ),
-    );
+    ));
   }
 }

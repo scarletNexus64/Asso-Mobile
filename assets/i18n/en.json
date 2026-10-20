@@ -12,7 +12,8 @@
     "continue": "Continue",
     "generic_error_retry": "An error occurred. Please try again.",
     "generic_error": "An error occurred",
-    "please_wait": "Please wait…"
+    "please_wait": "Please wait…",
+    "or": "or"
   },
   "settings": {
     "language": {
@@ -161,7 +162,10 @@
     "code_sent_title": "Code sent",
     "code_sent_message": "A verification code has been sent to @email",
     "google_signing_in": "Signing in with Google...",
-    "apple_signing_in": "Signing in with Apple..."
+    "apple_signing_in": "Signing in with Apple...",
+    "first_name_label": "First name",
+    "last_name_label": "Last name",
+    "optional_hint": "Optional"
   },
   "login": {
     "title": "Welcome back",
@@ -613,7 +617,9 @@
     "less": "Less",
     "choose_at_least_one": "Choose at least one interest",
     "selected_one": "@count selected",
-    "selected_many": "@count selected"
+    "selected_many": "@count selected",
+    "select_all": "Select all",
+    "deselect_all": "Deselect all"
   },
   "complete_profile": {
     "required_title": "Required fields",
@@ -703,7 +709,9 @@
         "unlock": "Funds released",
         "escrow_release": "Payment released",
         "other": "Transaction",
-        "sales_commission": "Sales commission"
+        "sales_commission": "Sales commission",
+        "sale": "Sale",
+        "sale_held": "Awaiting customer confirmation"
       },
       "status": {
         "completed": "Completed",
@@ -793,6 +801,11 @@
       "add_images": "Add images",
       "take_photo": "Take a photo",
       "from_gallery": "Select from gallery"
+    },
+    "video_source": {
+      "add_video": "Add a video",
+      "record": "Record a video now",
+      "choose_existing": "Choose an existing video"
     },
     "location": {
       "service_disabled": "Location services on your phone are turned off.",
@@ -964,6 +977,9 @@
       "subtitle": "Without a translation, English-speaking customers see the French text.",
       "name_label": "Name in English",
       "description_label": "Description in English"
+    },
+    "storage": {
+      "unlimited": "Unlimited"
     }
   },
   "wallet": {
@@ -1029,7 +1045,7 @@
       "missing_subtitle": "Add your IBAN to withdraw your balance by bank transfer and receive your dispute refunds."
     },
     "card": {
-      "balance": "Balance"
+      "balance": "Available balance"
     },
     "actions": {
       "recharge": "Top up",
@@ -1042,7 +1058,11 @@
       "unlock_with_code": "Unlock with code",
       "amount": "Amount",
       "unlock": "Unlock",
-      "pending_validation": "Including @amount on hold: sales awaiting customer validation (48 h after delivery), claims or orders in progress."
+      "pending_validation": "@amount on hold, not withdrawable yet: sales awaiting customer confirmation (48 h after delivery), claims or orders in progress.",
+      "real_estate_title": "Real estate: held amounts",
+      "real_estate_info": "Added to your balance once the customer confirms or the visit period ends.",
+      "real_estate_until": "Held until @date",
+      "real_estate_disputed": "Dispute in progress: awaiting ASSO decision"
     },
     "balances": {
       "title": "Balances by Method",
@@ -1270,23 +1290,36 @@
       "save_failed": "Unable to save your bank details. Please try again.",
       "service_unavailable": "The bank transfer service is temporarily unavailable. Check your connection and try again in a few moments.",
       "iban_seems_invalid": "The IBAN entered seems invalid. Check it and try again.",
-      "save_error_later": "An error occurred while saving. Please try again later."
+      "save_error_later": "An error occurred while saving. Please try again later.",
+      "fix_fields": "Some details need fixing: see the red messages under the fields."
     },
     "birth_date_required_title": "Date of birth required",
-    "birth_date_required_message": "Our banking partner requires your date of birth to enable bank transfers.",
+    "birth_date_required_message": "Choose your date of birth: our banking partner requires it to enable transfers.",
     "submitted_title": "Information sent",
     "submitted_message": "Your payout account will be verified within 24-48h.",
     "error": "Error",
     "validation": {
-      "country_code": "2-letter country code (e.g. FR)",
-      "iban_required": "IBAN required",
-      "iban_invalid": "Invalid IBAN",
-      "holder_required": "Account holder name required",
-      "phone_required": "Phone required",
-      "phone_incomplete": "Incomplete number",
-      "address_required": "Address required",
-      "city_required": "City required",
-      "postal_required": "Postal code required"
+      "country_code": "The country is written with 2 letters (e.g. FR, BE, DE).",
+      "iban_required": "Enter your IBAN (it is on your bank details).",
+      "holder_required": "Enter the account holder's name, as shown on your bank details.",
+      "phone_required": "Enter your phone number.",
+      "phone_incomplete": "Incomplete number: some digits are missing.",
+      "address_required": "Enter your address (number and street).",
+      "city_required": "Enter your city.",
+      "postal_required": "Enter your postal code.",
+      "country_required": "Enter your bank's country.",
+      "country_mismatch": "Your IBAN starts with @iban: the bank country must be @iban.",
+      "iban_country": "The IBAN starts with the 2-letter country code (e.g. FR76…).",
+      "iban_key": "The country letters are followed by 2 digits (e.g. FR76…).",
+      "iban_characters": "The IBAN only contains letters and digits (no dash or dot).",
+      "iban_too_short": "The IBAN is too short: some characters are missing.",
+      "iban_too_long": "The IBAN is too long (34 characters max).",
+      "iban_checksum": "This IBAN contains a mistake (wrong check digits): copy it again from your bank details.",
+      "holder_too_short": "The account holder's name is too short.",
+      "phone_international": "Start with the country code (e.g. +33 6 12 34 56 78).",
+      "phone_too_long": "Number too long: please check it.",
+      "address_too_short": "Address too short: enter the number and street.",
+      "postal_invalid": "Invalid postal code (letters, digits, 3 to 10 characters)."
     },
     "view": {
       "title": "Payout account",
@@ -1313,7 +1346,7 @@
       "approved_title": "Payout account approved",
       "approved_message": "Your withdrawals and refunds can now be transferred to this bank account. The amount is converted from your wallet at the time of the transfer.",
       "back_to_wallet": "Back to wallet",
-      "approved_locked": "To change an already approved IBAN, contact support.",
+      "approved_locked": "To change your IBAN, unlink this one and save the new one: ASSO will check it again.",
       "partner_verification_default": "Bank verification in progress.",
       "partner_blocking": "Transfers will remain unavailable until this is resolved.",
       "fix_and_resend": "Correct your information and resubmit.",
@@ -1330,6 +1363,13 @@
       "postal_label": "Postal code",
       "resend_iban": "Resubmit my IBAN",
       "save_iban": "Save my IBAN"
+    },
+    "unlink": {
+      "button": "Unlink my IBAN",
+      "title": "Unlink this IBAN?",
+      "confirm": "No transfer can be sent to this bank account until you save a new IBAN, which ASSO will then check.",
+      "action": "Unlink",
+      "done_title": "IBAN unlinked"
     }
   },
   "package_subscription": {
@@ -1657,7 +1697,8 @@
       "diaspora_mode": "Diaspora mode",
       "delivery_mode": "Courier mode",
       "vendor_mode": "Vendor mode",
-      "settings": "settings"
+      "settings": "settings",
+      "landlord_mode": "the landlord space"
     },
     "favorite": {
       "added": "Added to favorites",
@@ -1700,7 +1741,9 @@
       "help_support": "Help & Support",
       "faq": "FAQ",
       "terms_policies": "Terms & policies",
-      "about": "About"
+      "about": "About",
+      "landlord_mode": "Become a landlord",
+      "landlord_space": "Landlord space"
     },
     "logout": {
       "title": "Log out",
@@ -1725,7 +1768,8 @@
     "quick": {
       "diaspo": "Diaspo",
       "wholesale": "Wholesale",
-      "orders": "Orders"
+      "orders": "Orders",
+      "real_estate": "Real estate"
     },
     "banner": {
       "welcome_title": "Welcome to Asso",
@@ -2895,8 +2939,9 @@
       "success_message": "The customer has been notified and refunded."
     },
     "chat": {
-      "title": "Chat",
-      "message": "Conversation with @name"
+      "no_client": "Customer not found for this order.",
+      "failed": "Could not open the conversation with the customer. Please try again.",
+      "default_message": "Hello, I am writing about your order @order."
     },
     "deliverers": {
       "default_company": "Delivery company",
@@ -3208,7 +3253,11 @@
     "delivery": "Delivery",
     "received_parcel": "I received my parcel",
     "delivery_tracking": "Delivery tracking",
-    "delivery_address": "Delivery address"
+    "delivery_address": "Delivery address",
+    "tabs": {
+      "orders": "My orders",
+      "tracking": "Tracking"
+    }
   },
   "delivery_dashboard": {
     "route": {
@@ -3283,7 +3332,8 @@
     "date_time_format": "dd/MM/yyyy 'at' HH:mm",
     "errors": {
       "error": "Error",
-      "load_failed": "Unable to load delivery requests"
+      "load_failed": "Unable to load delivery requests",
+      "generic": "Something went wrong. Please try again."
     },
     "customer": "Customer",
     "online": {
@@ -3332,7 +3382,23 @@
       "failed": "Unable to unsync",
       "error": "An error occurred while unsyncing"
     },
-    "item": "Item"
+    "item": "Item",
+    "dispute": {
+      "title": "Claim run",
+      "section": "Claim runs",
+      "replacement_title": "Replacement product",
+      "return_title": "Return to the seller",
+      "pickup": "Pickup",
+      "dropoff": "Drop-off",
+      "code_hint_client": "Hand over against the customer's 6-digit code.",
+      "code_hint_vendor": "Hand over against the seller's 6-digit code.",
+      "picked_up": "Parcel collected",
+      "hand_over": "Hand over with the code",
+      "code_prompt_client": "Ask the customer for their 6-digit code.",
+      "code_prompt_vendor": "Ask the seller for their 6-digit code.",
+      "completed": "Handover confirmed.",
+      "updated": "Run updated."
+    }
   },
   "diaspo_list": {
     "error": "Error",
@@ -3374,7 +3440,15 @@
       "document_back": "Back of document",
       "document_front": "Front of document",
       "photo_hint": "Sharp, readable photo with no glare",
-      "submitted_message": "Your @document has been submitted for verification. You will receive a notification within 24-48h."
+      "submitted_message": "Your @document has been submitted for verification. You will receive a notification within 24-48h.",
+      "nationality": "Nationality",
+      "residence_country": "Country of residence",
+      "abroad_note": "You live outside your country of nationality: a passport and a residence permit (or visa) are required.",
+      "residence_document": "Residence permit or visa",
+      "residence_permit": "Residence permit",
+      "visa": "Visa",
+      "selfie": "Selfie",
+      "selfie_hint": "Taken live with the front camera, it is compared with the photo on your ID."
     },
     "ok": "OK",
     "cancel": "Cancel",
@@ -3456,6 +3530,12 @@
       "pending": "Awaiting payment",
       "cancelled": "Cancelled",
       "refunded": "Refunded"
+    },
+    "mode": {
+      "air": "Plane",
+      "sea": "Sea",
+      "air_hint": "Best for parcels under @kg kg",
+      "sea_hint": "Best for parcels over @kg kg"
     }
   },
   "diaspo_detail": {
@@ -3588,7 +3668,11 @@
     "available_kg": "Available kilos",
     "previous": "Previous",
     "next": "Next",
-    "publish": "Publish"
+    "publish": "Publish",
+    "travel_proof": "Travel document",
+    "travel_proof_hint": "Photo of your ticket or booking (departure and destination).",
+    "travel_proof_required": "Add your ticket or booking to publish the offer.",
+    "travel_proof_added": "Document added. Tap to replace it."
   },
   "diaspo_edit": {
     "error": "Error",
@@ -4009,7 +4093,7 @@
     },
     "form": {
       "title": "Report a problem",
-      "replacement_title": "The replacement isn't right",
+      "replacement_title": "Problem with the replacement product",
       "submit": "Send my claim",
       "reason": "Reason",
       "explain": "Explain the problem",
@@ -4023,7 +4107,10 @@
       "conform": "Everything is fine",
       "report": "File a claim",
       "conform_title": "Everything is fine?",
-      "conform_confirm": "The seller will be paid right away and you won't be able to file a claim on this order anymore."
+      "conform_confirm": "The seller will be paid right away and you won't be able to file a claim on this order anymore.",
+      "replacement_title": "Replacement product received: @product",
+      "replacement_conform_confirm": "The seller will be paid and the claim will be closed.",
+      "report_issue": "Report a problem"
     },
     "decision": {
       "title": "ASSO decision",
@@ -4036,15 +4123,19 @@
       "paid_by_asso": "Delivery covered by ASSO",
       "paid_by_vendor": "Delivery paid by the seller",
       "free_for_you": "No delivery fees for you",
-      "tracking": "Tracking no.: @number"
+      "tracking": "Tracking no.: @number",
+      "code_client": "Your delivery code, to give the courier only when they hand you the product:",
+      "code_vendor": "Your return code, to give the courier when they bring the product back (the customer is then refunded):",
+      "courier": "Courier: @name",
+      "call_courier": "Call the courier"
     },
     "claim": {
       "title": "Your claim"
     },
     "client": {
       "replacement_check": "Your replacement product has been delivered. Check it before @date.",
-      "replacement_ok": "The replacement is fine",
-      "replacement_ko": "The replacement isn't right",
+      "replacement_ok": "Everything is fine",
+      "replacement_ko": "Report a problem",
       "return_notice": "Your return request is approved. A delivery partner will contact you to collect the product. You pay no return fees.",
       "refunded_notice": "We're sorry your order didn't meet your expectations. @amount has been refunded to your ASSO Wallet.",
       "see_similar": "See similar products"
@@ -4081,7 +4172,6 @@
       "replace": "Replace the product",
       "organize_return": "Organize the return",
       "mark_shipped": "Product handed to the courier",
-      "return_received": "I received the returned product",
       "send_evidence": "Send my explanations / evidence",
       "evidence_title": "Your explanations for ASSO",
       "asso_decides": "ASSO decides the outcome; you can't close the case yourself.",
@@ -4166,5 +4256,693 @@
       "share_text": "Subscribe to a vendor plan on ASSO with my sales code: @code",
       "explanation": "Share this code with vendors: when they use it for their first subscription, you receive @rate% of the amount directly in your wallet."
     }
+  },
+
+  "parcel_insurance": {
+    "title": "Parcel contents and value",
+    "intro": "Tell us what the parcel contains and its value: an insurance supplement is added to the price. If it is lost, ASSO compensates you up to the declared value.",
+    "nature": "Parcel contents",
+    "value": "Parcel value",
+    "supplement": "Insurance supplement",
+    "required": "Choose the parcel contents and enter its value."
+  },
+  "iso_country": {
+    "search": "Search for a country"
+  },
+  "selfie": {
+    "title": "Verification selfie",
+    "hint": "Place your face in the oval, look at the camera with your eyes open, then take the photo.",
+    "camera_unavailable": "Camera unavailable. Allow camera access in your settings.",
+    "retry": "The photo could not be analysed. Please try again.",
+    "no_face": "No face detected. Place your face in the oval.",
+    "several_faces": "Several faces detected: you must be alone in the photo.",
+    "too_far": "Come closer: your face must fill the oval.",
+    "eyes_closed": "Keep your eyes open and look at the camera."
+  },"maritime": {
+  "trip_impossible_title": "Departure closed",
+  "trip_impossible": "This trip is no longer possible. Please check the next dates for this destination.",
+  "error": "Error",
+  "tabs": {
+    "departures": "Departures",
+    "my_shipments": "My shipments"
+  },
+  "search_hint": "Search a city or partner",
+  "filter_all": "All departures",
+  "filter_bookable": "Bookable only",
+  "reservations_closed": "Bookings closed",
+  "no_departures": "No departures planned yet. Check back soon.",
+  "no_departure_matches": "No departures match your search or filter.",
+  "no_shipments": "You have no sea shipments yet.",
+  "departure_on": "Departs on @date",
+  "kg_left": "@kg kg available",
+  "last_day_to_book": "Last day to book",
+  "days_left_to_book": "@days days left to book",
+  "parcels": "@count parcels",
+  "recipient_line": "Recipient: @name (@phone)",
+  "dropoff_notice": "We expect your parcel at @hub before @date. After that, your money will be returned, minus ASSO fees.",
+  "pickup_notice": "Your parcel has arrived at @hub. The recipient must show the code below.",
+  "refunded_notice": "@amount has been credited to your Wallet.",
+  "code_label": "Handover code",
+  "code_hint": "Give this code to the recipient: they show it at the arrival hub to collect the parcel.",
+  "cancel_title": "Cancel shipment",
+  "cancel_message": "The amount paid will be credited to your Wallet. Confirm the cancellation?",
+  "keep": "Keep",
+  "cancel_confirm": "Cancel shipment",
+  "cancelled_title": "Shipment cancelled",
+  "cancelled_message": "The amount paid has been credited to your Wallet.",
+  "success": {
+    "title": "Shipment confirmed",
+    "message": "Drop off your parcel at @hub before @date. Your handover code: @code. ASSO will contact you shortly.",
+    "see_shipments": "See my shipments"
+  },
+  "form": {
+    "title": "Ship by boat",
+    "insurance_fields_intro": "Describe the parcel and its declared value. This information is still required even if you do not opt into insurance.",
+    "insurance_opt_in": "I want to purchase maritime insurance",
+    "insurance_legal_disclosure": "Insurance is optional. The quote is added to the price and charged only if you select this checkbox. In the event of a loss, compensation may be paid up to the declared value, subject to the applicable terms.",
+    "insurance_line": "Insurance (server quote)",
+    "insurance_quote_not_charged": "Insurance quote (not charged)",
+    "insurance_quote_unknown": "—",
+    "insurance_quote_unavailable": "The insurance quote is unavailable. Try again or opt out of insurance.",
+    "parcel": "Parcel",
+    "kg": "Weight",
+    "parcels": "Number of parcels",
+    "kg_available": "@kg kg available on this departure",
+    "sender": "Your details",
+    "first_name": "First name",
+    "last_name": "Last name",
+    "your_phone": "Your phone number",
+    "emergency_phone": "Emergency phone number",
+    "recipient": "Recipient",
+    "destination_country": "Destination country",
+    "recipient_phone": "Phone number to call on arrival",
+    "dropoff_hub": "Parcel drop-off",
+    "pickup_hub": "Pick-up on arrival",
+    "summary": "Summary",
+    "total": "Total",
+    "total_to_pay": "Total to pay",
+    "pay": "Pay @amount",
+    "dropoff_warning": "We expect your parcel at @hub before @date. After that, your money will be returned, minus ASSO fees.",
+    "fill_all": "Please fill in all contact details.",
+    "kg_range": "The weight must be between 0.5 and @max kg.",
+    "payment_failed_released": "The payment did not go through: the kilos have been released.",
+    "volume_line": "That is @volume m³ at @price per m³"
+  },
+  "validation": {
+    "fix_fields": "Please fix the fields highlighted in red.",
+    "kg_required": "Enter the weight of your shipment.",
+    "kg_min": "The minimum weight is 0.5 kg.",
+    "kg_max": "Maximum @max kg available.",
+    "parcels_min": "Enter at least 1 parcel.",
+    "parcels_max": "Maximum 500 parcels per shipment.",
+    "first_name_required": "First name is required.",
+    "last_name_required": "Last name is required.",
+    "sender_phone_required": "Your phone number is required.",
+    "emergency_phone_required": "The emergency phone number is required.",
+    "emergency_phone_same": "The emergency number must be different from yours.",
+    "phone_invalid": "Invalid number (e.g. +237 6XX XX XX XX).",
+    "recipient_first_name_required": "The recipient's first name is required.",
+    "recipient_last_name_required": "The recipient's last name is required.",
+    "recipient_phone_required": "The recipient's phone number is required.",
+    "country_required": "Select the destination country.",
+    "nature_required": "Select the nature of the parcel.",
+    "value_required": "Enter the declared value of the parcel."
+  },
+  "insurance": {
+    "insured": "Insurance purchased",
+    "status": "Insurance status: @status",
+    "paid": "Insurance amount paid: @amount",
+    "payout": "Compensation paid: @amount",
+    "history_item": "@status · @date"
+  },
+  "claim": {
+    "report_action": "Report a loss",
+    "report_title": "Report a loss",
+    "reason": "Describe the loss",
+    "submit": "Submit report",
+    "report_success": "Your report has been submitted.",
+    "status": "Claim status: @status",
+    "history_item": "@status · @date"
+  },
+  "contact_support": "Contact ASSO support",
+  "contact_support_opening": "Opening support…",
+  "support_unavailable": "The ASSO support account is unavailable.",
+  "support_chat_unavailable": "Unable to open the support conversation.",
+  "contact_message": "Hello, I need help with my sea shipment no. @id (@route).",
+  "contact_error": "Unable to open the platform conversation.",
+  "cbm_rate": "@price per m³ (1 m³ = @kg kg)"
+  },
+  "immo": {
+    "title": "Real estate",
+    "feature": {
+      "favorites": "real estate favourites",
+      "contact": "messaging with ASSO",
+      "project": "\"Submit my project\"",
+      "reserve": "booking a property",
+      "reservations": "your bookings"
+    },
+    "home": {
+      "subtitle": "Find your next home",
+      "tab_rent": "Homes to rent",
+      "tab_land": "Land for sale",
+      "search_hint": "City, neighbourhood...",
+      "count_rent": "@count homes to rent",
+      "count_land": "@count plots for sale",
+      "empty_title": "No matching property",
+      "empty_message": "Widen your search or remove a filter.",
+      "error": "Unable to load properties",
+      "retry": "Try again",
+      "publish": "Renting out a home?",
+      "publish_cta": "List my property"
+    },
+    "kinds": {
+      "house": "House",
+      "villa": "Villa",
+      "apartment": "Apartment",
+      "studio": "Studio",
+      "room": "Room",
+      "duplex": "Duplex",
+      "residence": "Residence",
+      "building_land": "Building plot",
+      "farm_land": "Farm land",
+      "commercial_land": "Commercial plot"
+    },
+    "rooms": {
+      "entrance": "Entrance",
+      "living": "Living room",
+      "bedroom": "Bedroom",
+      "kitchen": "Kitchen",
+      "bathroom": "Bathroom",
+      "outside": "Outside",
+      "road": "Road access",
+      "other": "Other"
+    },
+    "card": {
+      "rooms": "@count rooms",
+      "bedrooms": "@count bedrooms",
+      "furnished": "Furnished",
+      "unfurnished": "Unfurnished",
+      "per_month": "/ month",
+      "from": "From",
+      "featured": "Featured",
+      "discount": "Discount",
+      "room_tour": "Room-by-room tour",
+      "video": "Video",
+      "available_now": "Available now",
+      "land_available": "Available for sale",
+      "available_from": "Available from @date",
+      "unavailable": "No longer available",
+      "places_left": "Only @count left"
+    },
+    "land": {
+      "title_deed": "Land title",
+      "titled": "Titled",
+      "not_titled": "No title",
+      "plot": "Plot",
+      "serviced": "Serviced"
+    },
+    "filters": {
+      "all": "All",
+      "price": "Price",
+      "budget": "Budget",
+      "monthly_rent": "Monthly rent",
+      "location": "Location",
+      "more": "More filters",
+      "land": "Plot",
+      "clear": "Clear all",
+      "save": "Save",
+      "minimum": "Minimum",
+      "maximum": "Maximum",
+      "city": "City",
+      "no_city": "No city yet.",
+      "district": "Neighbourhood",
+      "district_hint": "E.g. Bonamoussadi, Odza…",
+      "rooms": "Rooms",
+      "bedrooms": "Bedrooms",
+      "furnished": "Furnished",
+      "roadside": "Right by the road",
+      "roadside_help": "The house opens directly onto the road.",
+      "not_landlocked": "Easy-to-reach area",
+      "not_landlocked_help": "Easy car access all year round.",
+      "surface": "Plot size",
+      "serviced": "Already serviced",
+      "serviced_help": "Servicing means connecting the plot to the water and electricity networks. A serviced plot saves you that work and its cost.",
+      "titled": "Titled plot",
+      "titled_help": "The plot has a land title: the safest proof of ownership in Cameroon."
+    },
+    "sort": {
+      "title": "Sort by",
+      "label": "Sort by:",
+      "recent": "Most recent",
+      "price_asc": "Lowest price",
+      "price_desc": "Highest price",
+      "featured": "Featured"
+    },
+    "criteria": {
+      "title": "Your criteria, our best homes",
+      "subtitle": "Your rent, your dates, your wishes: we filter everything for you.",
+      "you_are": "You are:",
+      "status_student": "Student",
+      "status_employee": "Employee",
+      "status_self_employed": "Self-employed",
+      "status_other": "Other",
+      "school": "Your school",
+      "city": "City",
+      "city_hint": "City, neighbourhood…",
+      "move_in": "Move-in date",
+      "duration": "Lease length",
+      "months_unit": "months",
+      "months": "@count months",
+      "undetermined": "Open-ended",
+      "budget": "What is your monthly budget?",
+      "submit": "See my personalised results",
+      "banner_title": "Your criteria, our best homes",
+      "banner_message": "Tell us what you are looking for, we filter for you.",
+      "banner_matches": "@count homes match your criteria",
+      "banner_update": "Update my alert"
+    },
+    "detail": {
+      "not_found": "This property is no longer available",
+      "for_rent": "@kind for rent",
+      "photos": "Photos",
+      "room_tour_cta": "Room-by-room tour",
+      "popular": "Popular",
+      "verified_owner": "Verified landlord",
+      "offer": "Special offer",
+      "highlights": "Highlights",
+      "description": "Description",
+      "see_more": "See more",
+      "see_less": "See less",
+      "access": "Access and neighbourhood",
+      "access_land": "Access and surroundings",
+      "equipments": "Equipment",
+      "services": "Services",
+      "see_all": "See all @count @what",
+      "location": "Location",
+      "address_hidden": "The exact address is shared with you after payment.",
+      "units": "Available homes",
+      "lots": "Available plots",
+      "capacity": "@count people max.",
+      "kitchen_private": "Kitchen (private)",
+      "kitchen_shared": "Kitchen (shared)",
+      "kitchen_none": "No kitchen",
+      "last_places": "Last ones available (@count)",
+      "contact": "Contact ASSO",
+      "contact_short": "Contact",
+      "reserve": "Book",
+      "pay_deposit": "Pay the deposit",
+      "own_listing_notice": "You cannot book your own listing.",
+      "property_video": "Property video",
+      "reference": "Reference: @reference"
+    },
+    "access": {
+      "roadside": "Right by the road",
+      "distance": "About @meters m from the road",
+      "road_paved": "Paved access road",
+      "road_dirt": "Passable dirt access road",
+      "road_poor": "Access road difficult in the rainy season",
+      "landlocked": "Hard-to-reach area",
+      "not_landlocked": "Easy-to-reach area",
+      "water_network": "Running water (mains)",
+      "water_borehole": "Borehole water",
+      "water_well": "Well water",
+      "water_none": "No running water",
+      "electricity_network": "Electricity, standard meter",
+      "electricity_prepaid": "Electricity, prepaid meter",
+      "electricity_solar": "Solar electricity",
+      "electricity_none": "No electricity",
+      "security_high": "Very safe neighbourhood",
+      "security_medium": "Quiet neighbourhood",
+      "security_low": "Busy neighbourhood, take care at night",
+      "parking": "Parking",
+      "fence": "Gate or fence",
+      "guard": "Caretaker",
+      "min_lease": "@months-month minimum lease",
+      "advance": "@months months paid in advance"
+    },
+    "protection": {
+      "title": "Tenant protection",
+      "title_land": "Buyer protection",
+      "verified_title": "Verified landlords",
+      "verified_body": "ASSO checks each landlord's identity, proof of ownership and a video presenting their documents before publishing the listing.",
+      "partner_title": "Partner firms",
+      "partner_body": "Plots are offered by partner firms listed by ASSO, who guide you through the land procedures.",
+      "payment_title": "Secure payment",
+      "payment_body": "Your payment is held by ASSO for @days days so you can visit the home. The landlord is paid only after you confirm, or when that period ends without a dispute.",
+      "payment_body_land": "Your deposit is held by ASSO for @days days. The firm is paid only after you confirm, or when that period ends without a dispute.",
+      "dispute_title": "Disputes",
+      "dispute_body": "The property does not match the listing? Report it before the period ends: ASSO reviews the dispute and can refund you.",
+      "fees_title": "Service fee",
+      "fees_body": "The ASSO commission is paid on top of the amount and is non-refundable."
+    },
+    "owner": {
+      "hidden_name": "ASSO landlord",
+      "member_since": "Member since @year",
+      "identity_verified": "Identity verified",
+      "charter": "Has agreed to follow the ASSO charter",
+      "hidden_help": "The landlord's name and number are shared with you after payment."
+    },
+    "cabinet": {
+      "title": "Partner firm",
+      "not_found": "Firm not found",
+      "tab_about": "About",
+      "tab_lands": "Plots (@count)",
+      "headquarters": "Head office: @city",
+      "why_us": "Why choose us?",
+      "contact_title": "Contact details",
+      "contact_hidden": "The firm's contact details are shared with you as soon as you pay the deposit.",
+      "contact_us": "Contact us",
+      "no_lands": "No plot available right now"
+    },
+    "contact": {
+      "asso": "ASSO customer service",
+      "error_title": "Messaging unavailable",
+      "default_message": "Hello, I am interested in \"@title\" (ref. @reference)."
+    },
+    "quote": {
+      "title": "Summary",
+      "title_land": "Deposit",
+      "advance_months": "Months in advance",
+      "monthly_rent": "Monthly rent",
+      "lot_price": "Plot price",
+      "advance": "Advance (@months months)",
+      "deposit": "Deposit (@percent %)",
+      "commission": "ASSO commission",
+      "commission_help": "Non-refundable",
+      "total": "Total to pay",
+      "escrow": "The rent is held for @days days so you can visit. You confirm on ASSO that the home matches, then the landlord is paid.",
+      "escrow_land": "The deposit is held for @days days. You meet the firm, confirm on ASSO, then the firm is paid.",
+      "continue": "Continue",
+      "error": "Unable to calculate the amount"
+    },
+    "tour": {
+      "title": "Room-by-room tour",
+      "position": "Room @room / @rooms · Photo @photo / @photos"
+    },
+    "favorites": {
+      "title": "My saved properties",
+      "empty": "No saved property"
+    },
+    "project": {
+      "cta": "Submit my project",
+      "title": "Get your project estimated",
+      "free": "Free and no commitment",
+      "intro": "Describe your project in a few steps. ASSO and its partner firms will contact you to help.",
+      "question": "Do you already have a plot?",
+      "has_land": "I already have a plot",
+      "looking": "I am looking for a plot",
+      "city": "City",
+      "district": "Neighbourhood",
+      "surface": "Desired size (m²)",
+      "budget": "Budget (FCFA)",
+      "phone": "Phone",
+      "message": "Your project in a few words",
+      "send": "Send my request",
+      "sent_title": "Request sent",
+      "sent_message": "ASSO will get back to you very soon.",
+      "back": "Back to properties",
+      "error": "Unable to send"
+    },
+    "reserve": {
+      "step_title_0": "Moving in alone or with others?",
+      "step_title_1": "Tell us about yourself",
+      "step_title_2": "Your dates",
+      "step_title_3": "Check your details",
+      "step_title_4": "Summary and contract",
+      "land_title": "Deposit on the plot",
+      "alone": "Alone",
+      "alone_help": "I will be the only occupant.",
+      "accompanied": "With others",
+      "accompanied_help": "As a couple, family or flatshare.",
+      "co_tenant": "Occupant @n name",
+      "add_co_tenant": "Add an occupant",
+      "for_someone": "Booking for someone else? Say so in your message to the landlord.",
+      "employer": "Employer or occupation",
+      "message": "Message to the landlord",
+      "message_hint": "Introduce yourself in a few words: a careful message strengthens your application.",
+      "no_message": "No message",
+      "choose_date": "Choose a date",
+      "advance_help": "The landlord asks for at least @months months in advance.",
+      "mismatch_title": "@count detail(s) do not meet the landlord's conditions",
+      "mismatch_lease": "Minimum stay: @months months.",
+      "mismatch_date": "Available from @date.",
+      "tenants": "Occupants",
+      "strength": "Application strength: @percent %",
+      "strength_help": "The more complete your application, the more the landlord trusts you.",
+      "contract_title": "Booking contract",
+      "contract_1": "The rent in advance is held by ASSO for @days days, giving you time to visit.",
+      "contract_2": "The ASSO commission is collected immediately and is non-refundable.",
+      "contract_3": "If something is wrong before the deadline, report it on ASSO: the amount stays held until ASSO decides.",
+      "contract_land_1": "The deposit is held by ASSO for @days days, giving you time to meet the agency.",
+      "contract_land_4": "ASSO puts you in touch with the agency; the sale is concluded directly with it.",
+      "accept": "I accept the contract and understand the ASSO commission is non-refundable.",
+      "edit": "Edit",
+      "continue": "Continue",
+      "pay": "Pay",
+      "pay_amount": "Pay @amount",
+      "error": "Booking failed",
+      "own_listing_title": "Booking unavailable",
+      "own_listing_message": "You own this listing and cannot book it.",
+      "own_listing_back": "Back to listing",
+      "pending_title": "Payment being checked",
+      "pending_message": "Your booking will appear in \"My bookings\" once the payment is confirmed."
+    },
+    "booking": {
+      "title": "My booking",
+      "list_title": "My bookings",
+      "none": "No bookings yet",
+      "not_found": "Booking not found",
+      "status_pending": "Payment pending",
+      "status_paid": "Paid: amount held until the visit",
+      "status_released": "Completed: the landlord has been paid",
+      "status_disputed": "Dispute under review by ASSO",
+      "status_refunded": "Refunded",
+      "short_pending_payment": "Pending",
+      "short_paid": "Paid",
+      "short_confirmed": "Confirmed",
+      "short_released": "Completed",
+      "short_disputed": "Dispute",
+      "short_refunded": "Refunded",
+      "short_cancelled": "Cancelled",
+      "days_left": "@days d @hours h left to visit",
+      "hours_left": "@hours h @minutes min left to visit",
+      "window_over": "Visit period over",
+      "window_help": "Visit the place, then confirm it matches the listing. Without a report before the deadline, the landlord is paid.",
+      "window_help_land": "Meet the agency, then confirm. Without a report before the deadline, the agency is paid.",
+      "window_help_payee": "Your share is held in your Wallet until the customer confirms or this period ends.",
+      "owner_contact": "Landlord contact",
+      "cabinet_contact": "Agency contact",
+      "open_map": "Open in maps",
+      "deposit": "Deposit",
+      "paid": "Amount paid",
+      "confirm": "The place matches the listing",
+      "confirm_land": "I have met the agency",
+      "confirm_title": "Confirm?",
+      "confirm_body": "The held amount will be paid to the landlord. You will no longer be able to report a problem.",
+      "confirm_body_land": "The held deposit will be paid to the agency. You will no longer be able to report a problem.",
+      "confirm_yes": "Confirm",
+      "confirmed_title": "Thank you",
+      "confirmed_message": "The amount has been paid. Enjoy your new home!",
+      "report": "Report a problem",
+      "contract": "Contract",
+      "invoice": "Invoice",
+      "document_error": "Document not available right now.",
+      "see_listing": "View listing",
+      "tenant": "Tenant",
+      "buyer": "Buyer",
+      "your_share": "Your share (held)"
+    },
+    "dispute": {
+      "title": "Dispute",
+      "status_open": "Open",
+      "status_closed": "Closed",
+      "reason": "REASON",
+      "tenant_says": "TENANT",
+      "buyer_says": "BUYER",
+      "owner_says": "LANDLORD",
+      "cabinet_says": "AGENCY",
+      "decision": "ASSO DECISION",
+      "decided_refunded": "The held amount is refunded to the tenant. The ASSO commission is not refunded.",
+      "decided_released": "The held amount is paid to the landlord.",
+      "pending_tenant": "ASSO is reviewing your report. The amount stays held until it decides.",
+      "pending_payee": "A problem has been reported. Reply with your evidence: the amount stays held until ASSO decides.",
+      "add_evidence": "Add evidence",
+      "respond": "Reply to the dispute",
+      "evidence_notice": "Your evidence is sent to ASSO, which settles the dispute.",
+      "evidence_sent_title": "Evidence sent",
+      "evidence_sent_message": "ASSO adds it to the case.",
+      "notice": "The landlord's payment stays held while ASSO reviews. The ASSO commission is non-refundable.",
+      "notice_land": "The agency's payment stays held while ASSO reviews. The ASSO commission is non-refundable.",
+      "no_reasons": "Dispute reasons are unavailable. Please contact ASSO.",
+      "opened_title": "Problem reported",
+      "opened_message": "ASSO is reviewing your case and will keep you informed."
+    }
+  },
+  "landlord": {
+    "title": "Landlord space",
+    "new_listing": "New listing",
+    "my_listings": "My listings",
+    "no_listing": "No listing yet",
+    "no_listing_help": "Get your profile verified, then publish your first home.",
+    "status": {
+      "none": "Get your profile verified",
+      "none_help": "Send your ID, a proof of ownership and a short video. ASSO checks them before publishing your listings.",
+      "pending": "Verification in progress",
+      "pending_help": "You can already prepare your listings: they will be published once your profile is approved.",
+      "verified": "Verified landlord",
+      "verified_help": "Your listings show the \"Verified landlord\" badge.",
+      "rejected": "Documents to resend",
+      "rejected_help": "Your verification was not approved. Correct and resend your documents.",
+      "reason": "Reason: @reason"
+    },
+    "listing_status": {
+      "draft": "Draft",
+      "pending_review": "In review",
+      "published": "Live",
+      "rejected": "To correct",
+      "archived": "Archived"
+    },
+    "proof": {
+      "land_title": "Land title",
+      "sale_deed": "Sale deed",
+      "certificate": "Certificate of ownership",
+      "lease_contract": "Lease (subletting allowed)",
+      "other": "Other document"
+    },
+    "verify": {
+      "title": "Landlord verification",
+      "intro": "These documents prove that you own the property. They stay confidential: only the ASSO team sees them.",
+      "id_title": "ID document",
+      "id_cni": "ID card",
+      "id_passport": "Passport",
+      "front": "Front",
+      "back": "Back",
+      "proof_title": "Proof of ownership",
+      "proof_type": "Document type",
+      "proof_file": "Photo of the document",
+      "video_title": "Verification video",
+      "video_help": "Film yourself holding your ID and your proof of ownership while saying your name (15 to 30 seconds).",
+      "video_button": "Add or record the video",
+      "tap_to_add": "Tap to add",
+      "privacy": "Your documents are never shown to tenants.",
+      "send": "Send my documents",
+      "start": "Get my profile verified",
+      "sent_title": "Documents sent",
+      "sent_message": "ASSO checks your documents and will let you know.",
+      "error": "Unable to send"
+    },
+    "road_access": {
+      "roadside": "Right by the road",
+      "near_road": "Near the road",
+      "inside": "Inside the neighbourhood"
+    },
+    "road_condition": {
+      "paved": "Paved",
+      "dirt": "Dirt road",
+      "poor": "Difficult in rainy season"
+    },
+    "water": {
+      "network": "Mains",
+      "borehole": "Borehole",
+      "well": "Well",
+      "none": "None"
+    },
+    "electricity": {
+      "network": "Standard meter",
+      "prepaid": "Prepaid meter",
+      "solar": "Solar",
+      "none": "None"
+    },
+    "security": {
+      "high": "Very safe",
+      "medium": "Quiet",
+      "low": "Busy"
+    },
+    "amenity_kind": {
+      "highlight": "Highlights",
+      "equipment": "Equipment",
+      "service": "Services"
+    },
+    "missing": {
+      "photos": "At least one photo",
+      "entrance_photo": "The entrance photo",
+      "room_photos": "One photo for each room",
+      "video": "A video of the home",
+      "price": "The rent",
+      "lots": "At least one plot"
+    },
+    "editor": {
+      "new_title": "List a home",
+      "edit_title": "Edit listing",
+      "step": "Step @n of @total",
+      "step_kind": "What are you renting out?",
+      "step_location": "Where is it?",
+      "step_area": "Access and neighbourhood",
+      "step_features": "Features",
+      "step_price": "Rent and conditions",
+      "step_amenities": "Highlights and equipment",
+      "step_tour": "Room-by-room tour",
+      "step_review": "Check and send",
+      "title_field": "Listing title",
+      "title_hint": "E.g. 3-bedroom house in Odza",
+      "description": "Description",
+      "description_hint": "What makes your home pleasant (optional).",
+      "address": "Exact address",
+      "address_help": "Shared with the tenant only after payment.",
+      "place_on_map": "Place on the map",
+      "move_on_map": "Move on the map",
+      "position_saved": "Location saved.",
+      "area_intro": "These answers write the neighbourhood description for you.",
+      "road_access": "Road access",
+      "distance": "Distance from the road (metres)",
+      "road_condition": "Road condition",
+      "water": "Water",
+      "electricity": "Electricity",
+      "security": "Neighbourhood safety",
+      "landlocked_help": "Hard to reach by car.",
+      "bathrooms": "Bathrooms",
+      "surface": "Size (m²)",
+      "units_title": "Several homes?",
+      "units_help": "For a residence, add each type of home with its number of places.",
+      "add_unit": "Add a type of home",
+      "unit_label": "Label (e.g. Single room)",
+      "unit_price": "Net rent",
+      "unit_total": "Places",
+      "unit_surface": "Size (m²)",
+      "unit_capacity": "People",
+      "net_price": "Monthly rent you want to receive (FCFA)",
+      "net_price_help": "ASSO adds its fees to the displayed price; you receive this amount.",
+      "advance": "Months paid in advance",
+      "min_lease": "Minimum lease (months)",
+      "available_from": "Available from",
+      "old_price": "Previous rent (struck-through, optional)",
+      "promo": "Special offer (optional)",
+      "promo_hint": "E.g. First month free",
+      "preview_title": "What the tenant sees",
+      "preview_displayed": "Displayed rent: @price / month",
+      "preview_receive": "You receive for the advance: @amount",
+      "preview_blocked": "Amount held for @days days during the visit, then paid to your Wallet.",
+      "tour_intro": "Add at least one photo per room, starting with the entrance. Sharp, bright photos are reviewed by ASSO.",
+      "add_room": "Add a room",
+      "room_label": "Room name",
+      "add": "Add",
+      "video_title": "Video of the home",
+      "video_add": "Add a tour video",
+      "video_replace": "Video added — tap to add another",
+      "missing_title": "Still missing:",
+      "generated_description": "Generated description",
+      "review_help": "ASSO reviews your listing before publishing it. You are notified as soon as it is live.",
+      "previous": "Previous",
+      "next": "Next",
+      "submit": "Send for review",
+      "submitted_title": "Listing sent",
+      "submitted_message": "ASSO reviews it and will let you know when it is live.",
+      "incomplete": "Incomplete listing",
+      "step_required_0": "Choose the type of home and give it a title.",
+      "step_required_1": "Enter the city.",
+      "step_required_4": "Enter the rent.",
+      "error": "Unable to save"
+    },
+    "received": "Bookings received"
   }
 }

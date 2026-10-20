@@ -11,64 +11,71 @@ import '../../../core/widgets/delivery_details_widgets.dart';
 import '../../../core/widgets/deposit_widgets.dart';
 import '../../../data/models/delivery_info.dart';
 import '../controllers/tracking_controller.dart';
+import '../../../core/widgets/segmented_tabs.dart';
+import '../../myOrder/controllers/my_order_controller.dart';
+import '../../myOrder/models/customer_order_models.dart';
+import '../../myOrder/views/my_order_view.dart';
 import '../../../core/utils/app_design.dart';
 
+/// Les deux vues de la page Suivi, côte à côte comme « Produits / PassColis »
+/// en recherche.
+enum TrackingSection { orders, tracking }
+
 class TrackingView extends GetView<TrackingController> {
-  const TrackingView({super.key});
+  const TrackingView({super.key, this.initialSection = TrackingSection.tracking});
+
+  /// Onglet affiché à l'ouverture (« Mes commandes » depuis le profil).
+  final TrackingSection initialSection;
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppThemeSystem.getBackgroundColor(context),
+    return _OrdersTrackingPage(
+      initialSection: initialSection,
       // Onglet de l'accueil, la barre du haut et la navigation basse suffisent.
       // Ouvert depuis une commande, l'écran a besoin de son titre et de sa
       // sortie : sans barre, rien ne ramenait à la commande.
-      appBar: AppNavigation.isHomeTab(context)
-          ? null
-          : AppBar(
-              leading: const AppBackButton(),
-              title: Text(
-                'tracking.title'.tr,
-                style: context.h5.copyWith(fontWeight: FontWeight.w600),
+      showAppBar: !AppNavigation.isHomeTab(context),
+      trackingBody: _buildTrackingBody(context),
+    );
+  }
+
+  /// Suivi des livraisons : recherche, filtres et commandes en cours.
+  Widget _buildTrackingBody(BuildContext context) {
+    return Column(
+      children: [
+        _buildSearchBar(context),
+        const SizedBox(height: 12),
+        _buildFilters(context),
+        const SizedBox(height: 8),
+        Expanded(
+          child: Obx(() {
+            if (controller.isLoading.value) {
+              return const Center(child: CircularProgressIndicator());
+            }
+
+            final shipments = controller.filteredShipments;
+
+            if (shipments.isEmpty) {
+              return _buildEmptyState(context);
+            }
+
+            return RefreshIndicator(
+              onRefresh: () => controller.loadOrders(),
+              child: ListView.builder(
+                // Faire défiler les commandes referme le clavier de la
+                // recherche, qui en masquait la moitié.
+                keyboardDismissBehavior:
+                    ScrollViewKeyboardDismissBehavior.onDrag,
+                padding: const EdgeInsets.all(16),
+                itemCount: shipments.length,
+                itemBuilder: (context, index) {
+                  return _buildShipmentCard(context, shipments[index]);
+                },
               ),
-            ),
-      body: Column(
-        children: [
-          const SizedBox(height: 12),
-          _buildSearchBar(context),
-          const SizedBox(height: 12),
-          _buildFilters(context),
-          const SizedBox(height: 8),
-          Expanded(
-            child: Obx(() {
-              if (controller.isLoading.value) {
-                return const Center(child: CircularProgressIndicator());
-              }
-
-              final shipments = controller.filteredShipments;
-
-              if (shipments.isEmpty) {
-                return _buildEmptyState(context);
-              }
-
-              return RefreshIndicator(
-                onRefresh: () => controller.loadOrders(),
-                child: ListView.builder(
-                  // Faire défiler les commandes referme le clavier de la
-                  // recherche, qui en masquait la moitié.
-                  keyboardDismissBehavior:
-                      ScrollViewKeyboardDismissBehavior.onDrag,
-                  padding: const EdgeInsets.all(16),
-                  itemCount: shipments.length,
-                  itemBuilder: (context, index) {
-                    return _buildShipmentCard(context, shipments[index]);
-                  },
-                ),
-              );
-            }),
-          ),
-        ],
-      ),
+            );
+          }),
+        ),
+      ],
     );
   }
 
@@ -733,5 +740,120 @@ class TrackingView extends GetView<TrackingController> {
         );
       }),
     );
+  }
+}
+
+/// Page Suivi à deux onglets : « Mes commandes » et « Suivi ».
+class _OrdersTrackingPage extends StatefulWidget {
+  const _OrdersTrackingPage({
+    required this.initialSection,
+    required this.showAppBar,
+    required this.trackingBody,
+  });
+
+  final TrackingSection initialSection;
+  final bool showAppBar;
+  final Widget trackingBody;
+
+  @override
+  State<_OrdersTrackingPage> createState() => _OrdersTrackingPageState();
+}
+
+class _OrdersTrackingPageState extends State<_OrdersTrackingPage> {
+  @override
+  void initState() {
+    super.initState();
+    final trackingController = Get.find<TrackingController>();
+    if (widget.showAppBar) {
+      trackingController.selectSection(widget.initialSection.index);
+    }
+    // Ouvert pour une commande précise (notification, « Suivre ») : on la
+    // retrouve directement dans le suivi.
+    final args = Get.arguments;
+    if (widget.showAppBar && args is Map && args['order_id'] != null) {
+      trackingController.selectSection(TrackingSection.tracking.index);
+      Get.find<TrackingController>().focusOrder('${args['order_id']}');
+    }
+  }
+
+  void _ensureOrdersController() {
+    if (!Get.isRegistered<MyOrderController>()) {
+      Get.put(MyOrderController());
+    }
+  }
+
+  void _select(TrackingSection section) {
+    final trackingController = Get.find<TrackingController>();
+    if (section.index == trackingController.selectedSectionIndex.value) return;
+    if (section == TrackingSection.orders) {
+      if (Get.isRegistered<MyOrderController>()) {
+        Get.find<MyOrderController>().loadOrders(refresh: true);
+      } else {
+        _ensureOrdersController();
+      }
+    }
+    trackingController.selectSection(section.index);
+  }
+
+  /// « Suivre » depuis une commande : bascule sur le suivi, commande ciblée.
+  void _trackOrder(CustomerOrder order) {
+    Get.find<TrackingController>().focusOrder(order.orderNumber ?? order.id);
+    _select(TrackingSection.tracking);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Obx(() {
+      final selectedIndex = Get.find<TrackingController>().selectedSectionIndex.value;
+      final selectedSection = TrackingSection.values[selectedIndex];
+      final ordersSelected = selectedSection == TrackingSection.orders;
+
+      return Scaffold(
+        backgroundColor: AppThemeSystem.getBackgroundColor(context),
+        appBar: widget.showAppBar
+            ? AppBar(
+                leading: const AppBackButton(),
+                title: Text(
+                  ordersSelected ? 'my_order.title'.tr : 'tracking.title'.tr,
+                  style: context.h5.copyWith(fontWeight: FontWeight.w600),
+                ),
+              )
+            : null,
+        body: Column(
+          children: [
+            const SizedBox(height: 12),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: SegmentedTabs(
+                tabs: [
+                  SegmentedTab(
+                    label: 'tracking.tabs.orders'.tr,
+                    icon: Icons.receipt_long_outlined,
+                  ),
+                  SegmentedTab(
+                    label: 'tracking.tabs.tracking'.tr,
+                    icon: Icons.local_shipping_outlined,
+                  ),
+                ],
+                selectedIndex: selectedIndex,
+                onChanged: (index) => _select(TrackingSection.values[index]),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Expanded(
+              child: IndexedStack(
+                index: selectedIndex,
+                children: [
+                  ordersSelected
+                      ? MyOrderList(onTrackOrder: _trackOrder)
+                      : const SizedBox.shrink(),
+                  widget.trackingBody,
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    });
   }
 }

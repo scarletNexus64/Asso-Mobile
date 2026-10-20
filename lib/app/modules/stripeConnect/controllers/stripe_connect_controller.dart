@@ -9,6 +9,7 @@ import '../../../core/utils/app_design.dart';
 class StripeConnectController extends GetxController {
   final isLoading = true.obs;
   final isSubmitting = false.obs;
+  final isUnlinking = false.obs;
 
   /// Statut non chargé (réseau, session expirée, serveur). Sans cela, un échec
   /// silencieux affichait le formulaire vierge : le vendeur croyait son IBAN perdu.
@@ -40,6 +41,21 @@ class StripeConnectController extends GetxController {
   final addressCityController = TextEditingController();
   final addressPostalController = TextEditingController();
   final birthDate = Rxn<DateTime>();
+
+  /// Erreurs renvoyées par le serveur (saisie refusée ou refus de la banque),
+  /// affichées sous le champ concerné. Clé = nom du champ de l'API.
+  final fieldErrors = <String, String>{}.obs;
+
+  /// Message général affiché au-dessus du bouton après un envoi refusé.
+  final formError = RxnString();
+
+  /// Après un premier envoi, chaque champ se revérifie pendant la saisie.
+  final submitAttempted = false.obs;
+
+  /// L'utilisateur corrige un champ : son erreur serveur disparaît.
+  void clearFieldError(String field) {
+    if (fieldErrors.remove(field) != null) formError.value = null;
+  }
 
   bool get isApproved => status.value == 'approved';
   bool get isPending => status.value == 'pending';
@@ -107,7 +123,10 @@ class StripeConnectController extends GetxController {
       helpText: 'stripe_connect.birth_date'.tr,
     );
 
-    if (picked != null) birthDate.value = picked;
+    if (picked != null) {
+      birthDate.value = picked;
+      clearFieldError('birth_date');
+    }
   }
 
   Future<void> loadStatus() async {
@@ -164,17 +183,55 @@ class StripeConnectController extends GetxController {
     }
   }
 
-  Future<void> submit() async {
-    if (!(formKey.currentState?.validate() ?? false)) return;
+  /// Désynchronise l'IBAN après confirmation : plus de virement vers ce
+  /// compte, le formulaire est rouvert pour en enregistrer un autre.
+  Future<void> unlink() async {
+    if (isUnlinking.value) return;
+    final ok = await Get.dialog<bool>(AlertDialog(
+      title: Text('stripe_connect.unlink.title'.tr),
+      content: Text('stripe_connect.unlink.confirm'.tr),
+      actions: [
+        TextButton(onPressed: () => Get.back(result: false), child: Text('common.cancel'.tr)),
+        TextButton(
+          onPressed: () => Get.back(result: true),
+          style: TextButton.styleFrom(foregroundColor: AppDesign.danger),
+          child: Text('stripe_connect.unlink.action'.tr),
+        ),
+      ],
+    ));
+    if (ok != true) return;
 
-    if (birthDate.value == null) {
+    isUnlinking.value = true;
+    try {
+      final res = await StripeConnectService.unlink();
+      if (res.success && res.data != null) _applyStatus(res.data!);
       Get.snackbar(
-        'stripe_connect.birth_date_required_title'.tr,
-        'stripe_connect.birth_date_required_message'.tr,
+        res.success ? 'stripe_connect.unlink.done_title'.tr : 'stripe_connect.error'.tr,
+        res.message.isNotEmpty ? res.message : 'stripe_connect.errors.generic_retry'.tr,
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: res.success ? AppDesign.success : AppDesign.danger,
+        colorText: Colors.white,
+      );
+    } catch (_) {
+      Get.snackbar(
+        'stripe_connect.error'.tr,
+        'stripe_connect.errors.generic_retry'.tr,
         snackPosition: SnackPosition.BOTTOM,
         backgroundColor: AppDesign.danger,
         colorText: Colors.white,
       );
+    } finally {
+      isUnlinking.value = false;
+    }
+  }
+
+  Future<void> submit() async {
+    submitAttempted.value = true;
+    fieldErrors.clear();
+    formError.value = null;
+    final fieldsValid = formKey.currentState?.validate() ?? false;
+    if (!fieldsValid || birthDate.value == null) {
+      formError.value = 'stripe_connect.errors.fix_fields'.tr;
       return;
     }
 
@@ -204,25 +261,27 @@ class StripeConnectController extends GetxController {
           colorText: Colors.white,
         );
       } else {
-        Get.snackbar(
-          'stripe_connect.error'.tr,
-          _friendlyError(res.message),
-          snackPosition: SnackPosition.BOTTOM,
-          backgroundColor: AppDesign.danger,
-          colorText: Colors.white,
-        );
+        _applyServerErrors(res.data?['errors']);
+        formError.value = fieldErrors.isNotEmpty
+            ? 'stripe_connect.errors.fix_fields'.tr
+            : _friendlyError(res.message);
       }
     } catch (_) {
-      Get.snackbar(
-        'stripe_connect.error'.tr,
-        'stripe_connect.errors.generic_retry'.tr,
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: AppDesign.danger,
-        colorText: Colors.white,
-      );
+      formError.value = 'stripe_connect.errors.generic_retry'.tr;
     } finally {
       isSubmitting.value = false;
     }
+  }
+
+  /// Erreurs par champ de la réponse (`errors: {champ: [message]}`) : affichées
+  /// sous chaque champ, le formulaire est revalidé pour les montrer.
+  void _applyServerErrors(dynamic errors) {
+    if (errors is! Map) return;
+    errors.forEach((field, messages) {
+      final message = messages is List && messages.isNotEmpty ? '${messages.first}' : '$messages';
+      if (message.trim().isNotEmpty) fieldErrors['$field'] = message;
+    });
+    formKey.currentState?.validate();
   }
 
   /// Nettoie un message d'erreur venant du serveur : si du texte technique brut
@@ -267,44 +326,86 @@ class StripeConnectController extends GetxController {
   }
 
   // ---- Validateurs ----
+  // Vérifications locales : un message précis par champ, puis l'erreur du
+  // serveur pour ce champ s'il en a renvoyé une.
+
   String? validateCountry(String? v) {
-    if (v == null || v.trim().length != 2) return 'stripe_connect.validation.country_code'.tr;
-    return null;
+    final country = (v ?? '').trim().toUpperCase();
+    if (country.isEmpty) return 'stripe_connect.validation.country_required'.tr;
+    if (!RegExp(r'^[A-Z]{2}$').hasMatch(country)) return 'stripe_connect.validation.country_code'.tr;
+    final iban = ibanController.text.replaceAll(' ', '').toUpperCase();
+    if (iban.length >= 2 && RegExp(r'^[A-Z]{2}').hasMatch(iban) && iban.substring(0, 2) != country) {
+      return 'stripe_connect.validation.country_mismatch'.trParams({'iban': iban.substring(0, 2)});
+    }
+    return fieldErrors['country'];
   }
 
   String? validateIban(String? v) {
     final iban = (v ?? '').replaceAll(' ', '').toUpperCase();
     if (iban.isEmpty) return 'stripe_connect.validation.iban_required'.tr;
-    if (!RegExp(r'^[A-Z]{2}[0-9]{2}[A-Z0-9]{11,30}$').hasMatch(iban)) {
-      return 'stripe_connect.validation.iban_invalid'.tr;
+    if (!RegExp(r'^[A-Z]{2}').hasMatch(iban)) return 'stripe_connect.validation.iban_country'.tr;
+    if (!RegExp(r'^[A-Z]{2}[0-9]{2}').hasMatch(iban)) return 'stripe_connect.validation.iban_key'.tr;
+    if (!RegExp(r'^[A-Z0-9]+$').hasMatch(iban)) return 'stripe_connect.validation.iban_characters'.tr;
+    if (iban.length < 15) return 'stripe_connect.validation.iban_too_short'.tr;
+    if (iban.length > 34) return 'stripe_connect.validation.iban_too_long'.tr;
+    if (!_ibanChecksumOk(iban)) return 'stripe_connect.validation.iban_checksum'.tr;
+    return fieldErrors['iban'];
+  }
+
+  /// Clé de contrôle de l'IBAN (modulo 97) : repère une faute de frappe.
+  bool _ibanChecksumOk(String iban) {
+    final rearranged = iban.substring(4) + iban.substring(0, 4);
+    var remainder = 0;
+    for (final unit in rearranged.codeUnits) {
+      final digits = unit >= 65 ? '${unit - 55}' : String.fromCharCode(unit);
+      for (final d in digits.codeUnits) {
+        remainder = (remainder * 10 + (d - 48)) % 97;
+      }
     }
-    return null;
+    return remainder == 1;
   }
 
   String? validateHolder(String? v) {
-    if (v == null || v.trim().isEmpty) return 'stripe_connect.validation.holder_required'.tr;
-    return null;
+    final holder = (v ?? '').trim();
+    if (holder.isEmpty) return 'stripe_connect.validation.holder_required'.tr;
+    if (holder.length < 3) return 'stripe_connect.validation.holder_too_short'.tr;
+    return fieldErrors['account_holder_name'];
+  }
+
+  /// Date de naissance : obligatoire, choisie au calendrier.
+  String? get birthDateError {
+    if (birthDate.value == null && submitAttempted.value) {
+      return 'stripe_connect.birth_date_required_message'.tr;
+    }
+    return fieldErrors['birth_date'];
   }
 
   String? validatePhone(String? v) {
     final phone = (v ?? '').trim();
     if (phone.isEmpty) return 'stripe_connect.validation.phone_required'.tr;
-    if (phone.replaceAll(RegExp(r'[^0-9]'), '').length < 8) return 'stripe_connect.validation.phone_incomplete'.tr;
-    return null;
+    if (!phone.startsWith('+')) return 'stripe_connect.validation.phone_international'.tr;
+    final digits = phone.replaceAll(RegExp(r'[^0-9]'), '');
+    if (digits.length < 8) return 'stripe_connect.validation.phone_incomplete'.tr;
+    if (digits.length > 15) return 'stripe_connect.validation.phone_too_long'.tr;
+    return fieldErrors['phone'];
   }
 
   String? validateAddressLine(String? v) {
-    if (v == null || v.trim().length < 4) return 'stripe_connect.validation.address_required'.tr;
-    return null;
+    final address = (v ?? '').trim();
+    if (address.isEmpty) return 'stripe_connect.validation.address_required'.tr;
+    if (address.length < 4) return 'stripe_connect.validation.address_too_short'.tr;
+    return fieldErrors['address_line1'];
   }
 
   String? validateCity(String? v) {
     if (v == null || v.trim().isEmpty) return 'stripe_connect.validation.city_required'.tr;
-    return null;
+    return fieldErrors['address_city'];
   }
 
   String? validatePostalCode(String? v) {
-    if (v == null || v.trim().isEmpty) return 'stripe_connect.validation.postal_required'.tr;
-    return null;
+    final postal = (v ?? '').trim();
+    if (postal.isEmpty) return 'stripe_connect.validation.postal_required'.tr;
+    if (!RegExp(r'^[A-Za-z0-9 -]{3,10}$').hasMatch(postal)) return 'stripe_connect.validation.postal_invalid'.tr;
+    return fieldErrors['address_postal_code'];
   }
 }

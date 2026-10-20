@@ -14,6 +14,7 @@ import '../../../core/utils/app_design.dart';
 import '../../../core/utils/app_navigation.dart';
 import '../../../routes/app_pages.dart';
 import '../../diaspoList/controllers/diaspo_list_controller.dart';
+import '../widgets/parcel_insurance_form.dart';
 
 class DiaspoBookingController extends GetxController {
   final DiaspoService _diaspoService = Get.find<DiaspoService>();
@@ -32,6 +33,14 @@ class DiaspoBookingController extends GetxController {
   // taux réglé dans l'admin) : total = kg × prix, sans ligne de commission.
   final totalPrice = 0.0.obs;
 
+  /// Nature + valeur déclarée du colis → supplément d'assurance (revenu ASSO).
+  late final ParcelInsuranceForm insurance =
+      ParcelInsuranceForm(currency: () => currency);
+
+  /// Total payé : transport + assurance. À lire dans un Obx.
+  double get grandTotal => double.parse(
+      (totalPrice.value + insurance.insuranceAmount.value).toStringAsFixed(2));
+
   double get remainingKg => offer.value?.remainingKg ?? 0;
   double get pricePerKg => offer.value?.pricePerKg ?? 0;
   String get currency => offer.value?.currency ?? 'XAF';
@@ -40,6 +49,7 @@ class DiaspoBookingController extends GetxController {
   void onInit() {
     super.onInit();
     _loadOffer();
+    insurance.load();
 
     // Initialize kg
     kgController.text = '1.0';
@@ -59,6 +69,7 @@ class DiaspoBookingController extends GetxController {
   @override
   void onClose() {
     kgController.dispose();
+    insurance.dispose();
     super.onClose();
   }
 
@@ -121,20 +132,29 @@ class DiaspoBookingController extends GetxController {
       return;
     }
 
+    if (!insurance.isComplete) {
+      Get.snackbar('diaspo_booking.error'.tr, 'parcel_insurance.required'.tr);
+      return;
+    }
+    if (insurance.isQuoting.value) return;
+
     // 1) Choix du moyen de paiement (tous affichés, grisés si trop faible,
     //    jamais masqués selon le pays, sans solde wallet).
     final method = await PaymentMethodSelector.show(
-      amount: totalPrice.value,
+      amount: grandTotal,
       currency: currency,
       amountLabel: 'diaspo_booking.total_to_pay'.tr,
+      includeWallet: true, // payer avec le solde Wallet ASSO
     );
     if (method == null) return; // annulé
 
     // 2) Sous-parcours selon le rail choisi.
-    if (method.code == 'kpay') {
+    if (method.isWallet) {
+      await _processWalletBooking();
+    } else if (method.code == 'kpay') {
       // Mobile Money : sélecteur pays → opérateur → numéro.
       final selection = await KpayDirectPaymentSheet.show(
-        amount: totalPrice.value,
+        amount: grandTotal,
         currency: currency, // total dans la devise de l'offre, pas en FCFA
         amountLabel: 'diaspo_booking.total_to_pay'.tr,
       );
@@ -146,6 +166,27 @@ class DiaspoBookingController extends GetxController {
     } else {
       // PayPal : redirection WebView.
       await _processRedirectBooking(method);
+    }
+  }
+
+  /// Réservation payée avec le solde Wallet ASSO : débitée et confirmée
+  /// immédiatement par le serveur.
+  Future<void> _processWalletBooking() async {
+    isSubmitting.value = true;
+    try {
+      final result = await _diaspoService.bookOffer(
+        offerId: offer.value!.id,
+        kgBooked: kgBooked.value,
+        parcelNatureId: insurance.selectedNature.value?.id,
+        declaredValue: insurance.declaredValue.value,
+        declaredValueCurrency: insurance.valueCurrency,
+        paymentMethod: 'wallet',
+      );
+      isSubmitting.value = false;
+      _showSuccessDialog(result['booking'] as DiaspoBooking);
+    } catch (e) {
+      isSubmitting.value = false;
+      _showError(e);
     }
   }
 
@@ -161,6 +202,9 @@ class DiaspoBookingController extends GetxController {
       final result = await _diaspoService.bookOffer(
         offerId: offer.value!.id,
         kgBooked: kgBooked.value,
+        parcelNatureId: insurance.selectedNature.value?.id,
+        declaredValue: insurance.declaredValue.value,
+        declaredValueCurrency: insurance.valueCurrency,
         paymentMethod: 'stripe',
       );
       final booking = result['booking'] as DiaspoBooking;
@@ -203,6 +247,9 @@ class DiaspoBookingController extends GetxController {
       final result = await _diaspoService.bookOffer(
         offerId: offer.value!.id,
         kgBooked: kgBooked.value,
+        parcelNatureId: insurance.selectedNature.value?.id,
+        declaredValue: insurance.declaredValue.value,
+        declaredValueCurrency: insurance.valueCurrency,
         paymentMethod: 'kpay',
         provider: provider,
         phoneNumber: phone,
@@ -213,7 +260,7 @@ class DiaspoBookingController extends GetxController {
       // La réservation n'est PAS encore confirmée : le paiement Mobile Money doit être
       // validé sur le téléphone. Le succès (+ code) n'est affiché qu'au statut « payé ».
       final outcome = await MobileMoneyWaiting.run(
-        amount: totalPrice.value,
+        amount: grandTotal,
         // Montant dans la devise de l'offre, affiché dans celle de l'utilisateur.
         formatAmount: formatOfferAmount,
         provider: provider,
@@ -248,6 +295,9 @@ class DiaspoBookingController extends GetxController {
       final result = await _diaspoService.bookOffer(
         offerId: offer.value!.id,
         kgBooked: kgBooked.value,
+        parcelNatureId: insurance.selectedNature.value?.id,
+        declaredValue: insurance.declaredValue.value,
+        declaredValueCurrency: insurance.valueCurrency,
         paymentMethod: method.code,
       );
       final booking = result['booking'] as DiaspoBooking;

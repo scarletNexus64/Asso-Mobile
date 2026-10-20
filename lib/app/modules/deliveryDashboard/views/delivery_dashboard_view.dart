@@ -7,6 +7,7 @@ import '../../../core/utils/app_theme_system.dart';
 import '../../../core/widgets/app_ui.dart';
 import '../controllers/delivery_dashboard_controller.dart';
 import 'delivery_map_fullscreen_view.dart';
+import 'dispute_courses_section.dart';
 import '../models/delivery_models.dart';
 import '../../shipConfig/models/sync_models.dart';
 
@@ -47,6 +48,8 @@ class DeliveryDashboardView extends GetView<DeliveryDashboardController> {
                     child: _buildTabs(context),
                   ),
                 ),
+                // Courses de litige (remplacement, retour) à prendre ou en cours.
+                const SliverToBoxAdapter(child: DisputeCoursesSection()),
                 SliverToBoxAdapter(child: _buildTourSummary(context)),
                 _buildDeliveriesSliver(context),
               ],
@@ -1267,16 +1270,32 @@ class _DeliveryCard extends GetView<DeliveryDashboardController> {
           // Header
           Row(
             children: [
+              // Statut en toutes lettres : une icône seule dans un carré
+              // vert passait pour un emoji « coche ».
               Container(
-                padding: const EdgeInsets.all(8),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
                 decoration: BoxDecoration(
                   color: _getStatusColor(request.status).withValues(alpha: 0.1),
                   borderRadius: context.borderRadius(BorderRadiusType.small),
                 ),
-                child: Icon(
-                  request.status.icon,
-                  size: 22,
-                  color: _getStatusColor(request.status),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      request.status.icon,
+                      size: 16,
+                      color: _getStatusColor(request.status),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      request.status.label,
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w600,
+                        color: _getStatusColor(request.status),
+                      ),
+                    ),
+                  ],
                 ),
               ),
               const SizedBox(width: 12),

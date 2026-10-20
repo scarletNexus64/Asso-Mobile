@@ -3,12 +3,14 @@ import 'package:flutter/material.dart';
 import 'package:asso/app/routes/app_pages.dart';
 import 'package:get/get.dart';
 
+import '../../../data/models/real_estate_models.dart';
 import '../../../data/models/wallet_model.dart';
 import '../../../data/services/wallet_service.dart';
 import '../../../data/services/fcm_service.dart';
 import '../../../data/providers/storage_service.dart';
 import '../../../data/providers/diaspo_service.dart';
 import '../../../data/providers/currency_service.dart';
+import '../../../data/providers/real_estate_service.dart';
 import '../../../data/providers/wallet_service.dart' as wallet_api;
 import '../widgets/recharge_bottom_sheet.dart';
 
@@ -32,6 +34,8 @@ class WalletController extends GetxController {
   final wallet = Rxn<WalletModel>();
   final transactions = <WalletTransactionModel>[].obs;
   final lockedBookings = <Map<String, dynamic>>[].obs; // Bookings avec fonds bloqués
+  /// Réservations Immo reçues dont la part du bailleur est encore bloquée.
+  final lockedRealEstate = <RealEstateReservation>[].obs;
 
   // Soldes de retrait séparés par provider
   final kpayBalance = 0.0.obs; // KPay XAF (compat)
@@ -110,6 +114,7 @@ class WalletController extends GetxController {
       loadTransactions(); // Charger l'historique dès l'ouverture
       loadWithdrawalBalances(); // Charger les soldes de retrait
       loadLockedBookings(); // Charger les réservations avec fonds bloqués
+      loadLockedRealEstate();
       loadPayoutAccount(); // Coordonnées de retrait enregistrées
 
       // NOTE: Deposit polling is no longer needed!
@@ -366,6 +371,7 @@ class WalletController extends GetxController {
       loadTransactions(),
       loadWithdrawalBalances(),
       loadLockedBookings(),
+      loadLockedRealEstate(),
       loadPayoutAccount(),
     ]);
   }
@@ -423,6 +429,12 @@ class WalletController extends GetxController {
   }
 
   /// Charge les réservations avec fonds bloqués (pour le seller)
+  /// Loyers et acomptes encore bloqués : délai de visite ou litige en cours.
+  Future<void> loadLockedRealEstate() async {
+    final received = await RealEstateService.receivedReservations();
+    lockedRealEstate.value = received.where((r) => r.status == 'paid' || r.status == 'disputed').toList();
+  }
+
   Future<void> loadLockedBookings() async {
     if (_isDisposed) return;
 
@@ -784,12 +796,24 @@ class WalletController extends GetxController {
   String _notifAmount(dynamic amount) =>
       CurrencyService.formatFromPivot(double.tryParse('$amount') ?? 0);
 
-  /// Getter pour le solde formaté
-  String get formattedBalance => wallet.value?.formattedBalance ?? '0 FCFA';
+  /// Solde utilisable (retrait, paiement) : hors fonds bloqués (ventes en
+  /// attente de confirmation du client, réclamations, commandes en cours).
+  double get availableBalance => wallet.value?.availableBalance ?? 0.0;
+
+  /// Solde mobile money (KPay) utilisable, hors fonds bloqués.
+  double get kpayAvailableBalance {
+    final w = wallet.value;
+    if (w == null) return 0.0;
+    final available = w.kpayBalance - w.lockedKPayBalance;
+    return available > 0 ? available : 0.0;
+  }
+
+  /// Getter pour le solde formaté (solde disponible, fonds bloqués exclus)
+  String get formattedBalance => wallet.value?.formattedAvailableBalance ?? '0 FCFA';
 
   /// Vérifie si le wallet a un solde suffisant
   bool hasSufficientBalance(double amount) {
-    return currentBalance >= amount;
+    return availableBalance >= amount;
   }
 
   /// Efface les messages d'erreur et de succès

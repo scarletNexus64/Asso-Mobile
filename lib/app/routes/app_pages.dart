@@ -12,6 +12,8 @@ import 'package:asso/app/modules/diaspoDetail/bindings/diaspo_detail_binding.dar
 import 'package:asso/app/modules/diaspoDetail/views/diaspo_detail_view.dart';
 import 'package:asso/app/modules/diaspoBooking/bindings/diaspo_booking_binding.dart';
 import 'package:asso/app/modules/diaspoBooking/views/diaspo_booking_view.dart';
+import '../modules/maritime/bindings/maritime_booking_binding.dart';
+import '../modules/maritime/views/maritime_booking_view.dart';
 import 'package:get/get.dart';
 
 import '../modules/about/bindings/about_binding.dart';
@@ -42,7 +44,6 @@ import '../modules/home/views/home_view.dart';
 import '../modules/login/bindings/login_binding.dart';
 import '../modules/login/views/login_view.dart';
 import '../modules/myOrder/bindings/my_order_binding.dart';
-import '../modules/myOrder/views/my_order_view.dart';
 import '../modules/notification/bindings/notification_binding.dart';
 import '../modules/notification/views/notification_view.dart';
 import '../modules/onboarding/bindings/onboarding_binding.dart';
@@ -263,7 +264,7 @@ class AppPages {
     ),
     GetPage(
       name: _Paths.MY_ORDER,
-      page: () => const MyOrderView(),
+      page: () => const TrackingView(initialSection: TrackingSection.orders),
       binding: MyOrderBinding(),
     ),
     GetPage(
@@ -400,6 +401,11 @@ class AppPages {
       name: _Paths.DIASPO_BOOKING,
       page: () => const DiaspoBookingView(),
       binding: DiaspoBookingBinding(),
+    ),
+    GetPage(
+      name: _Paths.MARITIME_BOOKING,
+      page: () => const MaritimeBookingView(),
+      binding: MaritimeBookingBinding(),
     ),
     GetPage(
       name: _Paths.COUNTRY_SELECTION,
