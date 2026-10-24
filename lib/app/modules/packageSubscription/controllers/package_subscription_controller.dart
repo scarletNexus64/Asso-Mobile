@@ -335,7 +335,8 @@ class PackageSubscriptionController extends GetxController {
       }
     } catch (e) {
       PaymentLoadingDialog.hide();
-      _showSubscriptionError('package_subscription.generic_error'.trParams({'error': '$e'}));
+      print('[PackageSubscription] KPay payment error: $e');
+      _showSubscriptionError('common.error'.tr);
     } finally {
       isSubscribing.value = false;
     }

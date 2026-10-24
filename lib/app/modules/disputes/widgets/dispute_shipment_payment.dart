@@ -135,7 +135,8 @@ class DisputeShipmentPayment {
       );
       return await _poll(shipmentId);
     } catch (e) {
-      _error(e.toString().replaceAll('Exception: ', ''));
+      debugPrint('[DisputeShipmentPayment] Payment error: $e');
+      _error('payment.mobile_money.failed_generic'.tr);
       return false;
     }
   }

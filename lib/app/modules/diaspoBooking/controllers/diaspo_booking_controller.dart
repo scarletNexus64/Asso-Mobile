@@ -216,7 +216,7 @@ class DiaspoBookingController extends GetxController {
 
       if (clientSecret == null || clientSecret.isEmpty ||
           publishableKey == null || publishableKey.isEmpty) {
-        _showError(Exception('diaspo_booking.card_data_unavailable'.tr));
+        _showError('diaspo_booking.card_data_unavailable'.tr);
         return;
       }
 
@@ -307,7 +307,7 @@ class DiaspoBookingController extends GetxController {
       isSubmitting.value = false;
 
       if (approvalUrl == null || approvalUrl.isEmpty) {
-        _showError(Exception('diaspo_booking.payment_link_unavailable'.tr));
+        _showError('diaspo_booking.payment_link_unavailable'.tr);
         return;
       }
 
@@ -328,9 +328,10 @@ class DiaspoBookingController extends GetxController {
   }
 
   void _showError(Object e) {
+    if (e is! String) debugPrint('[DiaspoBooking] Payment error: $e');
     Get.snackbar(
       'diaspo_booking.error'.tr,
-      e.toString().replaceAll('Exception: ', ''),
+      e is String ? e : 'payment.mobile_money.failed_generic'.tr,
       backgroundColor: AppDesign.danger,
       colorText: Colors.white,
     );

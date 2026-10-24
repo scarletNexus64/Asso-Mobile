@@ -603,8 +603,8 @@ class WalletController extends GetxController {
             return {
               'success': false,
               'status': 'failed',
-              'message': result['failure_reason'] ?? 'wallet.messages.payment_failed'.tr,
               ...result,
+              'message': 'wallet.messages.payment_failed'.tr,
             };
           }
 

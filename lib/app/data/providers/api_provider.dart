@@ -74,7 +74,7 @@ class ApiProvider {
     } catch (e, stackTrace) {
       developer.log('GET error', name: 'ApiProvider', error: e, stackTrace: stackTrace);
       ConnectivityService.reportNetworkFailure(e);
-      return ApiResponse(success: false, message: 'network.error_detail'.trParams({'error': e.toString()}), statusCode: 0);
+      return ApiResponse(success: false, message: 'network.server_error'.tr, statusCode: 0);
     }
   }
 
@@ -109,7 +109,7 @@ class ApiProvider {
     } catch (e, stackTrace) {
       developer.log('POST error', name: 'ApiProvider', error: e, stackTrace: stackTrace);
       ConnectivityService.reportNetworkFailure(e);
-      return ApiResponse(success: false, message: 'network.error_detail'.trParams({'error': e.toString()}), statusCode: 0);
+      return ApiResponse(success: false, message: 'network.server_error'.tr, statusCode: 0);
     }
   }
 
@@ -141,7 +141,7 @@ class ApiProvider {
     } catch (e, stackTrace) {
       developer.log('PUT error', name: 'ApiProvider', error: e, stackTrace: stackTrace);
       ConnectivityService.reportNetworkFailure(e);
-      return ApiResponse(success: false, message: 'network.error_detail'.trParams({'error': e.toString()}), statusCode: 0);
+      return ApiResponse(success: false, message: 'network.server_error'.tr, statusCode: 0);
     }
   }
 
@@ -173,7 +173,7 @@ class ApiProvider {
     } catch (e, stackTrace) {
       developer.log('DELETE error', name: 'ApiProvider', error: e, stackTrace: stackTrace);
       ConnectivityService.reportNetworkFailure(e);
-      return ApiResponse(success: false, message: 'network.error_detail'.trParams({'error': e.toString()}), statusCode: 0);
+      return ApiResponse(success: false, message: 'network.server_error'.tr, statusCode: 0);
     }
   }
 
@@ -254,7 +254,7 @@ class ApiProvider {
     } catch (e, stackTrace) {
       developer.log('MULTIPART error', name: 'ApiProvider', error: e, stackTrace: stackTrace);
       ConnectivityService.reportNetworkFailure(e);
-      return ApiResponse(success: false, message: 'network.error_detail'.trParams({'error': e.toString()}), statusCode: 0);
+      return ApiResponse(success: false, message: 'network.server_error'.tr, statusCode: 0);
     }
   }
 
@@ -285,6 +285,14 @@ class ApiProvider {
       final messageString = messageField is String
           ? messageField
           : (success ? 'common.success'.tr : 'common.error'.tr);
+      final publicMessage = success || !_isTechnicalError(messageString, response.statusCode)
+          ? messageString
+          : 'network.server_error'.tr;
+      // Plusieurs écrans lisent data['message'] directement. Le filtrer aussi
+      // évite de laisser passer une exception du prestataire par ce chemin.
+      final publicBody = !success && body is Map<String, dynamic>
+          ? {...body, 'message': publicMessage}
+          : body;
 
       developer.log(
         'Response parsed',
@@ -303,15 +311,15 @@ class ApiProvider {
           success: false,
           message: 'network.session_expired'.tr,
           statusCode: 401,
-          data: body,
+          data: publicBody,
         );
       }
 
       return ApiResponse(
         success: success,
-        message: messageString,
+        message: publicMessage,
         statusCode: response.statusCode,
-        data: body,
+        data: publicBody,
       );
     } catch (e, stackTrace) {
       developer.log(
@@ -325,10 +333,18 @@ class ApiProvider {
       ConnectivityService.reportResponse(503);
       return ApiResponse(
         success: false,
-        message: 'network.parsing_error'.trParams({'body': response.body}),
+        message: 'network.server_error'.tr,
         statusCode: response.statusCode,
       );
     }
+  }
+
+  static bool _isTechnicalError(String message, int statusCode) {
+    if (statusCode >= 500) return true;
+    return RegExp(
+      r'(?:exception\b|\berror\s*:|stack\s*trace|traceback|sqlstate|\bat\s+[^\s]+\([^)]*:\d+\)|<\/?html|<!doctype|\b(?:typeerror|formatexception|dioexception|socketexception)\b)',
+      caseSensitive: false,
+    ).hasMatch(message);
   }
 
   /// Handle unauthorized - clear session and redirect to login

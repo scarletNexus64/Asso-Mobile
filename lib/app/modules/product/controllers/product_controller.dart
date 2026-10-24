@@ -799,9 +799,10 @@ class ProductController extends GetxController {
 
       return response.data ?? const {};
     } catch (e) {
+      debugPrint('[ProductController] Error creating order: $e');
       Get.snackbar(
         'product.error'.tr,
-        'product.order.error'.trParams({'error': '$e'}),
+        'product.order.failed_title'.tr,
         snackPosition: SnackPosition.BOTTOM,
       );
       return null;
