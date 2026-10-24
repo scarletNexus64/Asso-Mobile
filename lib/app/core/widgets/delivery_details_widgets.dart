@@ -506,7 +506,26 @@ class OrderDeliveryDetails extends StatelessWidget {
         ),
         if (delivery.trackingStatusLabel != null)
           DeliveryInfoLine('core.delivery.status'.tr, delivery.trackingStatusLabel!),
-        if (delivery.isCarrier) ...[
+        if (delivery.pickupAgency case final agency?) ...[
+          const SizedBox(height: 8),
+          DeliveryInfoLine('core.delivery.pickup_agency'.tr, agency.name),
+          DeliveryInfoLine(
+            'core.delivery.agency_address'.tr,
+            '${agency.address}, ${agency.city}',
+          ),
+          if (agency.phone.isNotEmpty)
+            DeliveryInfoLine('core.delivery.agency_phone'.tr, agency.phone),
+          if (delivery.trackingStatus == 'ready_for_pickup')
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: Text(
+                'core.delivery.agency_pickup_instructions'.tr,
+                style: context.body2,
+              ),
+            ),
+        ],
+        if (delivery.isCarrier && (delivery.showTrackingPending ||
+            delivery.carrierTrackingNumber != null || delivery.carrierTrackingUrl != null)) ...[
           const SizedBox(height: 8),
           CarrierTrackingCard(
             companyName: delivery.companyName,
@@ -610,7 +629,9 @@ Future<void> showDeliveryQuoteDetails(
                           color: deliveryCategoryColor(quote.serviceType),
                         ),
                         DeliveryChip(
-                          quote.isAgencyToAgency ? 'core.delivery.agency_to_agency'.tr : 'core.delivery.home_delivery'.tr,
+                          quote.isTerritorialNetwork
+                              ? quote.serviceModeLabel
+                              : quote.isAgencyToAgency ? 'core.delivery.agency_to_agency'.tr : 'core.delivery.home_delivery'.tr,
                           color: AppThemeSystem.grey700,
                           icon: quote.isAgencyToAgency
                               ? Icons.store_mall_directory_outlined

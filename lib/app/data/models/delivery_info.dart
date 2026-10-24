@@ -121,10 +121,36 @@ class DeliveryTimelineStep {
         location: _toText(e['location']),
         note: _toText(e['note']),
         actorType: _toText(e['actor_type']),
-        occurredAt: DateTime.tryParse(e['occurred_at']?.toString() ?? '')
-            ?.toLocal(),
+        occurredAt: DateTime.tryParse(
+          e['occurred_at']?.toString() ?? '',
+        )?.toLocal(),
       );
     }).toList();
+  }
+}
+
+/// Agence physique de retrait, figée à l'affectation de la commande.
+class PickupAgency {
+  final String name;
+  final String address;
+  final String city;
+  final String phone;
+
+  const PickupAgency({
+    required this.name,
+    required this.address,
+    required this.city,
+    required this.phone,
+  });
+
+  static PickupAgency? fromMap(dynamic raw) {
+    if (raw is! Map) return null;
+    return PickupAgency(
+      name: _toText(raw['name']) ?? '',
+      address: _toText(raw['address']) ?? '',
+      city: _toText(raw['city']) ?? '',
+      phone: _toText(raw['phone']) ?? '',
+    );
   }
 }
 
@@ -147,9 +173,14 @@ class DeliveryInfo {
   final DeliveryBreakdown? breakdown;
   final String? carrierTrackingNumber;
   final String? carrierTrackingUrl;
+  final bool showTrackingPending;
   final String? trackingStatus;
   final String? trackingStatusLabel;
   final bool canConfirmReception;
+  final PickupAgency? pickupAgency;
+  final String? deliveryOption;
+  final String? agencyCollectedAt;
+  final String? receptionConfirmedAt;
   final List<DeliveryTimelineStep> timeline;
 
   /// Commande en gros : trajet pays d'origine → Douala, avant la livraison locale.
@@ -171,9 +202,14 @@ class DeliveryInfo {
     this.breakdown,
     this.carrierTrackingNumber,
     this.carrierTrackingUrl,
+    this.showTrackingPending = false,
     this.trackingStatus,
     this.trackingStatusLabel,
     this.canConfirmReception = false,
+    this.pickupAgency,
+    this.deliveryOption,
+    this.agencyCollectedAt,
+    this.receptionConfirmedAt,
     this.timeline = const [],
     this.importLeg,
   });
@@ -197,9 +233,14 @@ class DeliveryInfo {
       breakdown: DeliveryBreakdown.fromMap(raw['breakdown']),
       carrierTrackingNumber: _toText(raw['carrier_tracking_number']),
       carrierTrackingUrl: _toText(raw['carrier_tracking_url']),
+      showTrackingPending: raw['show_tracking_pending'] == true,
       trackingStatus: _toText(raw['tracking_status']),
       trackingStatusLabel: _toText(raw['tracking_status_label']),
       canConfirmReception: raw['can_confirm_reception'] == true,
+      pickupAgency: PickupAgency.fromMap(raw['pickup_agency']),
+      deliveryOption: _toText(raw['delivery_option']),
+      agencyCollectedAt: _toText(raw['agency_collected_at']),
+      receptionConfirmedAt: _toText(raw['reception_confirmed_at']),
       timeline: DeliveryTimelineStep.listFrom(raw['timeline']),
       importLeg: DeliveryPriceGridRow.listFrom([raw['import_leg']]).firstOrNull,
     );
@@ -219,7 +260,9 @@ class DeliveryInfo {
 
   /// Étapes proposées pour cette commande (l'arrivée à Douala pour un import).
   static Map<String, String> trackingStepsFor(DeliveryInfo? delivery) =>
-      delivery?.importLeg == null
+      delivery?.isCarrier == true
+      ? const <String, String>{}
+      : delivery?.importLeg == null
       ? vendorTrackingSteps
       : {
           'in_transit': stepLabel('in_transit'),
@@ -239,6 +282,20 @@ class DeliveryInfo {
         return 'data.delivery.steps.preparing'.tr;
       case 'out_for_delivery':
         return 'data.delivery.steps.out_for_delivery'.tr;
+      case 'pickup_requested':
+        return 'data.delivery.steps.pickup_requested'.tr;
+      case 'pickup_accepted':
+        return 'data.delivery.steps.pickup_accepted'.tr;
+      case 'collected_by_carrier':
+        return 'data.delivery.steps.collected_by_carrier'.tr;
+      case 'partner_in_transit':
+        return 'data.delivery.steps.partner_in_transit'.tr;
+      case 'agency_assigned':
+        return 'data.delivery.steps.agency_assigned'.tr;
+      case 'collected_at_agency':
+        return 'data.delivery.steps.collected_at_agency'.tr;
+      case 'reception_confirmed':
+        return 'data.delivery.steps.reception_confirmed'.tr;
       case 'handed_to_carrier':
         return 'data.delivery.steps.handed_to_carrier'.tr;
       case 'in_transit':
@@ -272,7 +329,8 @@ class DeliveryPartnerQuote {
   String get serviceType => raw['service_type']?.toString() ?? 'local';
   String get serviceMode => raw['service_mode']?.toString() ?? 'door_to_door';
   bool get isAgencyToAgency => serviceMode == 'agency_to_agency';
-  String get companyName => _toText(raw['company_name']) ?? 'data.delivery.partner'.tr;
+  String get companyName =>
+      _toText(raw['company_name']) ?? 'data.delivery.partner'.tr;
   String? get companyLogo => _toText(raw['company_logo']);
   String? get zoneName => _toText(raw['zone_name']);
   String? get routeLabel => _toText(raw['route_label']);
@@ -298,10 +356,14 @@ class DeliveryPartnerQuote {
   double get assoCommission => _toDouble(raw['asso_commission']) ?? 0;
   List<DeliveryPriceGridRow> get priceGrid =>
       DeliveryPriceGridRow.listFrom(raw['price_grid']);
-  DeliveryBreakdown? get breakdown => DeliveryBreakdown.fromMap(raw['breakdown']);
+  DeliveryBreakdown? get breakdown =>
+      DeliveryBreakdown.fromMap(raw['breakdown']);
 
   /// Catégorie courte affichée en puce : Urbain / Interurbain / International.
   String get categoryLabel {
+    if (isTerritorialNetwork && raw['network_level'] == 'intraregional') {
+      return 'data.delivery.category.regional'.tr;
+    }
     switch (serviceType) {
       case 'intercity':
         return 'data.delivery.category.intercity'.tr;
@@ -324,8 +386,12 @@ class DeliveryPartnerQuote {
   /// Libellé du trajet : route transporteur, sinon zone urbaine.
   String? get routeOrZone => routeLabel ?? zoneName;
 
+  bool get isTerritorialNetwork => raw['pricing_type'] == 'territorial_network';
+  PickupAgency? get pickupAgency => PickupAgency.fromMap(raw['pickup_agency']);
+
   /// Option choisie : retrait en agence ou livraison à domicile.
-  bool get isAgencyPickup => raw['delivery_option']?.toString() == 'agency_pickup';
+  bool get isAgencyPickup =>
+      raw['delivery_option']?.toString() == 'agency_pickup';
   String get deliveryOptionLabel =>
       _toText(raw['delivery_option_label']) ??
       (isAgencyPickup
@@ -335,9 +401,17 @@ class DeliveryPartnerQuote {
   /// Avis explicite quand le colis est à retirer en agence.
   String? get pickupNotice {
     if (!isAgencyPickup) return null;
+    final agency = pickupAgency;
+    if (agency != null && agency.address.isNotEmpty) {
+      return 'data.delivery.pickup_notice_address'.trParams({
+        'name': agency.name, 'address': agency.address, 'city': agency.city,
+      });
+    }
     return city != null
-        ? 'data.delivery.pickup_notice_city'
-            .trParams({'company': companyName, 'city': city!})
+        ? 'data.delivery.pickup_notice_city'.trParams({
+            'company': companyName,
+            'city': city!,
+          })
         : 'data.delivery.pickup_notice'.trParams({'company': companyName});
   }
 

@@ -10,11 +10,14 @@ import '../../../core/widgets/app_ui.dart';
 import '../../../core/widgets/delivery_details_widgets.dart';
 import '../../../core/widgets/deposit_widgets.dart';
 import '../../../data/models/delivery_info.dart';
+import '../../../data/models/order_progress.dart';
+import '../../../core/widgets/order_progress_timeline.dart';
 import '../controllers/tracking_controller.dart';
 import '../../../core/widgets/segmented_tabs.dart';
 import '../../myOrder/controllers/my_order_controller.dart';
 import '../../myOrder/models/customer_order_models.dart';
 import '../../myOrder/views/my_order_view.dart';
+import '../../myOrder/views/order_control_section.dart';
 import '../../../core/utils/app_design.dart';
 
 /// Les deux vues de la page Suivi, côte à côte comme « Produits / PassColis »
@@ -193,15 +196,17 @@ class TrackingView extends GetView<TrackingController> {
                 // Header
                 Row(
                   children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: statusColor.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: statusColor),
+                    Flexible(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: statusColor.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: statusColor),
+                        ),
+                        child: Text(shipment['status'],
+                          style: context.textStyle(FontSizeType.caption, fontWeight: FontWeight.w600, color: statusColor)),
                       ),
-                      child: Text(shipment['status'],
-                        style: context.textStyle(FontSizeType.caption, fontWeight: FontWeight.w600, color: statusColor)),
                     ),
                     const Spacer(),
                     Text(shipment['id'],
@@ -414,17 +419,13 @@ class TrackingView extends GetView<TrackingController> {
     if (imageUrl != null && imageUrl.startsWith('http')) {
       return ClipRRect(
         borderRadius: BorderRadius.circular(12),
-        // Décodée à la taille de la vignette, pas en pleine résolution.
-        child: Image(
-          image: AppNetworkImage.provider(
-            Get.context!,
-            imageUrl,
-            Size.square(size),
-          ),
+        child: AppNetworkImage(
+          url: imageUrl,
+          decodeSize: Size.square(size),
           width: size,
           height: size,
           fit: BoxFit.cover,
-          errorBuilder: (_, __, ___) => _buildPlaceholderImage(size),
+          errorBuilder: (_) => _buildPlaceholderImage(size),
         ),
       );
     }
@@ -466,7 +467,11 @@ class TrackingView extends GetView<TrackingController> {
   }
 
   void _showTrackingDetails(BuildContext context, Map<String, dynamic> shipment) {
+    if (!Get.isRegistered<MyOrderController>()) {
+      Get.put(MyOrderController());
+    }
     final delivery = shipment['delivery'] is DeliveryInfo ? shipment['delivery'] as DeliveryInfo : null;
+    final progress = shipment['progress'] as OrderProgress?;
     final deposit = shipment['deposit'] is DepositOrderInfo ? shipment['deposit'] as DepositOrderInfo : null;
     // Feuille standard : elle prend la hauteur de son contenu (bornée sous la
     // barre d'état) au lieu d'occuper d'office 85 % de l'écran.
@@ -592,44 +597,40 @@ class TrackingView extends GetView<TrackingController> {
                   children: [
                     Text('tracking.delivery'.tr, style: context.textStyle(FontSizeType.body1, fontWeight: FontWeight.bold)),
                     const SizedBox(height: 8),
-                    OrderDeliveryDetails(
-                      delivery: delivery,
-                      deliveryFee: shipment['deliveryFee'] as double?,
-                      freeDeliveryAmount:
-                          shipment['freeDeliveryAmount'] as double? ?? 0,
-                      formatPrice: (v) => controller.formatPrice(v),
-                      showTimeline: false,
+                    Material(
+                      type: MaterialType.transparency,
+                      child: OrderDeliveryDetails(
+                        delivery: delivery,
+                        deliveryFee: shipment['deliveryFee'] as double?,
+                        freeDeliveryAmount:
+                            shipment['freeDeliveryAmount'] as double? ?? 0,
+                        formatPrice: (v) => controller.formatPrice(v),
+                        showTimeline: false,
+                      ),
                     ),
                   ],
                 ),
               ),
             ],
 
-            // Commande avec acompte : la remise suit le paiement du solde.
-            if (delivery?.canConfirmReception == true && (deposit == null || deposit.balancePaid)) ...[
-              const SizedBox(height: 16),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: () async {
-                    final done = await controller.confirmReception(shipment);
-                    if (done) Get.back();
-                  },
-                  icon: const Icon(Icons.inventory_2_outlined, size: 18),
-                  label: Text('tracking.received_parcel'.tr),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.green,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                  ),
-                ),
-              ),
-            ],
+            Obx(() {
+              final latest = controller.shipments.firstWhereOrNull(
+                (item) => item['orderId'] == shipment['orderId'],
+              );
+              final order = (latest ?? shipment)['customerOrder'] as CustomerOrder?;
+              if (order == null) return const SizedBox.shrink();
+              return CustomerOrderControlSection(
+                order: order,
+                onUpdated: () => controller.loadOrders(silent: true),
+              );
+            }),
 
             const SizedBox(height: 24),
             Text('tracking.delivery_tracking'.tr, style: context.textStyle(FontSizeType.body1, fontWeight: FontWeight.bold)),
             const SizedBox(height: 16),
-            if (delivery != null && delivery.timeline.isNotEmpty)
+            if (progress != null)
+              OrderProgressTimeline(progress: progress)
+            else if (delivery != null && delivery.timeline.isNotEmpty)
               DeliveryTimelineView(steps: delivery.timeline)
             else
               _buildTrackingTimeline(context, shipment['trackingSteps']),

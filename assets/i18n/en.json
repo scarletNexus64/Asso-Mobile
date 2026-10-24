@@ -1,4 +1,49 @@
 {
+  "partner_freight": {
+    "air_travellers": "Travellers",
+    "air_partners": "Partners",
+    "occasional": "Occasional departures",
+    "frequency": "Every @days days",
+    "meeting_after_payment": "Exact meeting locations will be shown after payment.",
+    "air_offers": "Air freight",
+    "sea": "Sea freight",
+    "air": "Air freight",
+    "general": "General cargo",
+    "sensitive": "Sensitive cargo",
+    "transit_days": "@min–@max days"
+  },
+  "landlord_upload": {
+    "id_document_type": "Choose an ID card or passport.",
+    "id_front": "Add the front of your identity document (image up to 8 MB).",
+    "id_back": "Add the back of your ID card (image up to 8 MB).",
+    "ownership_proof_type": "Choose a proof of ownership type.",
+    "ownership_proof": "Add proof of ownership (JPG, PNG, WebP or PDF, up to 10 MB).",
+    "video": "Add an MP4, MOV, 3GP or WebM video up to 100 MB.",
+    "id_size": "This photo exceeds 8 MB. Choose a smaller image.",
+    "proof_size": "This document exceeds 10 MB. Choose a smaller file.",
+    "video_size": "This video exceeds 100 MB. Reduce its size or record a shorter video.",
+    "read_failed": "This file could not be read. Select it again.",
+    "store_failed": "The server could not store this file. Please try again.",
+    "server": "The server could not save your documents. Your files remain in this form; please try again shortly.",
+    "network": "The upload did not complete. Check your connection and try again.",
+    "too_large": "The server rejected the combined file size. Reduce the video and photo sizes and try again."
+  },
+  "order_progress": {
+    "awaiting_payment": "Awaiting payment",
+    "to_confirm": "Awaiting confirmation",
+    "to_confirm_seller": "Awaiting seller confirmation",
+    "to_validate": "Awaiting validation",
+    "to_ship": "To be shipped",
+    "preparing": "Preparing",
+    "shipped": "Out for delivery",
+    "in_transit": "In transit",
+    "last_mile": "Local delivery",
+    "ready_for_pickup": "Ready for agency pickup",
+    "to_agency": "On the way to the agency",
+    "delivered": "Delivered",
+    "collected_at_agency": "Collected at agency",
+    "cancelled": "Cancelled"
+  },
   "common": {
     "coming_soon": "Coming soon",
     "error": "Error",
@@ -688,6 +733,7 @@
       },
       "category": {
         "urban": "Urban",
+        "regional": "Urban · regional",
         "intercity": "Intercity",
         "international": "International"
       },
@@ -696,6 +742,7 @@
       "home_delivery": "Home delivery",
       "agency_pickup": "Agency pickup",
       "pickup_notice": "You will collect your parcel at the @company agency.",
+      "pickup_notice_address": "Shop collection included. Pickup: @name, @address, @city.",
       "pickup_notice_city": "You will collect your parcel at the @company agency in @city."
     },
     "wallet": {
@@ -1291,7 +1338,8 @@
       "service_unavailable": "The bank transfer service is temporarily unavailable. Check your connection and try again in a few moments.",
       "iban_seems_invalid": "The IBAN entered seems invalid. Check it and try again.",
       "save_error_later": "An error occurred while saving. Please try again later.",
-      "fix_fields": "Some details need fixing: see the red messages under the fields."
+      "fix_fields": "Some details need fixing: see the red messages under the fields.",
+      "account_already_validated": "Your IBAN is already approved. Unlink it before saving another one."
     },
     "birth_date_required_title": "Date of birth required",
     "birth_date_required_message": "Choose your date of birth: our banking partner requires it to enable transfers.",
@@ -1316,10 +1364,15 @@
       "iban_too_long": "The IBAN is too long (34 characters max).",
       "iban_checksum": "This IBAN contains a mistake (wrong check digits): copy it again from your bank details.",
       "holder_too_short": "The account holder's name is too short.",
+      "holder_too_long": "The account holder's name cannot exceed 255 characters.",
       "phone_international": "Start with the country code (e.g. +33 6 12 34 56 78).",
       "phone_too_long": "Number too long: please check it.",
       "address_too_short": "Address too short: enter the number and street.",
-      "postal_invalid": "Invalid postal code (letters, digits, 3 to 10 characters)."
+      "address_too_long": "The address cannot exceed 255 characters.",
+      "city_too_long": "The city name cannot exceed 120 characters.",
+      "postal_invalid": "The postal code is not valid.",
+      "postal_too_long": "The postal code cannot exceed 20 characters.",
+      "country_unsupported": "Bank transfers are not available for this country. Choose a country supported by Stripe."
     },
     "view": {
       "title": "Payout account",
@@ -1982,6 +2035,7 @@
       "couriers_here": "Couriers available in this area",
       "agency_pickup_here": "Branch pickup available here",
       "no_courier_here": "No courier serves this location",
+      "covered_quote_unavailable": "Covered area, delivery for this item needs checking",
       "offers_depend_on_shop": "Offers and prices depend on the shop: they're shown in the next step.",
       "move_to_zone_hint": "Move the pin to a colored zone, or choose another delivery method."
     },
@@ -3248,7 +3302,7 @@
     },
     "sheet_title": "Order tracking",
     "confirmation_code": "Confirmation code",
-    "code_hint": "Give this code to the courier",
+    "code_hint": "Give this code to the courier only when the parcel is handed to you.",
     "your_courier": "Your courier",
     "delivery": "Delivery",
     "received_parcel": "I received my parcel",
@@ -3317,6 +3371,7 @@
       "order_value": "Order value"
     },
     "actions": {
+      "hand_to_agency": "Hand over to agency",
       "call": "Call",
       "decline": "Decline",
       "round_full": "Round full",
@@ -3354,6 +3409,7 @@
       "failed": "Unable to decline the request"
     },
     "confirm": {
+      "agency_prompt": "Enter the handover code provided by ASSO to the agency recipient. The customer will collect the parcel at the agency later.",
       "title": "Confirm delivery",
       "prompt": "Enter the 6-digit secret code given by the customer:",
       "success_title": "Delivery confirmed!",
@@ -3493,6 +3549,8 @@
     "unverified_profile": "Unverified profile",
     "status_badge": {
       "rejected": "Offer rejected",
+      "expired": "Departure passed · Removed from catalogue",
+      "full": "Fully booked · No kilos available",
       "unverified_deadline": "Published · Unverified profile — to resolve before @date",
       "unverified": "Published · Unverified profile",
       "pending": "Awaiting approval",
@@ -3801,6 +3859,10 @@
       "available_elsewhere": "Available elsewhere:"
     },
     "delivery": {
+      "calculate": "Calculate delivery offers",
+      "street_address": "Street address and landmark",
+      "quarter": "Neighbourhood",
+      "city": "City",
       "missing_address": "Enter your delivery address.",
       "missing_details": "Add address details: landmark, building, gate…",
       "missing_phone": "Enter a valid contact number.",
@@ -4092,6 +4154,7 @@
       "other": "Other"
     },
     "form": {
+      "quantity": "Disputed quantity",
       "title": "Report a problem",
       "replacement_title": "Problem with the replacement product",
       "submit": "Send my claim",
@@ -4118,6 +4181,7 @@
       "unfounded": "Claim not upheld"
     },
     "shipment": {
+      "collection_title": "Collection for exchange",
       "return_title": "Product return",
       "replacement_title": "Replacement product",
       "paid_by_asso": "Delivery covered by ASSO",
@@ -4125,7 +4189,7 @@
       "free_for_you": "No delivery fees for you",
       "tracking": "Tracking no.: @number",
       "code_client": "Your delivery code, to give the courier only when they hand you the product:",
-      "code_vendor": "Your return code, to give the courier when they bring the product back (the customer is then refunded):",
+      "code_vendor": "Shop reception code: share it with the courier only when the item is handed over.",
       "courier": "Courier: @name",
       "call_courier": "Call the courier"
     },
@@ -4159,6 +4223,7 @@
       "replacement_subtitle": "Shipping the replacement to the customer, at your expense"
     },
     "vendor": {
+      "response_due": "Response expected by @date",
       "list_title": "Claims",
       "dashboard_subtitle": "Customer disputes, replacements and returns",
       "filter_open": "Open",
@@ -4286,7 +4351,7 @@
     "departures": "Departures",
     "my_shipments": "My shipments"
   },
-  "search_hint": "Search a city or partner",
+  "search_hint": "Search a city or country",
   "filter_all": "All departures",
   "filter_bookable": "Bookable only",
   "reservations_closed": "Bookings closed",
@@ -4593,7 +4658,7 @@
       "dispute_title": "Disputes",
       "dispute_body": "The property does not match the listing? Report it before the period ends: ASSO reviews the dispute and can refund you.",
       "fees_title": "Service fee",
-      "fees_body": "The ASSO commission is paid on top of the amount and is non-refundable."
+      "fees_body": "The displayed advance goes entirely to the landlord or beneficiary firm. The ASSO share and firm commission are added to this advance and are non-refundable."
     },
     "owner": {
       "hidden_name": "ASSO landlord",
@@ -4610,8 +4675,8 @@
       "headquarters": "Head office: @city",
       "why_us": "Why choose us?",
       "contact_title": "Contact details",
-      "contact_hidden": "The firm's contact details are shared with you as soon as you pay the deposit.",
-      "contact_us": "Contact us",
+      "contact_hidden": "Contact details for your property are available in its paid reservation. Other properties remain hidden.",
+      "contact_us": "Contact ASSO",
       "no_lands": "No plot available right now"
     },
     "contact": {
@@ -4620,6 +4685,12 @@
       "default_message": "Hello, I am interested in \"@title\" (ref. @reference)."
     },
     "quote": {
+      "legacy_commission": "ASSO commission",
+      "net_amount": "Beneficiary payout",
+      "net_beneficiary": "Net recipient",
+      "platform_share": "ASSO share",
+      "cabinet": "Partner agency",
+      "landlord": "Landlord",
       "title": "Summary",
       "title_land": "Deposit",
       "advance_months": "Months in advance",
@@ -4627,13 +4698,14 @@
       "lot_price": "Plot price",
       "advance": "Advance (@months months)",
       "deposit": "Deposit (@percent %)",
-      "commission": "ASSO commission",
+      "commission": "Partner agency commission",
       "commission_help": "Non-refundable",
       "total": "Total to pay",
       "escrow": "The rent is held for @days days so you can visit. You confirm on ASSO that the home matches, then the landlord is paid.",
       "escrow_land": "The deposit is held for @days days. You meet the firm, confirm on ASSO, then the firm is paid.",
       "continue": "Continue",
-      "error": "Unable to calculate the amount"
+      "error": "Unable to calculate the amount",
+      "non_refundable_note": "Please note: the ASSO share and the partner firm commission are non-refundable."
     },
     "tour": {
       "title": "Room-by-room tour",
@@ -4690,12 +4762,12 @@
       "strength": "Application strength: @percent %",
       "strength_help": "The more complete your application, the more the landlord trusts you.",
       "contract_title": "Booking contract",
-      "contract_1": "The rent in advance is held by ASSO for @days days, giving you time to visit.",
-      "contract_2": "The ASSO commission is collected immediately and is non-refundable.",
+      "contract_1": "The landlord's net amount is held by ASSO for @days days so you can visit the home.",
+      "contract_2": "The ASSO share and the partner firm commission are retained upon payment and are non-refundable.",
       "contract_3": "If something is wrong before the deadline, report it on ASSO: the amount stays held until ASSO decides.",
-      "contract_land_1": "The deposit is held by ASSO for @days days, giving you time to meet the agency.",
+      "contract_land_1": "The firm's net amount is held by ASSO for @days days so you can check the plot.",
       "contract_land_4": "ASSO puts you in touch with the agency; the sale is concluded directly with it.",
-      "accept": "I accept the contract and understand the ASSO commission is non-refundable.",
+      "accept": "I accept the contract and the terms for non-refundable fees.",
       "edit": "Edit",
       "continue": "Continue",
       "pay": "Pay",
@@ -4750,7 +4822,9 @@
       "see_listing": "View listing",
       "tenant": "Tenant",
       "buyer": "Buyer",
-      "your_share": "Your share (held)"
+      "your_share": "Your share (held)",
+      "documents_title": "Your documents",
+      "documents_help": "The contract and invoice for this property are available as soon as payment is confirmed, before you confirm conformity."
     },
     "dispute": {
       "title": "Dispute",
@@ -4906,12 +4980,12 @@
       "units_help": "For a residence, add each type of home with its number of places.",
       "add_unit": "Add a type of home",
       "unit_label": "Label (e.g. Single room)",
-      "unit_price": "Net rent",
+      "unit_price": "Reference rent",
       "unit_total": "Places",
       "unit_surface": "Size (m²)",
       "unit_capacity": "People",
-      "net_price": "Monthly rent you want to receive (FCFA)",
-      "net_price_help": "ASSO adds its fees to the displayed price; you receive this amount.",
+      "net_price": "Reference monthly rent (FCFA)",
+      "net_price_help": "You receive the entire advance based on the displayed rent. The tenant pays ASSO and firm fees separately.",
       "advance": "Months paid in advance",
       "min_lease": "Minimum lease (months)",
       "available_from": "Available from",
@@ -4944,5 +5018,18 @@
       "error": "Unable to save"
     },
     "received": "Bookings received"
-  }
+  },
+  "data.delivery.steps.pickup_requested": "Pickup request sent to partner",
+  "data.delivery.steps.pickup_accepted": "Pickup accepted by partner",
+  "data.delivery.steps.collected_by_carrier": "Parcel collected from ASSO by partner",
+  "data.delivery.steps.partner_in_transit": "In transit with partner",
+  "data.delivery.steps.agency_assigned": "Pickup agency assigned",
+  "data.delivery.steps.collected_at_agency": "Agency collection recorded by ASSO",
+  "data.delivery.steps.reception_confirmed": "Receipt confirmed by customer",
+  "core.delivery.pickup_agency": "Pickup agency",
+  "core.delivery.agency_address": "Address",
+  "core.delivery.agency_phone": "Agency phone",
+  "core.delivery.agency_pickup_instructions": "Your parcel is ready. Present your order reference at the agency for collection.",
+  "delivery_dashboard.distance_unavailable": "Distance unavailable",
+  "delivery_dashboard.straight_line": "straight line"
 }

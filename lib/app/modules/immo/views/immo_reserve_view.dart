@@ -1,4 +1,6 @@
+import '../widgets/immo_summary_row.dart';
 import 'package:flutter/material.dart';
+import '../widgets/immo_fee_details.dart';
 import 'package:get/get.dart';
 
 import '../../../core/utils/app_design.dart';
@@ -13,11 +15,33 @@ import '../immo_payment.dart';
 import '../widgets/immo_sheets.dart';
 import '../widgets/immo_widgets.dart';
 
+DateTime immoMoveInPickerInitialDate(DateTime? selectedDate, DateTime today) {
+  final firstDate = DateTime(today.year, today.month, today.day);
+  final lastDate = firstDate.add(const Duration(days: 365));
+  if (selectedDate == null) return firstDate;
+
+  final selected = DateTime(
+    selectedDate.year,
+    selectedDate.month,
+    selectedDate.day,
+  );
+  if (selected.isBefore(firstDate)) return firstDate;
+  if (selected.isAfter(lastDate)) return lastDate;
+
+  return selected;
+}
+
+String immoMoveInSummary(DateTime? date) => date == null ? '-' : immoDate(date);
+
+String? immoMoveInApiValue(DateTime? date) =>
+    date?.toIso8601String().substring(0, 10);
+
 class ImmoReserveArgs {
-  const ImmoReserveArgs({required this.listing, this.unit});
+  const ImmoReserveArgs({required this.listing, this.unit, this.advanceMonths});
 
   final RealEstateListing listing;
   final RealEstateUnit? unit;
+  final int? advanceMonths;
 }
 
 /// Parcours « Réserver » (captures Studapart 22 à 26) : seul ou accompagné,
@@ -44,7 +68,9 @@ class _ImmoReserveViewState extends State<ImmoReserveView> {
   final _message = TextEditingController();
   DateTime? _moveIn;
   int? _months;
-  late int _advance = widget.args.listing.advanceMonths ?? 1;
+  late int _advance =
+      widget.args.advanceMonths ?? widget.args.listing.advanceMonths ?? 1;
+  int _quoteRequest = 0;
   RealEstateQuote? _quote;
   bool _accepted = false;
   bool _paying = false;
@@ -78,12 +104,17 @@ class _ImmoReserveViewState extends State<ImmoReserveView> {
   }
 
   Future<void> _loadQuote() async {
+    final request = ++_quoteRequest;
+    setState(() {
+      _quote = null;
+      _accepted = false;
+    });
     final q = await RealEstateService.quote(
       _listing.id,
       unitId: widget.args.unit?.id,
       advanceMonths: _isLand ? null : _advance,
     );
-    if (mounted) setState(() => _quote = q);
+    if (mounted && request == _quoteRequest) setState(() => _quote = q);
   }
 
   /// Écarts avec les conditions du bailleur (bandeau « Attention »).
@@ -148,8 +179,7 @@ class _ImmoReserveViewState extends State<ImmoReserveView> {
         'unit_id': ?widget.args.unit?.id,
         if (!_isLand) 'advance_months': _advance,
         if (!_isLand) 'months': _months ?? 0,
-        if (_moveIn != null)
-          'move_in_date': _moveIn!.toIso8601String().substring(0, 10),
+        if (_moveIn != null) 'move_in_date': immoMoveInApiValue(_moveIn),
         'applicant_status': ?_status,
         if (_school.text.trim().isNotEmpty)
           'school_or_employer': _school.text.trim(),
@@ -160,6 +190,7 @@ class _ImmoReserveViewState extends State<ImmoReserveView> {
               if (c.text.trim().isNotEmpty) {'name': c.text.trim()},
           ],
         'contract_accepted': true,
+        'expected_total': q.total,
       },
     );
     if (!mounted) return;
@@ -464,11 +495,13 @@ class _ImmoReserveViewState extends State<ImmoReserveView> {
       ),
       onTap: () async {
         final now = DateTime.now();
+        final firstDate = DateTime(now.year, now.month, now.day);
+        final lastDate = firstDate.add(const Duration(days: 365));
         final picked = await showDatePicker(
           context: context,
-          firstDate: DateTime(now.year, now.month, now.day),
-          lastDate: now.add(const Duration(days: 365)),
-          initialDate: _moveIn ?? now,
+          firstDate: firstDate,
+          lastDate: lastDate,
+          initialDate: immoMoveInPickerInitialDate(_moveIn, firstDate),
         );
         if (picked != null) setState(() => _moveIn = picked);
       },
@@ -620,7 +653,7 @@ class _ImmoReserveViewState extends State<ImmoReserveView> {
           c.text.trim(),
       ], 0),
       _section(context, 'immo.criteria.move_in'.tr, [
-        _moveIn == null ? '-' : immoDate(_moveIn!),
+        immoMoveInSummary(_moveIn),
       ], 2),
       _section(context, 'immo.criteria.duration'.tr, [
         'immo.criteria.months'.trParams({'count': '${_months ?? '-'}'}),
@@ -702,6 +735,12 @@ class _ImmoReserveViewState extends State<ImmoReserveView> {
             padding: const EdgeInsets.all(AppDesign.space4),
             child: Column(
               children: [
+                if (!_isLand)
+                  _row(
+                    context,
+                    'immo.criteria.move_in'.tr,
+                    immoMoveInSummary(_moveIn),
+                  ),
                 _row(
                   context,
                   _isLand
@@ -720,11 +759,18 @@ class _ImmoReserveViewState extends State<ImmoReserveView> {
                         }),
                   immoPrice(q.baseAmount),
                 ),
+                ImmoFeeDetails(
+                  netAmount: q.netAmount,
+                  platformAmount: q.platformAmount,
+                  cabinetName: q.commissionCabinet?.name,
+                  netPayeeKind: q.netPayeeKind,
+                ),
                 if (q.commission > 0)
                   _row(
                     context,
-                    '${'immo.quote.commission'.tr} (${'immo.quote.commission_help'.tr})',
+                    'immo.quote.commission'.tr,
                     immoPrice(q.commission),
+                    help: 'immo.quote.commission_help'.tr,
                   ),
                 const Divider(height: AppDesign.space6),
                 _row(
@@ -806,29 +852,6 @@ class _ImmoReserveViewState extends State<ImmoReserveView> {
     String label,
     String value, {
     bool bold = false,
-  }) => Padding(
-    padding: const EdgeInsets.only(bottom: AppDesign.space2),
-    child: Row(
-      children: [
-        Expanded(
-          child: Text(
-            label,
-            style: context.textStyle(
-              bold ? FontSizeType.subtitle1 : FontSizeType.body1,
-              fontWeight: bold ? FontWeight.w800 : FontWeight.w400,
-              color: context.ds.textPrimary,
-            ),
-          ),
-        ),
-        Text(
-          value,
-          style: context.textStyle(
-            bold ? FontSizeType.subtitle1 : FontSizeType.body1,
-            fontWeight: FontWeight.w700,
-            color: bold ? AppDesign.accent : context.ds.textPrimary,
-          ),
-        ),
-      ],
-    ),
-  );
+    String? help,
+  }) => ImmoSummaryRow(label: label, value: value, bold: bold, help: help);
 }
