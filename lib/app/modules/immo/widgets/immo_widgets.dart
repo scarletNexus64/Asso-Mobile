@@ -9,19 +9,17 @@ import '../../../core/widgets/app_network_image.dart';
 import '../../../core/widgets/app_ui.dart';
 import '../../../data/models/real_estate_models.dart';
 import '../../../data/providers/currency_service.dart';
+import '../controllers/immo_home_controller.dart';
 
 /// Montant FCFA affiché dans la devise de l'utilisateur.
 String immoPrice(num amount) =>
     CurrencyService.formatFromPivot(amount.toDouble());
 
 bool immoHasDiscount(RealEstateListing listing, {RealEstateUnit? unit}) {
-  final price = listing.isLand
-      ? (unit == null ? listing.pricePerM2 : unit.pricePerM2)
-      : (unit?.price ?? listing.price);
-  final old = listing.isLand
-      ? (unit == null ? listing.oldPricePerM2 : unit.oldPricePerM2)
-      : (unit == null ? listing.oldPrice : unit.oldPrice);
-  return price != null && old != null && old > price;
+  if (listing.isLand) return ImmoLandPrice.of(listing, unit: unit).hasDiscount;
+  final price = unit?.price ?? listing.price;
+  final old = unit == null ? listing.oldPrice : unit.oldPrice;
+  return old != null && old > price;
 }
 
 /// Land prices are displayed per m². Totals remain in the payment quote.
@@ -31,29 +29,18 @@ String immoOfferPrice(
   bool old = false,
 }) {
   if (listing.isLand) {
-    final rate = unit == null
-        ? (old ? listing.oldPricePerM2 : listing.pricePerM2)
-        : (old ? unit.oldPricePerM2 : unit.pricePerM2);
-    final surface = unit?.surfaceMin ?? listing.surfaceM2;
-    final exact = unit == null
-        ? listing.units.isEmpty
-        : unit.surfaceMax == null || unit.surfaceMax == surface;
-    final total = unit == null
-        ? (old ? listing.oldPrice : listing.price)
-        : (old ? unit.oldPrice : unit.price);
-    final amount =
-        rate ??
-        (exact && surface != null && surface > 0 && total != null
-            ? total / surface
-            : null);
-    final formatted = immoPrice(amount ?? 0);
-    return amount == null ? 'immo.card.price_on_request'.tr : '$formatted / m²';
+    final price = ImmoLandPrice.of(listing, unit: unit);
+    final rate = old ? price.oldPerM2 : price.perM2;
+    return rate == null ? 'immo.card.price_on_request'.tr : immoPerM2(rate);
   }
   final amount = unit == null
       ? (old ? listing.oldPrice : listing.price)
       : (old ? unit.oldPrice : unit.price);
   return '${immoPrice(amount ?? 0)}${listing.isRent ? ' ${'immo.card.per_month'.tr}' : ''}';
 }
+
+/// « 25 000 FCFA / m² » dans la devise de l'utilisateur.
+String immoPerM2(double rate) => '${immoPrice(rate)} / m²';
 
 /// Surface d'un morceau : « 1 000 m² » ou « 300 à 400 m² ».
 String? immoLotSurface(RealEstateSubdivision sub) {
@@ -381,18 +368,31 @@ class ImmoAvailability extends StatelessWidget {
   }
 }
 
-/// Prix orange, avec « À partir de » et ancien prix barré.
+/// Prix orange, avec « À partir de » et ancien prix barré. Un terrain
+/// affiche son prix au m² et son prix global ([ImmoLandPriceText]).
 class ImmoPriceText extends StatelessWidget {
-  const ImmoPriceText({super.key, required this.listing, this.large = false});
+  const ImmoPriceText({
+    super.key,
+    required this.listing,
+    this.large = false,
+    this.landPrice,
+  });
 
   final RealEstateListing listing;
   final bool large;
 
+  /// Prix déjà calculé par le contrôleur ; sinon calculé ici.
+  final ImmoLandPrice? landPrice;
+
   @override
   Widget build(BuildContext context) {
-    final sub = listing.subdivision;
-    if (listing.isSoldPerLot && sub?.lotPriceFrom != null) {
-      return _perLot(context, sub!);
+    if (listing.isLand) {
+      final sub = listing.subdivision;
+      return ImmoLandPriceText(
+        price: landPrice ?? ImmoLandPrice.of(listing),
+        lotSurface: sub == null ? null : immoLotSurface(sub),
+        large: large,
+      );
     }
     return Obx(() {
       final price = immoOfferPrice(listing);
@@ -418,9 +418,7 @@ class ImmoPriceText extends StatelessWidget {
                 style: context.textStyle(
                   large ? FontSizeType.h5 : FontSizeType.subtitle1,
                   fontWeight: FontWeight.w800,
-                  color: listing.isLand
-                      ? context.ds.textPrimary
-                      : AppDesign.accent,
+                  color: AppDesign.accent,
                 ),
               ),
               if (immoHasDiscount(listing))
@@ -441,37 +439,111 @@ class ImmoPriceText extends StatelessWidget {
   }
 }
 
-extension on ImmoPriceText {
-  /// « dès 20 000 000 FCFA le morceau de 1 000 m² ».
-  Widget _perLot(BuildContext context, RealEstateSubdivision sub) {
-    final surface = immoLotSurface(sub);
+/// Prix d'un terrain : prix au m² en grand (ancien prix barré), prix global
+/// en dessous. Sans prix au m² connu, le prix global passe en grand.
+/// Montants convertis dans la devise de l'utilisateur.
+class ImmoLandPriceText extends StatelessWidget {
+  const ImmoLandPriceText({
+    super.key,
+    required this.price,
+    this.lotSurface,
+    this.large = false,
+    this.end = false,
+    this.color,
+    this.showFrom = true,
+  });
+
+  final ImmoLandPrice price;
+
+  /// « 1 000 m² » : complète « le morceau de … » sous le prix global.
+  final String? lotSurface;
+  final bool large;
+
+  /// Aligné à droite (carte d'un lot).
+  final bool end;
+  final Color? color;
+  final bool showFrom;
+
+  /// Surface du morceau affiché ; à défaut, la fourchette de l'annonce.
+  String? get _lotSurface {
+    final m2 = price.lotSurface;
+    if (m2 == null) return lotSurface;
+    final fmt = NumberFormat.decimalPattern(Get.locale?.languageCode ?? 'fr');
+    return '${fmt.format(m2)} m²';
+  }
+
+  String _totalLine(int total) {
+    final amount = immoPrice(total);
+    if (!price.perLot) {
+      return 'immo.land.total_price'.trParams({'amount': amount});
+    }
+    final lot = _lotSurface == null
+        ? 'immo.land.per_lot'.tr
+        : 'immo.land.per_lot_of'.trParams({'surface': _lotSurface!});
+    return '$amount $lot';
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final muted = context.textStyle(
       FontSizeType.caption,
       color: context.ds.textSecondary,
     );
-    return Obx(
-      () => Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+    final main = context.textStyle(
+      large ? FontSizeType.h5 : FontSizeType.subtitle1,
+      fontWeight: FontWeight.w800,
+      color: color ?? context.ds.textPrimary,
+    );
+    final struck = context
+        .textStyle(FontSizeType.body2, color: context.ds.textTertiary)
+        .copyWith(decoration: TextDecoration.lineThrough);
+    final align = end ? CrossAxisAlignment.end : CrossAxisAlignment.start;
+
+    return Obx(() {
+      final perM2 = price.perM2;
+      final total = price.total;
+      final String headline;
+      String? old;
+      String? sub;
+      if (perM2 != null) {
+        headline = immoPerM2(perM2);
+        if (price.hasDiscount) old = immoPerM2(price.oldPerM2!);
+        if (total != null) sub = _totalLine(total);
+      } else if (total != null) {
+        headline = price.perLot ? immoPrice(total) : _totalLine(total);
+        if (price.hasDiscount) old = immoPrice(price.oldTotal!);
+        if (price.perLot) {
+          sub = _lotSurface == null
+              ? 'immo.land.per_lot'.tr
+              : 'immo.land.per_lot_of'.trParams({'surface': _lotSurface!});
+        }
+      } else {
+        headline = 'immo.card.price_on_request'.tr;
+      }
+
+      return Column(
+        crossAxisAlignment: align,
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text('immo.land.from'.tr, style: muted),
-          Text(
-            immoPrice(sub.lotPriceFrom!),
-            style: context.textStyle(
-              large ? FontSizeType.h5 : FontSizeType.subtitle1,
-              fontWeight: FontWeight.w800,
-              color: context.ds.textPrimary,
+          if (showFrom && price.from)
+            Text(
+              price.perLot ? 'immo.land.from'.tr : 'immo.card.from'.tr,
+              style: muted,
             ),
+          Wrap(
+            alignment: end ? WrapAlignment.end : WrapAlignment.start,
+            crossAxisAlignment: WrapCrossAlignment.end,
+            spacing: AppDesign.space2,
+            children: [
+              Text(headline, style: main),
+              if (old != null) Text(old, style: struck),
+            ],
           ),
-          Text(
-            surface == null
-                ? 'immo.land.per_lot'.tr
-                : 'immo.land.per_lot_of'.trParams({'surface': surface}),
-            style: muted,
-          ),
+          if (sub != null)
+            Text(sub, style: muted, textAlign: end ? TextAlign.end : null),
         ],
-      ),
-    );
+      );
+    });
   }
 }
 
@@ -630,12 +702,16 @@ class ImmoLandCard extends StatelessWidget {
     required this.onTap,
     required this.onFavorite,
     this.onCabinet,
+    this.landPrice,
   });
 
   final RealEstateListing listing;
   final VoidCallback onTap;
   final VoidCallback onFavorite;
   final VoidCallback? onCabinet;
+
+  /// Prix préparé par [ImmoHomeController] ; calculé ici à défaut.
+  final ImmoLandPrice? landPrice;
 
   @override
   Widget build(BuildContext context) {
@@ -694,7 +770,11 @@ class ImmoLandCard extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: AppDesign.space1),
-                ImmoPriceText(listing: listing, large: true),
+                ImmoPriceText(
+                  listing: listing,
+                  large: true,
+                  landPrice: landPrice,
+                ),
                 if (listing.subdivision != null) ...[
                   const SizedBox(height: AppDesign.space2),
                   ImmoSaleModeBadge(listing: listing),

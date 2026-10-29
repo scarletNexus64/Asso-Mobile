@@ -15,6 +15,130 @@ const List<String> kImmoSorts = [
   'featured',
 ];
 
+/// Prix d'un terrain prêt à afficher : prix au m² et prix global.
+///
+/// Les montants restent en FCFA (devise pivot de l'API) ; la vue les convertit
+/// dans la devise de l'utilisateur au moment de l'affichage, pour suivre un
+/// changement de devise sans recharger la liste.
+class ImmoLandPrice {
+  const ImmoLandPrice({
+    this.perM2,
+    this.oldPerM2,
+    this.total,
+    this.oldTotal,
+    this.from = false,
+    this.perLot = false,
+    this.lotSurface,
+  });
+
+  final double? perM2;
+  final double? oldPerM2;
+
+  /// Prix global : celui du terrain entier, ou d'un morceau si [perLot].
+  final int? total;
+  final int? oldTotal;
+
+  /// « À partir de » : plusieurs lots, on affiche le moins cher.
+  final bool from;
+  final bool perLot;
+
+  /// Surface (m²) du morceau dont on affiche le prix, quand elle est connue.
+  final int? lotSurface;
+
+  bool get hasDiscount => perM2 != null
+      ? oldPerM2 != null && oldPerM2! > perM2!
+      : total != null && oldTotal != null && oldTotal! > total!;
+
+  /// Prix au m² déduit du total, seulement pour une surface exacte.
+  static double? _rate(int? price, int? surface, [int? surfaceMax]) {
+    if (price == null || price <= 0 || surface == null || surface <= 0) {
+      return null;
+    }
+    if (surfaceMax != null && surfaceMax != surface) return null;
+    return price / surface;
+  }
+
+  static int? _positive(int? value) =>
+      value != null && value > 0 ? value : null;
+
+  /// Prix d'une annonce de terrain, ou d'un de ses lots ([unit]).
+  factory ImmoLandPrice.of(RealEstateListing listing, {RealEstateUnit? unit}) {
+    if (unit != null) {
+      final total = unit.payment?.lotPrice ?? unit.price;
+      return ImmoLandPrice(
+        perM2:
+            unit.pricePerM2 ?? _rate(total, unit.surfaceMin, unit.surfaceMax),
+        oldPerM2:
+            unit.oldPricePerM2 ??
+            _rate(unit.oldPrice, unit.surfaceMin, unit.surfaceMax),
+        total: _positive(total),
+        oldTotal: _positive(unit.oldPrice),
+        perLot: listing.isSoldPerLot,
+      );
+    }
+
+    final sub = listing.subdivision;
+    if (listing.isSoldPerLot) {
+      // Prix au m² et prix global du même morceau : le moins cher encore
+      // disponible (celui que la fiche présélectionne).
+      final lots = listing.units.where((u) => u.isAvailable).toList();
+      if (lots.isEmpty) lots.addAll(listing.units);
+      final cheapest = lots
+          .where((u) => _positive(u.payment?.lotPrice ?? u.price) != null)
+          .fold<RealEstateUnit?>(
+            null,
+            (best, u) =>
+                best == null ||
+                    (u.payment?.lotPrice ?? u.price) <
+                        (best.payment?.lotPrice ?? best.price)
+                ? u
+                : best,
+          );
+      if (cheapest != null) {
+        final lot = ImmoLandPrice.of(listing, unit: cheapest);
+        return ImmoLandPrice(
+          perM2: lot.perM2,
+          oldPerM2: lot.oldPerM2,
+          total: lot.total,
+          oldTotal: lot.oldTotal,
+          from: lots.length > 1 || (sub?.lotsAvailable ?? 1) > 1,
+          perLot: true,
+          lotSurface:
+              cheapest.surfaceMax == null ||
+                  cheapest.surfaceMax == cheapest.surfaceMin
+              ? cheapest.surfaceMin
+              : null,
+        );
+      }
+
+      // Carte de liste, sans les lots : le moins cher est le plus petit.
+      if (sub?.lotPriceFrom != null) {
+        return ImmoLandPrice(
+          perM2: _rate(sub!.lotPriceFrom, sub.lotSurfaceMin),
+          total: _positive(sub.lotPriceFrom),
+          from: sub.lotsAvailable > 1 || listing.priceFrom,
+          perLot: true,
+          lotSurface: sub.lotSurfaceMin,
+        );
+      }
+    }
+
+    final total = _positive(listing.price) ?? _positive(sub?.totalPrice);
+    final surface = listing.surfaceM2 ?? sub?.totalSurfaceM2;
+    return ImmoLandPrice(
+      perM2:
+          listing.pricePerM2 ??
+          (listing.units.isEmpty ? _rate(total, surface) : null),
+      oldPerM2:
+          listing.oldPricePerM2 ??
+          (listing.units.isEmpty ? _rate(listing.oldPrice, surface) : null),
+      total: total,
+      oldTotal: _positive(listing.oldPrice),
+      from: listing.priceFrom,
+    );
+  }
+}
+
 /// Page d'entrée de la rubrique : onglets Maisons à louer / Terrains à
 /// vendre, recherche, filtres, tri et liste paginée.
 class ImmoHomeController extends GetxController {
@@ -29,6 +153,9 @@ class ImmoHomeController extends GetxController {
   final RxMap<String, dynamic> filters = <String, dynamic>{}.obs;
 
   final RxList<RealEstateListing> items = <RealEstateListing>[].obs;
+
+  /// Prix des terrains de [items], calculés une fois au chargement.
+  final Map<int, ImmoLandPrice> landPrices = {};
   final RxBool isLoading = true.obs;
   final RxBool isLoadingMore = false.obs;
   final RxBool hasError = false.obs;
@@ -113,6 +240,7 @@ class ImmoHomeController extends GetxController {
     isLoading.value = false;
     if (page == null) {
       hasError.value = true;
+      landPrices.clear();
       items.clear();
       total.value = 0;
       return;
@@ -120,6 +248,9 @@ class ImmoHomeController extends GetxController {
     _page = 1;
     _hasMore = page.hasMore;
     total.value = page.total;
+    landPrices
+      ..clear()
+      ..addAll(_landPrices(page.items));
     items.assignAll(page.items);
   }
 
@@ -135,8 +266,17 @@ class ImmoHomeController extends GetxController {
     if (page == null) return;
     _page = page.currentPage;
     _hasMore = page.hasMore;
+    landPrices.addAll(_landPrices(page.items));
     items.addAll(page.items);
   }
+
+  static Map<int, ImmoLandPrice> _landPrices(List<RealEstateListing> list) => {
+    for (final l in list)
+      if (l.isLand) l.id: ImmoLandPrice.of(l),
+  };
+
+  ImmoLandPrice landPriceOf(RealEstateListing listing) =>
+      landPrices[listing.id] ??= ImmoLandPrice.of(listing);
 
   void switchType(RealEstateType value) {
     if (type.value == value) return;

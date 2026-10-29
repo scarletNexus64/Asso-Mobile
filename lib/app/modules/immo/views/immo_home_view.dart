@@ -195,6 +195,7 @@ class _ImmoHomeViewState extends State<ImmoHomeView> {
                     return listing.isLand
                         ? ImmoLandCard(
                             listing: listing,
+                            landPrice: c.landPriceOf(listing),
                             onTap: () => _openListing(listing),
                             onFavorite: () => _toggleFavorite(listing),
                             onCabinet: listing.cabinet == null

@@ -22,16 +22,25 @@ class ImmoLotPaymentDetails extends StatelessWidget {
     super.key,
     required this.payment,
     this.showLotPrice = true,
+    this.pricePerM2,
   });
 
   final RealEstateLotPayment payment;
   final bool showLotPrice;
+
+  /// Prix au m² du morceau (FCFA), affiché au-dessus du prix du lot.
+  final double? pricePerM2;
 
   @override
   Widget build(BuildContext context) {
     return Obx(
       () => Column(
         children: [
+          if (showLotPrice && pricePerM2 != null)
+            ImmoSummaryRow(
+              label: 'immo.quote.price_per_m2'.tr,
+              value: immoPerM2(pricePerM2!),
+            ),
           if (showLotPrice)
             ImmoSummaryRow(
               label: 'immo.quote.lot_price'.tr,

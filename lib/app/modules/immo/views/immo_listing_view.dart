@@ -13,6 +13,7 @@ import '../../../data/models/real_estate_models.dart';
 import '../../../data/providers/real_estate_service.dart';
 import '../immo_actions.dart';
 import '../immo_nav.dart';
+import '../controllers/immo_home_controller.dart';
 import '../widgets/immo_lot_payment.dart';
 import '../widgets/immo_quote_sheet.dart';
 import '../widgets/immo_widgets.dart';
@@ -1023,9 +1024,9 @@ class _UnitCard extends StatelessWidget {
         unit.unitsAvailable > 0 &&
         unit.unitsAvailable <= 4;
     final sold = !unit.isAvailable;
-    // Terrain : prix du morceau en grand, prix au m² en dessous.
-    final lotPrice = listing.isLand
-        ? immoPrice(unit.payment?.lotPrice ?? unit.price)
+    // Terrain : prix au m² en grand, prix du morceau en dessous.
+    final landPrice = listing.isLand
+        ? ImmoLandPrice.of(listing, unit: unit)
         : null;
 
     final card = AppCard(
@@ -1063,39 +1064,41 @@ class _UnitCard extends StatelessWidget {
                   ],
                 ),
               ),
-              Obx(
-                () => Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Text(
-                      lotPrice ?? immoOfferPrice(listing, unit: unit),
-                      style: context.textStyle(
-                        FontSizeType.subtitle1,
-                        fontWeight: FontWeight.w800,
-                        color: AppDesign.accent,
-                      ),
-                    ),
-                    if (lotPrice != null)
+              if (landPrice != null)
+                Flexible(
+                  child: ImmoLandPriceText(
+                    price: landPrice,
+                    end: true,
+                    color: AppDesign.accent,
+                    showFrom: false,
+                  ),
+                )
+              else
+                Obx(
+                  () => Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
                       Text(
                         immoOfferPrice(listing, unit: unit),
                         style: context.textStyle(
-                          FontSizeType.caption,
-                          color: context.ds.textSecondary,
+                          FontSizeType.subtitle1,
+                          fontWeight: FontWeight.w800,
+                          color: AppDesign.accent,
                         ),
                       ),
-                    if (immoHasDiscount(listing, unit: unit))
-                      Text(
-                        immoOfferPrice(listing, unit: unit, old: true),
-                        style: context
-                            .textStyle(
-                              FontSizeType.caption,
-                              color: context.ds.textTertiary,
-                            )
-                            .copyWith(decoration: TextDecoration.lineThrough),
-                      ),
-                  ],
+                      if (immoHasDiscount(listing, unit: unit))
+                        Text(
+                          immoOfferPrice(listing, unit: unit, old: true),
+                          style: context
+                              .textStyle(
+                                FontSizeType.caption,
+                                color: context.ds.textTertiary,
+                              )
+                              .copyWith(decoration: TextDecoration.lineThrough),
+                        ),
+                    ],
+                  ),
                 ),
-              ),
             ],
           ),
           if (features.isNotEmpty) ...[
@@ -1125,7 +1128,9 @@ class _UnitCard extends StatelessWidget {
           const Divider(height: AppDesign.space6),
           if (sold)
             Text(
-              listing.isLand ? 'immo.land.lot_sold'.tr : 'immo.card.unavailable'.tr,
+              listing.isLand
+                  ? 'immo.land.lot_sold'.tr
+                  : 'immo.card.unavailable'.tr,
               style: context.textStyle(
                 FontSizeType.body2,
                 fontWeight: FontWeight.w700,
@@ -1174,7 +1179,7 @@ class _UnitCard extends StatelessWidget {
                           'count': '${unit.unitsAvailable}',
                         })
                       : unit.availableFrom == null ||
-                          !unit.availableFrom!.isAfter(DateTime.now())
+                            !unit.availableFrom!.isAfter(DateTime.now())
                       ? (listing.isLand
                             ? 'immo.card.land_available'.tr
                             : 'immo.card.available_now'.tr)
@@ -1189,10 +1194,7 @@ class _UnitCard extends StatelessWidget {
               ],
             ),
           ],
-          if (listing.isLand &&
-              selected &&
-              !sold &&
-              unit.payment != null) ...[
+          if (listing.isLand && selected && !sold && unit.payment != null) ...[
             const SizedBox(height: AppDesign.space3),
             Container(
               padding: const EdgeInsets.fromLTRB(
@@ -1557,44 +1559,52 @@ class _BottomBar extends StatelessWidget {
       child: Row(
         children: [
           Expanded(
-            child: Obx(
-              () => Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  if (unit == null && listing.priceFrom)
-                    Text(
-                      'immo.card.from'.tr,
-                      style: context.textStyle(
-                        FontSizeType.caption,
-                        color: context.ds.textSecondary,
-                      ),
-                    ),
-                  Text(
-                    listing.isLand && unit != null
-                        ? immoPrice(unit!.payment?.lotPrice ?? unit!.price)
-                        : immoOfferPrice(listing, unit: unit),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: context.textStyle(
-                      FontSizeType.subtitle1,
-                      fontWeight: FontWeight.w800,
-                      color: context.ds.textPrimary,
+            child: listing.isLand
+                ? ImmoLandPriceText(
+                    price: ImmoLandPrice.of(listing, unit: unit),
+                    lotSurface: unit == null && listing.subdivision != null
+                        ? immoLotSurface(listing.subdivision!)
+                        : null,
+                    showFrom: unit == null,
+                  )
+                : Obx(
+                    () => Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (unit == null && listing.priceFrom)
+                          Text(
+                            'immo.card.from'.tr,
+                            style: context.textStyle(
+                              FontSizeType.caption,
+                              color: context.ds.textSecondary,
+                            ),
+                          ),
+                        Text(
+                          immoOfferPrice(listing, unit: unit),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: context.textStyle(
+                            FontSizeType.subtitle1,
+                            fontWeight: FontWeight.w800,
+                            color: context.ds.textPrimary,
+                          ),
+                        ),
+                        if (immoHasDiscount(listing, unit: unit))
+                          Text(
+                            immoOfferPrice(listing, unit: unit, old: true),
+                            style: context
+                                .textStyle(
+                                  FontSizeType.caption,
+                                  color: context.ds.textTertiary,
+                                )
+                                .copyWith(
+                                  decoration: TextDecoration.lineThrough,
+                                ),
+                          ),
+                      ],
                     ),
                   ),
-                  if (immoHasDiscount(listing, unit: unit))
-                    Text(
-                      immoOfferPrice(listing, unit: unit, old: true),
-                      style: context
-                          .textStyle(
-                            FontSizeType.caption,
-                            color: context.ds.textTertiary,
-                          )
-                          .copyWith(decoration: TextDecoration.lineThrough),
-                    ),
-                ],
-              ),
-            ),
           ),
           IconButton.outlined(
             tooltip: 'immo.detail.contact'.tr,

@@ -764,6 +764,10 @@ class _ImmoReserveViewState extends State<ImmoReserveView> {
           padding: const EdgeInsets.all(AppDesign.space4),
           child: ImmoLotPaymentDetails(
             payment: immoLotPayment(q, widget.args.unit),
+            pricePerM2: ImmoLandPrice.of(
+              _listing,
+              unit: widget.args.unit,
+            ).perM2,
           ),
         )
       else

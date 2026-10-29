@@ -12,6 +12,7 @@ import '../../../core/widgets/app_ui.dart';
 import '../../../data/models/real_estate_models.dart';
 import '../../../data/providers/real_estate_service.dart';
 import 'immo_sheets.dart';
+import '../controllers/immo_home_controller.dart';
 import 'immo_widgets.dart';
 
 /// Récapitulatif des montants avant de réserver : loyer × mois d'avance (ou
@@ -118,6 +119,10 @@ class _QuoteSheetState extends State<_QuoteSheet> {
                   if (listing.isLand)
                     ImmoLotPaymentDetails(
                       payment: immoLotPayment(q, widget.unit),
+                      pricePerM2: ImmoLandPrice.of(
+                        listing,
+                        unit: widget.unit,
+                      ).perM2,
                     )
                   else ...[
                     _row(
