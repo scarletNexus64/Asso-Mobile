@@ -22,7 +22,11 @@ class _SheetFooter extends StatelessWidget {
     return Row(
       children: [
         Expanded(
-          child: AppButton(label: 'immo.filters.clear'.tr, variant: AppButtonVariant.ghost, onPressed: onClear),
+          child: AppButton(
+            label: 'immo.filters.clear'.tr,
+            variant: AppButtonVariant.ghost,
+            onPressed: onClear,
+          ),
         ),
         const SizedBox(width: AppDesign.space3),
         Expanded(
@@ -72,8 +76,16 @@ class _ImmoRangeFieldState extends State<ImmoRangeField> {
   @override
   void initState() {
     super.initState();
-    _min = TextEditingController(text: widget.values.start > 0 ? widget.values.start.toInt().toString() : '');
-    _max = TextEditingController(text: widget.values.end < widget.max ? widget.values.end.toInt().toString() : '');
+    _min = TextEditingController(
+      text: widget.values.start > 0
+          ? widget.values.start.toInt().toString()
+          : '',
+    );
+    _max = TextEditingController(
+      text: widget.values.end < widget.max
+          ? widget.values.end.toInt().toString()
+          : '',
+    );
   }
 
   @override
@@ -84,8 +96,14 @@ class _ImmoRangeFieldState extends State<ImmoRangeField> {
   }
 
   void _fromFields() {
-    final start = (_parseAmount(_min.text) ?? 0).toDouble().clamp(0, widget.max).toDouble();
-    final end = (_parseAmount(_max.text) ?? widget.max).toDouble().clamp(start, widget.max).toDouble();
+    final start = (_parseAmount(_min.text) ?? 0)
+        .toDouble()
+        .clamp(0, widget.max)
+        .toDouble();
+    final end = (_parseAmount(_max.text) ?? widget.max)
+        .toDouble()
+        .clamp(start, widget.max)
+        .toDouble();
     widget.onChanged(RangeValues(start, end));
   }
 
@@ -145,7 +163,13 @@ class _Unit extends StatelessWidget {
       padding: const EdgeInsets.only(right: AppDesign.space3),
       child: Center(
         widthFactor: 1,
-        child: Text(text, style: context.textStyle(FontSizeType.body2, color: context.ds.textSecondary)),
+        child: Text(
+          text,
+          style: context.textStyle(
+            FontSizeType.body2,
+            color: context.ds.textSecondary,
+          ),
+        ),
       ),
     );
   }
@@ -153,7 +177,13 @@ class _Unit extends StatelessWidget {
 
 /// Interrupteur avec titre et explication (« Déjà viabilisé »).
 class ImmoSwitchTile extends StatelessWidget {
-  const ImmoSwitchTile({super.key, required this.title, required this.value, required this.onChanged, this.help});
+  const ImmoSwitchTile({
+    super.key,
+    required this.title,
+    required this.value,
+    required this.onChanged,
+    this.help,
+  });
 
   final String title;
   final String? help;
@@ -170,13 +200,30 @@ class ImmoSwitchTile extends StatelessWidget {
           Row(
             children: [
               Expanded(
-                child: Text(title, style: context.textStyle(FontSizeType.subtitle1, fontWeight: FontWeight.w700, color: context.ds.textPrimary)),
+                child: Text(
+                  title,
+                  style: context.textStyle(
+                    FontSizeType.subtitle1,
+                    fontWeight: FontWeight.w700,
+                    color: context.ds.textPrimary,
+                  ),
+                ),
               ),
-              Switch.adaptive(value: value, activeTrackColor: AppDesign.accent, onChanged: onChanged),
+              Switch.adaptive(
+                value: value,
+                activeTrackColor: AppDesign.accent,
+                onChanged: onChanged,
+              ),
             ],
           ),
           if (help != null)
-            Text(help!, style: context.textStyle(FontSizeType.body2, color: context.ds.textSecondary)),
+            Text(
+              help!,
+              style: context.textStyle(
+                FontSizeType.body2,
+                color: context.ds.textSecondary,
+              ),
+            ),
         ],
       ),
     );
@@ -184,24 +231,48 @@ class ImmoSwitchTile extends StatelessWidget {
 }
 
 Widget _sectionTitle(BuildContext context, String text) => Padding(
-      padding: const EdgeInsets.only(top: AppDesign.space4, bottom: AppDesign.space2),
-      child: Text(text, style: context.textStyle(FontSizeType.subtitle1, fontWeight: FontWeight.w700, color: context.ds.textPrimary)),
-    );
+  padding: const EdgeInsets.only(
+    top: AppDesign.space4,
+    bottom: AppDesign.space2,
+  ),
+  child: Text(
+    text,
+    style: context.textStyle(
+      FontSizeType.subtitle1,
+      fontWeight: FontWeight.w700,
+      color: context.ds.textPrimary,
+    ),
+  ),
+);
 
 /// Prix (loyer mensuel ou budget d'un terrain).
 Future<void> showImmoPriceSheet(ImmoHomeController c) {
   final isLand = c.type.value == RealEstateType.land;
-  final max = isLand ? 100000000.0 : 1000000.0;
-  final step = isLand ? 500000.0 : 5000.0;
+  final isRent = !isLand && c.houseTransaction.value == RealEstateType.rent;
+  final max = isRent
+      ? 1000000.0
+      : isLand
+      ? 1000000.0
+      : 500000000.0;
+  final step = isLand || isRent ? 5000.0 : 500000.0;
   var range = RangeValues(
     ((c.filters['price_min'] as num?) ?? 0).toDouble().clamp(0, max).toDouble(),
-    ((c.filters['price_max'] as num?) ?? max).toDouble().clamp(0, max).toDouble(),
+    ((c.filters['price_max'] as num?) ?? max)
+        .toDouble()
+        .clamp(0, max)
+        .toDouble(),
   );
 
   return AppSheet.show(
     StatefulBuilder(
       builder: (context, setState) => AppSheet(
-        title: isLand ? 'immo.filters.budget'.tr : 'immo.filters.monthly_rent'.tr,
+        title:
+            (isLand
+                    ? 'immo.filters.price_per_m2'
+                    : isRent
+                    ? 'immo.filters.monthly_rent'
+                    : 'immo.filters.price')
+                .tr,
         footer: _SheetFooter(
           onClear: () {
             AppNavigation.pop();
@@ -219,7 +290,7 @@ Future<void> showImmoPriceSheet(ImmoHomeController c) {
           max: max,
           step: step,
           values: range,
-          unit: 'FCFA',
+          unit: isLand ? 'FCFA / m²' : 'FCFA',
           minLabel: 'immo.filters.minimum'.tr,
           maxLabel: 'immo.filters.maximum'.tr,
           onChanged: (v) => setState(() => range = v),
@@ -232,7 +303,9 @@ Future<void> showImmoPriceSheet(ImmoHomeController c) {
 /// Ville et quartier.
 Future<void> showImmoLocationSheet(ImmoHomeController c) {
   String? city = c.filters['city'] as String?;
-  final district = TextEditingController(text: c.filters['district'] as String? ?? '');
+  final district = TextEditingController(
+    text: c.filters['district'] as String? ?? '',
+  );
 
   return AppSheet.show(
     StatefulBuilder(
@@ -252,21 +325,30 @@ Future<void> showImmoLocationSheet(ImmoHomeController c) {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _sectionTitle(context, 'immo.filters.city'.tr),
-            Obx(() => Wrap(
-                  spacing: AppDesign.space2,
-                  runSpacing: AppDesign.space2,
-                  children: [
-                    for (final name in c.cities)
-                      ImmoFilterChip(
-                        label: name,
-                        selected: city == name,
-                        trailing: null,
-                        onTap: () => setState(() => city = city == name ? null : name),
+            Obx(
+              () => Wrap(
+                spacing: AppDesign.space2,
+                runSpacing: AppDesign.space2,
+                children: [
+                  for (final name in c.cities)
+                    ImmoFilterChip(
+                      label: name,
+                      selected: city == name,
+                      trailing: null,
+                      onTap: () =>
+                          setState(() => city = city == name ? null : name),
+                    ),
+                  if (c.cities.isEmpty)
+                    Text(
+                      'immo.filters.no_city'.tr,
+                      style: context.textStyle(
+                        FontSizeType.body2,
+                        color: context.ds.textSecondary,
                       ),
-                    if (c.cities.isEmpty)
-                      Text('immo.filters.no_city'.tr, style: context.textStyle(FontSizeType.body2, color: context.ds.textSecondary)),
-                  ],
-                )),
+                    ),
+                ],
+              ),
+            ),
             _sectionTitle(context, 'immo.filters.district'.tr),
             AppTextField(
               hint: 'immo.filters.district_hint'.tr,
@@ -311,7 +393,13 @@ Future<void> showImmoMoreFiltersSheet(ImmoHomeController c) {
   bool furnished = c.filters['furnished'] == true;
   bool notLandlocked = c.filters['not_landlocked'] == true;
   bool roadside = c.filters['roadside'] == true;
-  const keys = ['rooms_min', 'bedrooms_min', 'furnished', 'not_landlocked', 'roadside'];
+  const keys = [
+    'rooms_min',
+    'bedrooms_min',
+    'furnished',
+    'not_landlocked',
+    'roadside',
+  ];
 
   return AppSheet.show(
     StatefulBuilder(
@@ -337,11 +425,21 @@ Future<void> showImmoMoreFiltersSheet(ImmoHomeController c) {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _sectionTitle(context, 'immo.filters.rooms'.tr),
-            _CountPicker(value: rooms, onChanged: (v) => setState(() => rooms = v)),
+            _CountPicker(
+              value: rooms,
+              onChanged: (v) => setState(() => rooms = v),
+            ),
             _sectionTitle(context, 'immo.filters.bedrooms'.tr),
-            _CountPicker(value: bedrooms, onChanged: (v) => setState(() => bedrooms = v)),
+            _CountPicker(
+              value: bedrooms,
+              onChanged: (v) => setState(() => bedrooms = v),
+            ),
             const SizedBox(height: AppDesign.space3),
-            ImmoSwitchTile(title: 'immo.filters.furnished'.tr, value: furnished, onChanged: (v) => setState(() => furnished = v)),
+            ImmoSwitchTile(
+              title: 'immo.filters.furnished'.tr,
+              value: furnished,
+              onChanged: (v) => setState(() => furnished = v),
+            ),
             ImmoSwitchTile(
               title: 'immo.filters.roadside'.tr,
               help: 'immo.filters.roadside_help'.tr,
@@ -365,8 +463,14 @@ Future<void> showImmoMoreFiltersSheet(ImmoHomeController c) {
 Future<void> showImmoLandFiltersSheet(ImmoHomeController c) {
   const max = 10000.0;
   var range = RangeValues(
-    ((c.filters['surface_min'] as num?) ?? 0).toDouble().clamp(0, max).toDouble(),
-    ((c.filters['surface_max'] as num?) ?? max).toDouble().clamp(0, max).toDouble(),
+    ((c.filters['surface_min'] as num?) ?? 0)
+        .toDouble()
+        .clamp(0, max)
+        .toDouble(),
+    ((c.filters['surface_max'] as num?) ?? max)
+        .toDouble()
+        .clamp(0, max)
+        .toDouble(),
   );
   bool serviced = c.filters['serviced'] == true;
   bool titled = c.filters['titled'] == true;
@@ -432,15 +536,17 @@ Future<void> showImmoSortSheet(ImmoHomeController c) {
       child: Column(
         children: [
           for (final key in kImmoSorts)
-            Obx(() => ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: Text('immo.sort.$key'.tr),
-                  trailing: AppSelectionDot(isSelected: c.sort.value == key),
-                  onTap: () {
-                    AppNavigation.pop();
-                    c.setSort(key);
-                  },
-                )),
+            Obx(
+              () => ListTile(
+                contentPadding: EdgeInsets.zero,
+                title: Text('immo.sort.$key'.tr),
+                trailing: AppSelectionDot(isSelected: c.sort.value == key),
+                onTap: () {
+                  AppNavigation.pop();
+                  c.setSort(key);
+                },
+              ),
+            ),
         ],
       ),
     ),
@@ -449,12 +555,15 @@ Future<void> showImmoSortSheet(ImmoHomeController c) {
 
 /// « Vos critères, nos meilleurs logements » (captures Studapart 1 à 5).
 Future<void> showImmoCriteriaSheet(ImmoHomeController c) {
-  final initial = c.criteria.value ?? RealEstateCriteria();
+  final isLand = c.type.value == RealEstateType.land;
+  final initial = c.criteria.value?.type == c.type.value
+      ? c.criteria.value!
+      : RealEstateCriteria(type: c.type.value);
   String? status = initial.applicantStatus;
   DateTime? moveIn = initial.moveInDate;
   int? months = initial.leaseMonths;
   bool undetermined = initial.leaseMonths == 0;
-  const max = 1000000.0;
+  final max = isLand ? 200000000.0 : 1000000.0;
   var budget = RangeValues(
     (initial.budgetMin ?? 0).toDouble().clamp(0, max).toDouble(),
     (initial.budgetMax ?? max).toDouble().clamp(0, max).toDouble(),
@@ -466,52 +575,71 @@ Future<void> showImmoCriteriaSheet(ImmoHomeController c) {
   return AppSheet.show(
     StatefulBuilder(
       builder: (context, setState) {
-        final canSubmit = city.text.trim().isNotEmpty && moveIn != null && (months != null || undetermined);
+        final canSubmit =
+            city.text.trim().isNotEmpty &&
+            (isLand || (moveIn != null && (months != null || undetermined)));
 
         return AppSheet(
-          title: 'immo.criteria.title'.tr,
-          subtitle: 'immo.criteria.subtitle'.tr,
+          title:
+              (isLand ? 'immo.criteria.land_title' : 'immo.criteria.title').tr,
+          subtitle:
+              (isLand
+                      ? 'immo.criteria.land_subtitle'
+                      : 'immo.criteria.subtitle')
+                  .tr,
           footer: AppButton(
             label: 'immo.criteria.submit'.tr,
             onPressed: !canSubmit
                 ? null
                 : () async {
                     AppNavigation.pop();
-                    await c.saveCriteria(RealEstateCriteria(
-                      applicantStatus: status,
-                      school: status == 'student' ? school.text.trim() : null,
-                      city: city.text.trim(),
-                      moveInDate: moveIn,
-                      leaseMonths: undetermined ? 0 : months,
-                      budgetMin: budget.start > 0 ? budget.start.toInt() : null,
-                      budgetMax: budget.end < max ? budget.end.toInt() : null,
-                    ));
+                    await c.saveCriteria(
+                      RealEstateCriteria(
+                        type: c.type.value,
+                        applicantStatus: isLand ? null : status,
+                        school: !isLand && status == 'student'
+                            ? school.text.trim()
+                            : null,
+                        city: city.text.trim(),
+                        moveInDate: isLand ? null : moveIn,
+                        leaseMonths: isLand
+                            ? null
+                            : (undetermined ? 0 : months),
+                        budgetMin: budget.start > 0
+                            ? budget.start.toInt()
+                            : null,
+                        budgetMax: budget.end < max ? budget.end.toInt() : null,
+                      ),
+                    );
                   },
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _sectionTitle(context, 'immo.criteria.you_are'.tr),
-              Wrap(
-                spacing: AppDesign.space2,
-                runSpacing: AppDesign.space2,
-                children: [
-                  for (final s in statuses)
-                    ImmoFilterChip(
-                      label: 'immo.criteria.status_$s'.tr,
-                      selected: status == s,
-                      trailing: null,
-                      onTap: () => setState(() => status = status == s ? null : s),
-                    ),
-                ],
-              ),
-              if (status == 'student') ...[
-                const SizedBox(height: AppDesign.space3),
-                AppTextField(
-                  hint: 'immo.criteria.school'.tr,
-                  controller: school,
-                  prefixIcon: const Icon(Icons.school_outlined),
+              if (!isLand) ...[
+                _sectionTitle(context, 'immo.criteria.you_are'.tr),
+                Wrap(
+                  spacing: AppDesign.space2,
+                  runSpacing: AppDesign.space2,
+                  children: [
+                    for (final s in statuses)
+                      ImmoFilterChip(
+                        label: 'immo.criteria.status_$s'.tr,
+                        selected: status == s,
+                        trailing: null,
+                        onTap: () =>
+                            setState(() => status = status == s ? null : s),
+                      ),
+                  ],
                 ),
+                if (status == 'student') ...[
+                  const SizedBox(height: AppDesign.space3),
+                  AppTextField(
+                    hint: 'immo.criteria.school'.tr,
+                    controller: school,
+                    prefixIcon: const Icon(Icons.school_outlined),
+                  ),
+                ],
               ],
               const SizedBox(height: AppDesign.space4),
               AppTextField(
@@ -522,47 +650,49 @@ Future<void> showImmoCriteriaSheet(ImmoHomeController c) {
                 onChanged: (_) => setState(() {}),
               ),
               const SizedBox(height: AppDesign.space3),
-              _DateField(
-                label: 'immo.criteria.move_in'.tr,
-                value: moveIn,
-                onChanged: (d) => setState(() => moveIn = d),
-              ),
-              const SizedBox(height: AppDesign.space3),
-              ImmoMonthsStepper(
-                label: 'immo.criteria.duration'.tr,
-                value: undetermined ? null : months,
-                onChanged: (v) => setState(() {
-                  undetermined = false;
-                  months = v;
-                }),
-              ),
-              const SizedBox(height: AppDesign.space2),
-              Wrap(
-                spacing: AppDesign.space2,
-                runSpacing: AppDesign.space2,
-                children: [
-                  for (final m in [6, 12, 24])
+              if (!isLand) ...[
+                _DateField(
+                  label: 'immo.criteria.move_in'.tr,
+                  value: moveIn,
+                  onChanged: (d) => setState(() => moveIn = d),
+                ),
+                const SizedBox(height: AppDesign.space3),
+                ImmoMonthsStepper(
+                  label: 'immo.criteria.duration'.tr,
+                  value: undetermined ? null : months,
+                  onChanged: (v) => setState(() {
+                    undetermined = false;
+                    months = v;
+                  }),
+                ),
+                const SizedBox(height: AppDesign.space2),
+                Wrap(
+                  spacing: AppDesign.space2,
+                  runSpacing: AppDesign.space2,
+                  children: [
+                    for (final m in [6, 12, 24])
+                      ImmoFilterChip(
+                        label: 'immo.criteria.months'.trParams({'count': '$m'}),
+                        selected: !undetermined && months == m,
+                        trailing: null,
+                        onTap: () => setState(() {
+                          undetermined = false;
+                          months = m;
+                        }),
+                      ),
                     ImmoFilterChip(
-                      label: 'immo.criteria.months'.trParams({'count': '$m'}),
-                      selected: !undetermined && months == m,
+                      label: 'immo.criteria.undetermined'.tr,
+                      selected: undetermined,
                       trailing: null,
-                      onTap: () => setState(() {
-                        undetermined = false;
-                        months = m;
-                      }),
+                      onTap: () => setState(() => undetermined = !undetermined),
                     ),
-                  ImmoFilterChip(
-                    label: 'immo.criteria.undetermined'.tr,
-                    selected: undetermined,
-                    trailing: null,
-                    onTap: () => setState(() => undetermined = !undetermined),
-                  ),
-                ],
-              ),
+                  ],
+                ),
+              ],
               _sectionTitle(context, 'immo.criteria.budget'.tr),
               ImmoRangeField(
                 max: max,
-                step: 5000,
+                step: isLand ? 100000 : 5000,
                 values: budget,
                 unit: 'FCFA',
                 minLabel: 'immo.filters.minimum'.tr,
@@ -579,7 +709,11 @@ Future<void> showImmoCriteriaSheet(ImmoHomeController c) {
 
 /// Champ date avec calendrier.
 class _DateField extends StatelessWidget {
-  const _DateField({required this.label, required this.value, required this.onChanged});
+  const _DateField({
+    required this.label,
+    required this.value,
+    required this.onChanged,
+  });
 
   final String label;
   final DateTime? value;
@@ -603,11 +737,16 @@ class _DateField extends StatelessWidget {
         decoration: InputDecoration(
           labelText: label,
           suffixIcon: const Icon(Icons.calendar_today_outlined),
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppDesign.radiusSm)),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(AppDesign.radiusSm),
+          ),
         ),
         child: Text(
           value == null ? '' : immoDate(value!),
-          style: context.textStyle(FontSizeType.body1, color: context.ds.textPrimary),
+          style: context.textStyle(
+            FontSizeType.body1,
+            color: context.ds.textPrimary,
+          ),
         ),
       ),
     );
@@ -616,7 +755,14 @@ class _DateField extends StatelessWidget {
 
 /// Durée en mois avec boutons - / + (captures Studapart).
 class ImmoMonthsStepper extends StatelessWidget {
-  const ImmoMonthsStepper({super.key, required this.label, required this.value, required this.onChanged, this.min = 1, this.max = 60});
+  const ImmoMonthsStepper({
+    super.key,
+    required this.label,
+    required this.value,
+    required this.onChanged,
+    this.min = 1,
+    this.max = 60,
+  });
 
   final String label;
   final int? value;
@@ -631,26 +777,46 @@ class ImmoMonthsStepper extends StatelessWidget {
     return InputDecorator(
       decoration: InputDecoration(
         labelText: label,
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppDesign.radiusSm)),
-        contentPadding: const EdgeInsets.fromLTRB(AppDesign.space3, AppDesign.space2, AppDesign.space1, AppDesign.space2),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(AppDesign.radiusSm),
+        ),
+        contentPadding: const EdgeInsets.fromLTRB(
+          AppDesign.space3,
+          AppDesign.space2,
+          AppDesign.space1,
+          AppDesign.space2,
+        ),
       ),
       child: Row(
         children: [
           Expanded(
             child: Text(
               current == null ? '-' : '$current',
-              style: context.textStyle(FontSizeType.subtitle1, color: context.ds.textPrimary),
+              style: context.textStyle(
+                FontSizeType.subtitle1,
+                color: context.ds.textPrimary,
+              ),
             ),
           ),
-          Text('immo.criteria.months_unit'.tr, style: context.textStyle(FontSizeType.body2, color: context.ds.textSecondary)),
+          Text(
+            'immo.criteria.months_unit'.tr,
+            style: context.textStyle(
+              FontSizeType.body2,
+              color: context.ds.textSecondary,
+            ),
+          ),
           const SizedBox(width: AppDesign.space2),
           IconButton.outlined(
             icon: const Icon(Icons.remove_rounded),
-            onPressed: current == null || current <= min ? null : () => onChanged(current - 1),
+            onPressed: current == null || current <= min
+                ? null
+                : () => onChanged(current - 1),
           ),
           IconButton.outlined(
             icon: const Icon(Icons.add_rounded),
-            onPressed: current != null && current >= max ? null : () => onChanged((current ?? min - 1) + 1),
+            onPressed: current != null && current >= max
+                ? null
+                : () => onChanged((current ?? min - 1) + 1),
           ),
         ],
       ),

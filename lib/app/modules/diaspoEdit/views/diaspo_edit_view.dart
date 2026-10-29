@@ -1,3 +1,4 @@
+import 'package:asso/app/core/utils/app_feedback.dart';
 import 'package:asso/app/core/utils/app_theme_system.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -14,11 +15,11 @@ class DiaspoEditView extends GetView<DiaspoEditController> {
     final isDark = AppThemeSystem.isDarkMode(context);
 
     return Scaffold(
-      backgroundColor: isDark ? AppThemeSystem.darkBackgroundColor : Colors.grey[100],
+      backgroundColor: AppDesign.canvas(context),
       appBar: AppBar(
         leading: const AppBackButton(),
         title: Text('diaspo_edit.title'.tr),
-        centerTitle: true,
+        centerTitle: false,
       ),
       body: Column(
         children: [
@@ -240,7 +241,7 @@ class DiaspoEditView extends GetView<DiaspoEditController> {
             Obx(() => InkWell(
                   onTap: () {
                     if (controller.departureDateTime.value == null) {
-                      Get.snackbar(
+                      AppFeedback.show(
                         'diaspo_edit.warning'.tr,
                         'diaspo_edit.select_departure_first'.tr,
                         snackPosition: SnackPosition.BOTTOM,

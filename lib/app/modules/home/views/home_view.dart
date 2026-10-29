@@ -1,3 +1,4 @@
+import 'package:asso/app/core/utils/app_feedback.dart';
 import 'dart:async';
 
 import 'package:flutter/gestures.dart';
@@ -75,16 +76,19 @@ class HomeView extends GetView<HomeController> {
                   // Rubrique Immobilier : ouverte depuis la tuile de
                   // l'accueil, elle se pose au-dessus des onglets et garde
                   // la barre du bas visible.
-                  Obx(() => AnimatedSwitcher(
-                        duration: const Duration(milliseconds: 220),
-                        child: controller.realEstateOpen.value
-                            ? ImmoShell(
-                                key: const ValueKey('immo-shell'),
-                                initialRoute: controller.realEstateInitialRoute,
-                                initialArguments: controller.realEstateInitialArguments,
-                              )
-                            : const SizedBox.shrink(),
-                      )),
+                  Obx(
+                    // Le navigateur imbriqué possède une GlobalKey unique.
+                    // Un fondu conservait deux ImmoShell lors d'une réouverture
+                    // rapide et détruisait le contrôleur de la vue entrante.
+                    () => controller.realEstateOpen.value
+                        ? ImmoShell(
+                            key: const ValueKey('immo-shell'),
+                            initialRoute: controller.realEstateInitialRoute,
+                            initialArguments:
+                                controller.realEstateInitialArguments,
+                          )
+                        : const SizedBox.shrink(),
+                  ),
                 ],
               ),
             ),
@@ -98,7 +102,9 @@ class HomeView extends GetView<HomeController> {
     // navigation basse. Seul l'Accueil laisse sortir.
     return Obx(
       () => PopScope(
-        canPop: controller.currentTabIndex.value == 0 && !controller.realEstateOpen.value,
+        canPop:
+            controller.currentTabIndex.value == 0 &&
+            !controller.realEstateOpen.value,
         onPopInvokedWithResult: (didPop, _) {
           if (didPop) return;
           // Dans la rubrique Immobilier : on remonte d'abord ses pages, puis
@@ -175,7 +181,13 @@ class HomeView extends GetView<HomeController> {
           child: SizedBox(
             // Assez haut pour l'icône, la pastille et le libellé sans les
             // tasser quand la police est agrandie.
-            height: 64,
+            height:
+                64 +
+                (MediaQuery.textScalerOf(context).scale(12) - 12).clamp(
+                      0.0,
+                      double.infinity,
+                    ) *
+                    1.2,
             child: Row(
               children: List.generate(_destinations.length, (index) {
                 final destination = _destinations[index];
@@ -310,20 +322,24 @@ class HomeView extends GetView<HomeController> {
                         context,
                         featureName: 'immo.feature.reservations'.tr,
                         useDialog: false,
-                        onAuthenticated: () => ImmoNav.push(ImmoNav.reservations),
+                        onAuthenticated: () =>
+                            ImmoNav.push(ImmoNav.reservations),
                       ),
                     ),
                   AppIconButton(
                     icon: Icons.favorite_border_rounded,
                     tooltip: 'home.tooltip.favorites'.tr,
-                    badgeCount: inRealEstate ? null : controller.favoritesCount.value,
+                    badgeCount: inRealEstate
+                        ? null
+                        : controller.favoritesCount.value,
                     // Dans la rubrique, le cœur mène aux biens mis de côté.
                     onPressed: () => inRealEstate
                         ? AuthGuard.requireAuth(
                             context,
                             featureName: 'home.feature.your_favorites'.tr,
                             useDialog: false,
-                            onAuthenticated: () => ImmoNav.push(ImmoNav.favorites),
+                            onAuthenticated: () =>
+                                ImmoNav.push(ImmoNav.favorites),
                           )
                         : AuthGuard.navigateIfAuthenticated(
                             context,
@@ -493,7 +509,9 @@ class HomeView extends GetView<HomeController> {
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               Text(
-                                hasAccount ? 'home.drawer.my_account'.tr : 'home.drawer.guest_mode'.tr,
+                                hasAccount
+                                    ? 'home.drawer.my_account'.tr
+                                    : 'home.drawer.guest_mode'.tr,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: context.textStyle(
@@ -633,7 +651,9 @@ class HomeView extends GetView<HomeController> {
                           );
                           return;
                         }
-                        Get.toNamed(isVendor ? '/vendor-dashboard' : '/vendor-config');
+                        Get.toNamed(
+                          isVendor ? '/vendor-dashboard' : '/vendor-config',
+                        );
                       },
                     );
                   },
@@ -643,12 +663,15 @@ class HomeView extends GetView<HomeController> {
                 // pas ouverts aux utilisateurs, d'où ce libellé.
                 Builder(
                   builder: (context) {
-                    final verified = RealEstateService.cachedLandlordStatus == 'verified';
+                    final verified =
+                        RealEstateService.cachedLandlordStatus == 'verified';
 
                     return _buildDrawerItem(
                       context: context,
                       icon: Icons.real_estate_agent_rounded,
-                      title: verified ? 'home.drawer.landlord_space'.tr : 'home.drawer.landlord_mode'.tr,
+                      title: verified
+                          ? 'home.drawer.landlord_space'.tr
+                          : 'home.drawer.landlord_mode'.tr,
                       isActive: verified,
                       badge: verified ? null : 'home.drawer.badge_new'.tr,
                       onTap: () {
@@ -695,7 +718,7 @@ class HomeView extends GetView<HomeController> {
                   title: 'home.drawer.invite_friend'.tr,
                   onTap: () {
                     Get.back();
-                    Get.snackbar(
+                    AppFeedback.show(
                       'home.drawer.share_title'.tr,
                       'home.drawer.share_message'.tr,
                       snackPosition: SnackPosition.BOTTOM,
@@ -862,7 +885,9 @@ class HomeView extends GetView<HomeController> {
                       ),
                       const SizedBox(width: 12),
                       Text(
-                        AuthGuard.isGuest ? 'home.logout.sign_in'.tr : 'home.logout.title'.tr,
+                        AuthGuard.isGuest
+                            ? 'home.logout.sign_in'.tr
+                            : 'home.logout.title'.tr,
                         style: context.textStyle(
                           FontSizeType.body1,
                           color: AuthGuard.isGuest
@@ -918,10 +943,7 @@ class HomeView extends GetView<HomeController> {
     final tint = isActive ? AppDesign.accent : ds.icon;
 
     return Padding(
-      padding: EdgeInsets.symmetric(
-        horizontal: AppDesign.space2,
-        vertical: 1,
-      ),
+      padding: EdgeInsets.symmetric(horizontal: AppDesign.space2, vertical: 1),
       child: Material(
         color: isActive ? AppDesign.accentSubtle : Colors.transparent,
         borderRadius: BorderRadius.circular(AppDesign.radiusSm),
@@ -930,7 +952,9 @@ class HomeView extends GetView<HomeController> {
           borderRadius: BorderRadius.circular(AppDesign.radiusSm),
           child: Container(
             // Hauteur minimale confortable au pouce.
-            constraints: const BoxConstraints(minHeight: AppDesign.minTapTarget),
+            constraints: const BoxConstraints(
+              minHeight: AppDesign.minTapTarget,
+            ),
             padding: EdgeInsets.symmetric(
               horizontal: AppDesign.space3,
               vertical: AppDesign.space2,
@@ -1195,7 +1219,7 @@ class HomeItemView extends GetView<HomeController> {
               height: 24,
               decoration: BoxDecoration(
                 color: AppThemeSystem.grey200,
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(AppDesign.radiusMd),
               ),
             ),
           ),
@@ -1220,7 +1244,7 @@ class HomeItemView extends GetView<HomeController> {
               height: 24,
               decoration: BoxDecoration(
                 color: AppThemeSystem.grey200,
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(AppDesign.radiusMd),
               ),
             ),
           ),
@@ -2098,8 +2122,7 @@ class HomeItemView extends GetView<HomeController> {
     return AppEmptyState(
       icon: Icons.storefront_outlined,
       title: 'home.empty.title'.tr,
-      message:
-          'home.empty.message'.tr,
+      message: 'home.empty.message'.tr,
       actionLabel: 'home.empty.refresh'.tr,
       onAction: controller.refreshProducts,
     );
@@ -2521,47 +2544,50 @@ class _NavItem extends StatelessWidget {
     // lisible.
     final color = isActive ? AppDesign.accent : context.ds.textTertiary;
 
-    return InkWell(
-      onTap: onTap,
-      // Pas d'effet d'encre rectangulaire sur toute la colonne : il
-      // débordait de la pastille et donnait un retour visuel approximatif.
-      splashColor: Colors.transparent,
-      highlightColor: Colors.transparent,
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
-            curve: Curves.easeOut,
-            padding: EdgeInsets.symmetric(
-              horizontal: AppDesign.space4,
-              vertical: AppDesign.space1 + 1,
+    return Semantics(
+      button: true,
+      selected: isActive,
+      child: InkWell(
+        onTap: onTap,
+
+        // Pas d'effet d'encre rectangulaire sur toute la colonne : il
+        // débordait de la pastille et donnait un retour visuel approximatif.
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              curve: Curves.easeOut,
+              padding: EdgeInsets.symmetric(
+                horizontal: AppDesign.space4,
+                vertical: AppDesign.space1 + 1,
+              ),
+              decoration: BoxDecoration(
+                color: isActive ? AppDesign.accentSubtle : Colors.transparent,
+                borderRadius: BorderRadius.circular(AppDesign.radiusPill),
+              ),
+              child: Icon(
+                isActive ? destination.activeIcon : destination.icon,
+                size: 22,
+                color: color,
+              ),
             ),
-            decoration: BoxDecoration(
-              color: isActive ? AppDesign.accentSubtle : Colors.transparent,
-              borderRadius: BorderRadius.circular(AppDesign.radiusPill),
+            SizedBox(height: AppDesign.space1 - 1),
+            // Le libellé passe par l'échelle typographique : en `TextStyle` brut
+            // il ignorait les réglages d'accessibilité de l'appareil.
+            Text(
+              destination.label.tr,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: context.textStyle(
+                FontSizeType.overline,
+                fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
+                color: color,
+                height: 1.15,
+              ),
             ),
-            child: Icon(
-              isActive ? destination.activeIcon : destination.icon,
-              size: 22,
-              color: color,
-            ),
-          ),
-          SizedBox(height: AppDesign.space1 - 1),
-          // Le libellé passe par l'échelle typographique : en `TextStyle` brut
-          // il ignorait les réglages d'accessibilité de l'appareil.
-          Text(
-            destination.label.tr,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: context.textStyle(
-              FontSizeType.overline,
-              fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
-              color: color,
-              height: 1.15,
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

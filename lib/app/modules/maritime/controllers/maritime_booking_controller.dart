@@ -1,8 +1,12 @@
+import 'package:asso/app/modules/payment/widgets/payment_preparation.dart';
+import 'package:asso/app/core/utils/app_feedback.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
 import '../../../core/utils/app_design.dart';
+import '../../../core/utils/session_scope.dart';
 import '../../../core/utils/app_navigation.dart';
+import '../../../core/utils/format_cbm.dart';
 import '../../../data/models/maritime.dart';
 import '../../../data/models/payment_method_option.dart';
 import '../../../data/providers/api_validation_exception.dart';
@@ -18,17 +22,18 @@ import '../../wallet/views/payment_webview.dart';
 import '../../wallet/widgets/kpay_payment_sheet.dart';
 import 'maritime_controller.dart';
 
-/// Envoi maritime : kilos, colis, coordonnées, nature et valeur, puis paiement.
+/// Envoi maritime : volume en CBM, colis, coordonnées, nature et valeur, puis paiement.
 class MaritimeBookingController extends GetxController {
   final MaritimeService _service = Get.find<MaritimeService>();
 
   final departure = Rx<MaritimeDeparture?>(null);
+  Map<String, dynamic>? freightInquiry;
   final isSubmitting = false.obs;
   final insuranceOptIn = false.obs;
+  final cargoCategory = 'general'.obs;
 
   final kgController = TextEditingController(text: '10');
   final kg = 10.0.obs;
-  final parcelsController = TextEditingController(text: '1');
 
   final senderFirstName = TextEditingController();
   final senderLastName = TextEditingController();
@@ -50,8 +55,9 @@ class MaritimeBookingController extends GetxController {
 
   /// Ordre d'affichage des champs dans le formulaire.
   static const _fieldOrder = [
+    'volume_cbm',
+    'cargo_category',
     'kg_booked',
-    'parcels_count',
     'sender_first_name',
     'sender_last_name',
     'sender_phone',
@@ -99,7 +105,7 @@ class MaritimeBookingController extends GetxController {
   void _bindErrorClearing() {
     final map = <String, TextEditingController>{
       'kg_booked': kgController,
-      'parcels_count': parcelsController,
+      'volume_cbm': kgController,
       'sender_first_name': senderFirstName,
       'sender_last_name': senderLastName,
       'sender_phone': senderPhone,
@@ -109,22 +115,62 @@ class MaritimeBookingController extends GetxController {
       'recipient_phone': recipientPhone,
     };
     map.forEach((key, c) => c.addListener(() => clearError(key)));
-    ever(insurance.selectedNature, (_) => clearError('parcel_nature_id'));
-    ever(insurance.declaredValue, (_) => clearError('declared_value'));
+    _declarationWorkers.addAll([
+      ever(insurance.selectedNature, (_) {
+        clearError('parcel_nature_id');
+        if (!insurance.isComplete) insuranceOptIn.value = false;
+      }),
+      ever(insurance.declaredValue, (_) {
+        clearError('declared_value');
+        if (!insurance.isComplete) insuranceOptIn.value = false;
+      }),
+    ]);
   }
 
+  final List<Worker> _declarationWorkers = [];
+
   String get currency => departure.value?.currency ?? 'EUR';
-  double get pricePerKg => departure.value?.pricePerKg ?? 0;
+  double get pricePerKg => freightInquiry != null
+      ? (freightInquiry!['freight_amount'] as num).toDouble() /
+            (freightInquiry!['kg'] as num).toDouble()
+      : departure.value?.pricePerKg ?? 0;
   double get remainingKg => departure.value?.remainingKg ?? 0;
+  bool get isSea => departure.value?.isSea ?? true;
+  String get quantityField => isSea ? 'volume_cbm' : 'kg_booked';
+  double get conversion => isSea ? (departure.value?.kgPerCbm ?? 1000) : 1;
+  double get quantity => kg.value / conversion;
+  double get remainingQuantity => remainingKg / conversion;
+  double get unitPrice => freightInquiry != null && quantity > 0
+      ? (freightInquiry!['freight_amount'] as num).toDouble() / quantity
+      : selectedCargoOption?.pricePerUnit ??
+            (isSea ? (departure.value?.publicCbmRate ?? 0) : pricePerKg);
+  MaritimeCargoOption? get selectedCargoOption => departure.value?.cargoOptions
+      .firstWhereOrNull((option) => option.category == cargoCategory.value);
+
+  void selectCargoCategory(String? category) {
+    if (category == null || freightInquiry != null || isSubmitting.value) {
+      return;
+    }
+    if (!(departure.value?.cargoOptions.any(
+          (option) => option.category == category,
+        ) ??
+        false)) {
+      return;
+    }
+    cargoCategory.value = category;
+    clearError('cargo_category');
+  }
+
+  String get unit => isSea ? 'CBM' : 'kg';
 
   /// À lire dans un Obx.
-  double get freight =>
-      double.parse((kg.value * pricePerKg).toStringAsFixed(2));
+  double get freight => freightInquiry != null
+      ? (freightInquiry!['freight_amount'] as num).toDouble()
+      : double.parse((quantity * unitPrice).toStringAsFixed(2));
   double get grandTotal => double.parse(
-        (freight +
-                (insuranceOptIn.value ? insurance.insuranceAmount.value : 0))
-            .toStringAsFixed(2),
-      );
+    (freight + (insuranceOptIn.value ? insurance.insuranceAmount.value : 0))
+        .toStringAsFixed(2),
+  );
 
   @override
   void onInit() {
@@ -132,6 +178,12 @@ class MaritimeBookingController extends GetxController {
     final args = Get.arguments;
     if (args is Map && args['departure'] is MaritimeDeparture) {
       departure.value = args['departure'] as MaritimeDeparture;
+      cargoCategory.value = departure.value!.cargoCategory;
+      if (args['freight_inquiry'] is Map) {
+        freightInquiry = Map<String, dynamic>.from(args['freight_inquiry']);
+        kg.value = (freightInquiry!['kg'] as num).toDouble();
+        kgController.text = kg.value.toString();
+      }
     } else {
       WidgetsBinding.instance.addPostFrameCallback((_) => AppNavigation.pop());
       return;
@@ -144,14 +196,22 @@ class MaritimeBookingController extends GetxController {
       senderPhone.text = user.phone;
     }
 
-    if (remainingKg < kg.value) {
+    if (freightInquiry == null && remainingKg < kg.value) {
       kg.value = remainingKg;
       kgController.text = remainingKg.toStringAsFixed(1);
     }
+    if (freightInquiry == null && isSea) {
+      kg.value = remainingKg < conversion ? remainingKg : conversion;
+    }
+    kgController.text = isSea
+        ? formatCbm(quantity)
+        : quantity.toStringAsFixed(1);
     kgController.addListener(() {
       final value =
           double.tryParse(kgController.text.replaceAll(',', '.')) ?? 0;
-      if (value > 0 && value <= remainingKg) kg.value = value;
+      if (freightInquiry == null) {
+        kg.value = value.isFinite && value > 0 ? value * conversion : 0;
+      }
     });
 
     _bindErrorClearing();
@@ -162,7 +222,6 @@ class MaritimeBookingController extends GetxController {
   void onClose() {
     for (final c in [
       kgController,
-      parcelsController,
       senderFirstName,
       senderLastName,
       senderPhone,
@@ -174,6 +233,9 @@ class MaritimeBookingController extends GetxController {
       c.dispose();
     }
     scrollController.dispose();
+    for (final worker in _declarationWorkers) {
+      worker.dispose();
+    }
     insurance.dispose();
     super.onClose();
   }
@@ -196,22 +258,28 @@ class MaritimeBookingController extends GetxController {
 
     // Poids
     final rawKg = double.tryParse(kgController.text.replaceAll(',', '.'));
-    if (rawKg == null || t(kgController).isEmpty) {
-      errors['kg_booked'] = 'maritime.validation.kg_required'.tr;
-    } else if (rawKg < 0.5) {
-      errors['kg_booked'] = 'maritime.validation.kg_min'.tr;
-    } else if (rawKg > remainingKg) {
-      errors['kg_booked'] = 'maritime.validation.kg_max'.trParams({
-        'max': remainingKg.toStringAsFixed(1),
-      });
-    }
-
-    // Colis
-    final parcels = int.tryParse(parcelsController.text);
-    if (parcels == null || parcels < 1) {
-      errors['parcels_count'] = 'maritime.validation.parcels_min'.tr;
-    } else if (parcels > 500) {
-      errors['parcels_count'] = 'maritime.validation.parcels_max'.tr;
+    if (rawKg == null || !rawKg.isFinite || t(kgController).isEmpty) {
+      errors[quantityField] =
+          (isSea
+                  ? 'maritime.validation.volume_required'
+                  : 'maritime.validation.kg_required')
+              .tr;
+    } else if (rawKg < (isSea ? 0.001 : 0.5)) {
+      errors[quantityField] =
+          (isSea
+                  ? 'maritime.validation.volume_min'
+                  : 'maritime.validation.kg_min')
+              .tr;
+    } else if (rawKg > remainingQuantity) {
+      errors[quantityField] =
+          (isSea
+                  ? 'maritime.validation.volume_max'
+                  : 'maritime.validation.kg_max')
+              .trParams({
+                'max': isSea
+                    ? formatCbm(remainingQuantity)
+                    : remainingQuantity.toStringAsFixed(1),
+              });
     }
 
     // Expéditeur
@@ -226,8 +294,9 @@ class MaritimeBookingController extends GetxController {
     /// [requiredKey] = clé du message « obligatoire » propre au champ.
     String? phoneError(TextEditingController c, String requiredKey) {
       if (t(c).isEmpty) return requiredKey.tr;
-      if (!_phoneRegex.hasMatch(t(c)))
+      if (!_phoneRegex.hasMatch(t(c))) {
         return 'maritime.validation.phone_invalid'.tr;
+      }
       return null;
     }
 
@@ -267,7 +336,7 @@ class MaritimeBookingController extends GetxController {
     if (insurance.selectedNature.value == null) {
       errors['parcel_nature_id'] = 'maritime.validation.nature_required'.tr;
     }
-    if (insurance.declaredValue.value <= 0) {
+    if (!insurance.hasValidValue) {
       errors['declared_value'] = 'maritime.validation.value_required'.tr;
     }
 
@@ -280,9 +349,11 @@ class MaritimeBookingController extends GetxController {
     String? provider,
     String? phone,
   }) => {
-    'kg_booked':
-        double.tryParse(kgController.text.replaceAll(',', '.')) ?? kg.value,
-    'parcels_count': int.tryParse(parcelsController.text) ?? 1,
+    if (freightInquiry != null) 'freight_inquiry_id': freightInquiry!['id'],
+    quantityField: quantity,
+    'cargo_category': cargoCategory.value,
+    'expected_unit_price': unitPrice,
+    'parcels_count': 1,
     'sender_first_name': senderFirstName.text.trim(),
     'sender_last_name': senderLastName.text.trim(),
     'sender_phone': senderPhone.text.trim(),
@@ -306,7 +377,7 @@ class MaritimeBookingController extends GetxController {
   Future<void> submit() async {
     if (!_validate()) {
       _scrollToFirstError();
-      Get.snackbar(
+      AppFeedback.show(
         'maritime.error'.tr,
         'maritime.validation.fix_fields'.tr,
         backgroundColor: AppDesign.danger,
@@ -316,7 +387,7 @@ class MaritimeBookingController extends GetxController {
     }
     if (insuranceOptIn.value && insurance.isQuoting.value) return;
     if (insuranceOptIn.value && !insurance.quoteAvailable.value) {
-      Get.snackbar(
+      AppFeedback.show(
         'maritime.error'.tr,
         'maritime.form.insurance_quote_unavailable'.tr,
         backgroundColor: AppDesign.danger,
@@ -359,9 +430,12 @@ class MaritimeBookingController extends GetxController {
   }) async {
     isSubmitting.value = true;
     try {
-      final result = await _service.book(
-        departureId: departure.value!.id,
-        data: bookingPayload(method, provider: provider, phone: phone),
+      final result = await PaymentPreparation.run(
+        method: method,
+        action: () => _service.book(
+          departureId: departure.value!.id,
+          data: bookingPayload(method, provider: provider, phone: phone),
+        ),
       );
       _lastPayment = result.payment;
       return result.booking;
@@ -369,14 +443,14 @@ class MaritimeBookingController extends GetxController {
       if (e.fieldErrors.isNotEmpty) {
         _setErrors(e.fieldErrors);
         _scrollToFirstError();
-        Get.snackbar(
+        AppFeedback.show(
           'maritime.error'.tr,
           'maritime.validation.fix_fields'.tr,
           backgroundColor: AppDesign.danger,
           colorText: Colors.white,
         );
       } else {
-        Get.snackbar(
+        AppFeedback.show(
           'maritime.error'.tr,
           e.message,
           backgroundColor: AppDesign.danger,
@@ -386,9 +460,9 @@ class MaritimeBookingController extends GetxController {
       }
       return null;
     } catch (e) {
-      Get.snackbar(
+      AppFeedback.show(
         'maritime.error'.tr,
-        e.toString().replaceAll('Exception: ', ''),
+        AppFeedback.errorMessage(e),
         backgroundColor: AppDesign.danger,
         colorText: Colors.white,
         duration: const Duration(seconds: 5),
@@ -421,7 +495,7 @@ class MaritimeBookingController extends GetxController {
 
   Future<void> _payCard() async {
     if (!StripeNativeService.isSupported) {
-      Get.snackbar(
+      AppFeedback.show(
         'diaspo_booking.unavailable'.tr,
         'diaspo_booking.card_mobile_only'.tr,
       );
@@ -432,7 +506,7 @@ class MaritimeBookingController extends GetxController {
     final secret = _lastPayment['client_secret']?.toString();
     final key = _lastPayment['publishable_key']?.toString();
     if (secret == null || key == null || secret.isEmpty || key.isEmpty) {
-      Get.snackbar(
+      AppFeedback.show(
         'maritime.error'.tr,
         'diaspo_booking.card_data_unavailable'.tr,
       );
@@ -443,7 +517,7 @@ class MaritimeBookingController extends GetxController {
       clientSecret: secret,
     );
     if (!ok) {
-      Get.snackbar(
+      AppFeedback.show(
         'diaspo_booking.payment_cancelled_title'.tr,
         'diaspo_booking.payment_cancelled_message'.tr,
         backgroundColor: AppDesign.accent,
@@ -459,7 +533,7 @@ class MaritimeBookingController extends GetxController {
     if (booking == null) return;
     final url = _lastPayment['approval_url']?.toString();
     if (url == null || url.isEmpty) {
-      Get.snackbar(
+      AppFeedback.show(
         'maritime.error'.tr,
         'diaspo_booking.payment_link_unavailable'.tr,
       );
@@ -477,15 +551,18 @@ class MaritimeBookingController extends GetxController {
 
   /// Suit le paiement (5 s) ; le succès n'est affiché qu'au statut « payé ».
   Future<void> _poll(MaritimeBooking booking) async {
+    // Survit à la fermeture de l'écran, pas à une déconnexion.
+    final session = SessionScope.current;
     for (int i = 0; i < 120; i++) {
       await Future.delayed(const Duration(seconds: 5));
+      if (!SessionScope.isCurrent(session)) return;
       final state = await _service.paymentState(booking.id);
       if (state.status == 'paid') {
         _showSuccess(booking);
         return;
       }
       if (state.status == 'failed') {
-        Get.snackbar(
+        AppFeedback.show(
           'diaspo_booking.payment_failed_title'.tr,
           'maritime.form.payment_failed_released'.tr,
           backgroundColor: AppDesign.danger,
@@ -494,7 +571,7 @@ class MaritimeBookingController extends GetxController {
         return;
       }
     }
-    Get.snackbar(
+    AppFeedback.show(
       'diaspo_booking.payment_pending_title'.tr,
       'diaspo_booking.payment_pending_timeout'.tr,
       backgroundColor: AppDesign.accent,

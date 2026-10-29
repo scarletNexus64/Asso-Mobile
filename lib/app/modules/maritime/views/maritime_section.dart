@@ -2,15 +2,26 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
 import '../../../core/utils/app_design.dart';
+import '../../../core/utils/format_cbm.dart';
 import '../../../core/utils/app_theme_system.dart';
 import '../../../core/widgets/segmented_tabs.dart';
 import '../../../data/models/maritime.dart';
 import '../controllers/maritime_controller.dart';
 import 'maritime_contact_button.dart';
+import 'freight_inquiries_view.dart';
 
 /// Offres des partenaires, filtrées par transport aérien ou maritime.
 class MaritimeSection extends GetView<MaritimeController> {
-  const MaritimeSection({super.key, this.transportMode = 'sea'});
+  const MaritimeSection({
+    super.key,
+    this.transportMode = 'sea',
+    this.pageController,
+  });
+
+  final MaritimeController? pageController;
+
+  @override
+  MaritimeController get controller => pageController ?? super.controller;
 
   final String transportMode;
 
@@ -36,8 +47,16 @@ class MaritimeSection extends GetView<MaritimeController> {
                   label: 'maritime.tabs.my_shipments'.tr,
                   icon: Icons.inventory_2_outlined,
                 ),
+                if (transportMode == 'sea')
+                  SegmentedTab(
+                    label: 'freight_quote.tab'.tr,
+                    icon: Icons.request_quote_outlined,
+                  ),
               ],
-              selectedIndex: controller.selectedTab.value,
+              selectedIndex:
+                  transportMode == 'air' && controller.selectedTab.value == 2
+                  ? 0
+                  : controller.selectedTab.value,
               onChanged: controller.changeTab,
             ),
           ),
@@ -46,7 +65,11 @@ class MaritimeSection extends GetView<MaritimeController> {
           child: RefreshIndicator(
             onRefresh: controller.refreshAll,
             child: Obx(
-              () => controller.selectedTab.value == 0
+              () => controller.selectedTab.value == 2 && transportMode == 'sea'
+                  ? const FreightInquiriesView()
+                  : (controller.selectedTab.value == 0 ||
+                        transportMode == 'air' &&
+                            controller.selectedTab.value == 2)
                   ? _buildDepartures(context, isDark)
                   : _buildMyBookings(context, isDark),
             ),
@@ -264,7 +287,9 @@ class MaritimeSection extends GetView<MaritimeController> {
                       ),
                     ),
                     Text(
-                      '${controller.formatAmount(d.pricePerKg, d.currency)}/kg',
+                      d.requiresQuote
+                          ? 'freight_quote.on_request'.tr
+                          : '${controller.formatAmount(d.isSea ? d.publicCbmRate : d.pricePerKg, d.currency)}/${d.isSea ? 'CBM' : 'kg'}',
                       style: TextStyle(
                         fontWeight: FontWeight.w700,
                         color: AppThemeSystem.primaryColor,
@@ -277,17 +302,6 @@ class MaritimeSection extends GetView<MaritimeController> {
                   'Diaspo Exchange',
                   style: TextStyle(fontSize: 12, color: _muted(isDark)),
                 ),
-                if (d.isPricedPerCbm)
-                  Text(
-                    'maritime.cbm_rate'.trParams({
-                      'price': controller.formatAmount(
-                        d.pricePerCbm!,
-                        d.currency,
-                      ),
-                      'kg': d.kgPerCbm!.toStringAsFixed(0),
-                    }),
-                    style: TextStyle(fontSize: 12, color: _muted(isDark)),
-                  ),
                 const SizedBox(height: 12),
                 Wrap(
                   spacing: 16,
@@ -302,9 +316,11 @@ class MaritimeSection extends GetView<MaritimeController> {
                     ),
                     _info(
                       Icons.scale_outlined,
-                      'maritime.kg_left'.trParams({
-                        'kg': d.remainingKg.toStringAsFixed(0),
-                      }),
+                      (d.isSea ? 'maritime.cbm_left' : 'maritime.kg_left')
+                          .trParams({
+                            'volume': formatCbm(d.remainingCbm),
+                            'kg': d.remainingKg.toStringAsFixed(0),
+                          }),
                       isDark,
                     ),
                     if (from != null)
@@ -446,7 +462,7 @@ class MaritimeSection extends GetView<MaritimeController> {
           ),
           const SizedBox(height: 8),
           Text(
-            '${b.kgBooked.toStringAsFixed(1)} kg · ${'maritime.parcels'.trParams({'count': '${b.parcelsCount}'})} · ${controller.formatAmount(b.freightTotal, b.currency)}',
+            '${b.departure?.isSea == true ? formatCbm(b.kgBooked / (b.departure?.kgPerCbm ?? 1000)) : b.kgBooked.toStringAsFixed(1)} ${b.departure?.isSea == true ? 'CBM' : 'kg'} · ${'maritime.parcels'.trParams({'count': '${b.parcelsCount}'})} · ${controller.formatAmount(b.freightTotal, b.currency)}',
             style: TextStyle(color: _muted(isDark)),
           ),
           Text(

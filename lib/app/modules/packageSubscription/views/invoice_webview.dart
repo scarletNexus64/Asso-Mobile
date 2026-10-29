@@ -1,3 +1,4 @@
+import 'package:asso/app/core/utils/app_feedback.dart';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -97,7 +98,6 @@ class _InvoiceWebViewState extends State<InvoiceWebView> {
   }
 
   void _handleJavaScriptMessage(String message) {
-    debugPrint('📨 JavaScript message received: $message');
     try {
       final data = json.decode(message);
       debugPrint('📨 Decoded data: $data');
@@ -162,7 +162,6 @@ class _InvoiceWebViewState extends State<InvoiceWebView> {
       Get.back(); // Close loading dialog
 
       debugPrint('📥 PDF Response Status: ${response.statusCode}');
-      debugPrint('📥 PDF Response Body: ${response.body.substring(0, response.body.length > 200 ? 200 : response.body.length)}');
 
       if (response.statusCode == 200) {
         // Save to temporary file
@@ -180,7 +179,7 @@ class _InvoiceWebViewState extends State<InvoiceWebView> {
           text: 'package_subscription.invoice.share_text'.tr,
         );
 
-        Get.snackbar(
+        AppFeedback.show(
           'wallet.webview.success_title'.tr,
           'package_subscription.invoice.downloaded'.tr,
           backgroundColor: AppThemeSystem.successColor,
@@ -188,7 +187,7 @@ class _InvoiceWebViewState extends State<InvoiceWebView> {
         );
       } else {
         debugPrint('❌ PDF Download Error: ${response.statusCode}');
-        Get.snackbar(
+        AppFeedback.show(
           'package_subscription.error'.tr,
           'package_subscription.invoice.download_failed'.trParams({'code': '${response.statusCode}'}),
           backgroundColor: AppThemeSystem.errorColor,
@@ -199,7 +198,7 @@ class _InvoiceWebViewState extends State<InvoiceWebView> {
       debugPrint('❌ Exception during PDF download: $e');
       debugPrint('❌ StackTrace: $stackTrace');
       Get.back(); // Close loading dialog if open
-      Get.snackbar(
+      AppFeedback.show(
         'package_subscription.error'.tr,
         'package_subscription.invoice.download_error'.trParams({'error': '$e'}),
         backgroundColor: AppThemeSystem.errorColor,
@@ -223,7 +222,7 @@ class _InvoiceWebViewState extends State<InvoiceWebView> {
             fontWeight: FontWeight.w700,
           ),
         ),
-        centerTitle: true,
+        centerTitle: false,
       ),
       body: Stack(
         children: [

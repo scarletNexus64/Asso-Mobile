@@ -1,3 +1,4 @@
+import 'package:asso/app/core/utils/app_feedback.dart';
 import 'dart:async';
 import 'dart:developer' as developer;
 import 'package:flutter/material.dart';
@@ -154,7 +155,6 @@ class HomeController extends GetxController
       userName.value = '${user['first_name'] ?? ''} ${user['last_name'] ?? ''}'
           .trim();
       userAvatar.value = user['avatar'] ?? '';
-      print('  └─ User loaded: ${userName.value}');
     } else {
       print('  └─ No user found');
     }
@@ -670,6 +670,8 @@ class HomeController extends GetxController
       final response = await ProductService.getBanners();
       if (response.success && response.data != null) {
         final bannerList = response.data!['banners'] as List? ?? [];
+        currentBannerIndex.value = 0;
+        if (bannerController.hasClients) bannerController.jumpToPage(0);
         banners.value = bannerList
             .map((b) => Map<String, dynamic>.from(b))
             .toList();
@@ -810,6 +812,7 @@ class HomeController extends GetxController
 
   Future<void> refreshProducts() async {
     await Future.wait([
+      _loadBanners(),
       _loadNearbyProducts(),
       _loadRecentProducts(),
       _loadPasscolisOffers(),
@@ -822,8 +825,20 @@ class HomeController extends GetxController
   /// Une bascule d'onglet, pas un `toNamed` : la recherche est une
   /// destination principale de la barre du bas. L'empiler en écran aurait
   /// masqué cette barre et fait apparaître une flèche de retour.
-  void goToSearchTab() {
+  void goToSearchTab({
+    search_ctrl.SearchScope scope = search_ctrl.SearchScope.products,
+  }) {
     if (_isDisposed) return;
+    // Chaque raccourci de l'accueil choisit explicitement sa famille : un
+    // précédent passage par Passcolis ne doit pas détourner « Voir tout »
+    // des produits. Initialiser aussi le contrôleur si l'onglet est inédit.
+    final search = Get.isRegistered<search_ctrl.SearchController>()
+        ? Get.find<search_ctrl.SearchController>()
+        : Get.put<search_ctrl.SearchController>(
+            search_ctrl.SearchController(),
+            permanent: true,
+          );
+    search.changeScope(scope);
     handleTabTap(1);
     try {
       if (tabController.index != currentTabIndex.value) {
@@ -839,17 +854,8 @@ class HomeController extends GetxController
   }
 
   /// La bannière Passcolis ouvre la recherche sur l'onglet des trajets.
-  void onSeeAllPasscolis() {
-    // Le controller de recherche vit déjà (l'onglet est monté avec la page) :
-    // on lui demande de changer de famille plutôt que de lui passer un
-    // argument de route, qu'il ne relirait qu'à sa création.
-    if (Get.isRegistered<search_ctrl.SearchController>()) {
-      Get.find<search_ctrl.SearchController>().changeScope(
-        search_ctrl.SearchScope.passcolis,
-      );
-    }
-    goToSearchTab();
-  }
+  void onSeeAllPasscolis() =>
+      goToSearchTab(scope: search_ctrl.SearchScope.passcolis);
 
   void onSeeAllNearby() => goToSearchTab();
 
@@ -875,7 +881,9 @@ class HomeController extends GetxController
         final isFavorite = response.data?['is_favorite'] ?? false;
         final message =
             response.data?['message'] ??
-            (isFavorite ? 'home.favorite.added'.tr : 'home.favorite.removed'.tr);
+            (isFavorite
+                ? 'home.favorite.added'.tr
+                : 'home.favorite.removed'.tr);
 
         // Update the is_favorite status in all product lists
         updateProductFavoriteStatus(productId, isFavorite);
@@ -885,7 +893,7 @@ class HomeController extends GetxController
         favoritesCount.value = (favoritesCount.value + (isFavorite ? 1 : -1))
             .clamp(0, 9999);
 
-        Get.snackbar(
+        AppFeedback.show(
           'home.success'.tr,
           message,
           snackPosition: SnackPosition.BOTTOM,
@@ -895,7 +903,7 @@ class HomeController extends GetxController
         );
       }
     } catch (e) {
-      Get.snackbar(
+      AppFeedback.show(
         'home.error'.tr,
         'home.favorite.error'.tr,
         snackPosition: SnackPosition.BOTTOM,
@@ -946,7 +954,7 @@ class HomeController extends GetxController
 
     if (user == null) {
       print('❌ HOME: No user found in storage');
-      Get.snackbar(
+      AppFeedback.show(
         'home.login_required'.tr,
         'home.vendor_login_required'.tr,
         snackPosition: SnackPosition.BOTTOM,
@@ -956,7 +964,6 @@ class HomeController extends GetxController
     }
 
     print('👤 HOME: User found');
-    print('  └─ Name: ${user.fullName}');
     print('  └─ Role: ${user.role}');
     print('  └─ Is Vendor: ${user.isVendor}');
 

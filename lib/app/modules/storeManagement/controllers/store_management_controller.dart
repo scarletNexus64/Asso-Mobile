@@ -1,3 +1,4 @@
+import 'package:asso/app/core/utils/app_feedback.dart';
 import 'package:asso/app/routes/app_pages.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -86,7 +87,6 @@ class StoreManagementController extends GetxController {
       final response = await ShopService.getShop();
 
       print('📊 CONTROLLER: Response success: ${response.success}');
-      print('📊 CONTROLLER: Response data: ${response.data}');
 
       if (response.success && response.data != null) {
         final data = response.data!;
@@ -228,9 +228,9 @@ class StoreManagementController extends GetxController {
       certification.value = null;
       inventoryEntries.value = [];
 
-      Get.snackbar(
+      AppFeedback.show(
         'store_management.error'.tr,
-        'store_management.load_error'.trParams({'error': e.toString()}),
+        'store_management.load_error'.trParams({'error': AppFeedback.errorMessage(e)}),
         snackPosition: SnackPosition.BOTTOM,
         backgroundColor: AppDesign.danger,
         colorText: Colors.white,
@@ -319,7 +319,7 @@ class StoreManagementController extends GetxController {
       final response = await ShopService.updateFreeDelivery(value);
       if (!response.success) {
         freeDelivery.value = previous;
-        Get.snackbar(
+        AppFeedback.show(
           'store_management.free_delivery.title'.tr,
           response.message,
           snackPosition: SnackPosition.BOTTOM,
@@ -328,7 +328,7 @@ class StoreManagementController extends GetxController {
       }
       final overridden =
           (response.data?['overridden_products'] as num?)?.toInt() ?? 0;
-      Get.snackbar(
+      AppFeedback.show(
         'store_management.free_delivery.title'.tr,
         [
           value
@@ -344,7 +344,7 @@ class StoreManagementController extends GetxController {
       );
     } catch (_) {
       freeDelivery.value = previous;
-      Get.snackbar(
+      AppFeedback.show(
         'store_management.free_delivery.title'.tr,
         'store_management.free_delivery.save_error'.tr,
         snackPosition: SnackPosition.BOTTOM,
@@ -410,7 +410,7 @@ class StoreManagementController extends GetxController {
       if (response.success && shop is Map) {
         storeInfo.value = storeInfoFromApi(Map<String, dynamic>.from(shop));
         freeDelivery.value = readFreeDelivery(shop['free_delivery']);
-        Get.snackbar(
+        AppFeedback.show(
           'store_management.success'.tr,
           'store_management.logo.updated'.tr,
           snackPosition: SnackPosition.BOTTOM,
@@ -418,7 +418,7 @@ class StoreManagementController extends GetxController {
           colorText: Colors.white,
         );
       } else {
-        Get.snackbar(
+        AppFeedback.show(
           'store_management.error'.tr,
           response.message.isNotEmpty
               ? response.message
@@ -429,7 +429,7 @@ class StoreManagementController extends GetxController {
         );
       }
     } catch (e) {
-      Get.snackbar(
+      AppFeedback.show(
         'store_management.error'.tr,
         'store_management.logo.update_error'.tr,
         snackPosition: SnackPosition.BOTTOM,
@@ -479,7 +479,7 @@ class StoreManagementController extends GetxController {
     final ordersResponse = await VendorService.checkActiveOrders();
     final count = ordersResponse.data?['active_orders_count'] as int? ?? 0;
     if (ordersResponse.success && (ordersResponse.data?['has_active_orders'] == true)) {
-      Get.snackbar(
+      AppFeedback.show(
         'store_management.move.active_orders_title'.tr,
         'store_management.move.active_orders_message'.trParams({'count': '$count'}),
         snackPosition: SnackPosition.BOTTOM,
@@ -505,7 +505,7 @@ class StoreManagementController extends GetxController {
     try {
       await checkDeliveryAvailability(latitude, longitude);
       if (!isDeliveryAvailable.value) {
-        Get.snackbar(
+        AppFeedback.show(
           'store_management.out_of_zone_title'.tr,
           'store_management.move.out_of_zone_message'.tr,
           snackPosition: SnackPosition.BOTTOM,
@@ -523,7 +523,7 @@ class StoreManagementController extends GetxController {
         reason: reason,
       );
       if (!response.success) {
-        Get.snackbar(
+        AppFeedback.show(
           'store_management.move.request_not_sent'.tr,
           response.message.isNotEmpty
               ? response.message
@@ -545,8 +545,6 @@ class StoreManagementController extends GetxController {
     print('========================================');
     print('🚚 STORE MANAGEMENT: Checking delivery availability');
     print('========================================');
-    print('  └─ Latitude: $latitude');
-    print('  └─ Longitude: $longitude');
 
     isCheckingDeliveryAvailability.value = true;
     deliveryAvailabilityMessage.value = '';
@@ -560,7 +558,6 @@ class StoreManagementController extends GetxController {
       print('📥 STORE MANAGEMENT: Delivery availability response received');
       print('  └─ Success: ${response.success}');
       print('  └─ Status Code: ${response.statusCode}');
-      print('  └─ Message: ${response.message}');
 
       if (response.success && response.data != null) {
         final available = response.data!['available'] as bool? ?? false;
@@ -572,7 +569,6 @@ class StoreManagementController extends GetxController {
         print('');
         print('🔔 DELIVERY AVAILABILITY RESULT:');
         print('  ├─ Available: $available');
-        print('  ├─ Message: $message');
         print('  └─ isDeliveryAvailable.value is now: ${isDeliveryAvailable.value}');
 
         if (available) {
@@ -585,7 +581,6 @@ class StoreManagementController extends GetxController {
         deliveryAvailabilityMessage.value = response.message;
 
         print('⚠️ STORE MANAGEMENT: API returned error');
-        print('  └─ Message: ${response.message}');
       }
     } catch (e, stackTrace) {
       print('💥 STORE MANAGEMENT: Exception caught during delivery check!');
@@ -631,9 +626,6 @@ class StoreManagementController extends GetxController {
       print('  ├─ Name: $name');
       print('  ├─ Description: $description');
       print('  ├─ Address: $address');
-      print('  ├─ Phone: $phone');
-      print('  ├─ Latitude: $latitude');
-      print('  ├─ Longitude: $longitude');
       print('  ├─ Categories: $categories');
       print('  └─ City: $city');
 
@@ -642,9 +634,6 @@ class StoreManagementController extends GetxController {
       print('  ├─ Name: ${storeInfo.value?.name}');
       print('  ├─ Description: ${storeInfo.value?.description}');
       print('  ├─ Address: ${storeInfo.value?.address}');
-      print('  ├─ Phone: ${storeInfo.value?.phone}');
-      print('  ├─ Latitude: ${storeInfo.value?.latitude}');
-      print('  ├─ Longitude: ${storeInfo.value?.longitude}');
       print('  └─ Categories: ${storeInfo.value?.categories}');
 
       // Boutique déjà placée : l'emplacement ne part pas avec le formulaire, il
@@ -655,7 +644,7 @@ class StoreManagementController extends GetxController {
       if (!placed && latitude != null && longitude != null) {
         await checkDeliveryAvailability(latitude, longitude);
         if (!isDeliveryAvailable.value) {
-          Get.snackbar(
+          AppFeedback.show(
             'store_management.out_of_zone_title'.tr,
             'store_management.out_of_zone_message'.tr,
             snackPosition: SnackPosition.BOTTOM,
@@ -688,8 +677,6 @@ class StoreManagementController extends GetxController {
       print('📥 Response received from API:');
       print('  ├─ Success: ${response.success}');
       print('  ├─ Status Code: ${response.statusCode}');
-      print('  ├─ Message: ${response.message}');
-      print('  └─ Data: ${response.data}');
 
       if (response.success && response.data != null) {
         print('');
@@ -706,9 +693,6 @@ class StoreManagementController extends GetxController {
           print('  ├─ Name: ${storeInfo.value?.name}');
           print('  ├─ Description: ${storeInfo.value?.description}');
           print('  ├─ Address: ${storeInfo.value?.address}');
-          print('  ├─ Phone: ${storeInfo.value?.phone}');
-          print('  ├─ Latitude: ${storeInfo.value?.latitude}');
-          print('  ├─ Longitude: ${storeInfo.value?.longitude}');
           print('  └─ Categories: ${storeInfo.value?.categories}');
         }
 
@@ -717,10 +701,9 @@ class StoreManagementController extends GetxController {
         print('');
         print('========================================');
         print('✅ SAVE COMPLETED SUCCESSFULLY');
-        print('  └─ Message: $message');
         print('========================================');
 
-        Get.snackbar(
+        AppFeedback.show(
           'store_management.success'.tr,
           message,
           snackPosition: SnackPosition.BOTTOM,
@@ -730,7 +713,7 @@ class StoreManagementController extends GetxController {
         );
         return true;
       } else {
-        Get.snackbar(
+        AppFeedback.show(
           'store_management.error'.tr,
           response.message.isNotEmpty
               ? response.message
@@ -742,9 +725,9 @@ class StoreManagementController extends GetxController {
         return false;
       }
     } catch (e) {
-      Get.snackbar(
+      AppFeedback.show(
         'store_management.error'.tr,
-        'store_management.save_error_detail'.trParams({'error': e.toString()}),
+        'store_management.save_error_detail'.trParams({'error': AppFeedback.errorMessage(e)}),
         snackPosition: SnackPosition.BOTTOM,
         backgroundColor: AppDesign.danger,
         colorText: Colors.white,
@@ -776,7 +759,7 @@ class StoreManagementController extends GetxController {
 
   /// Passer en premium
   void upgradeToPremium() {
-    Get.snackbar(
+    AppFeedback.show(
       'store_management.premium.title'.tr,
       'store_management.premium.in_progress'.tr,
       snackPosition: SnackPosition.BOTTOM,
@@ -785,7 +768,7 @@ class StoreManagementController extends GetxController {
 
   /// Voir les détails de l'inventaire
   void viewInventoryDetails(InventoryEntry entry) {
-    Get.snackbar(
+    AppFeedback.show(
       'store_management.inventory.title'.tr,
       '${entry.type.label}: ${entry.productName} (${entry.quantity})',
       snackPosition: SnackPosition.BOTTOM,

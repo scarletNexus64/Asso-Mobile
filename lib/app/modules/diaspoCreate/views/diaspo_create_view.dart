@@ -1,3 +1,4 @@
+import 'package:asso/app/core/utils/app_feedback.dart';
 import 'package:asso/app/core/utils/app_theme_system.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -14,11 +15,11 @@ class DiaspoCreateView extends GetView<DiaspoCreateController> {
     final isDark = AppThemeSystem.isDarkMode(context);
 
     return Scaffold(
-      backgroundColor: isDark ? AppThemeSystem.darkBackgroundColor : Colors.grey[100],
+      backgroundColor: AppDesign.canvas(context),
       appBar: AppBar(
         leading: const AppBackButton(),
         title: Text('diaspo_create.title'.tr),
-        centerTitle: true,
+        centerTitle: false,
       ),
       body: Column(
         children: [
@@ -251,7 +252,7 @@ class DiaspoCreateView extends GetView<DiaspoCreateController> {
             Obx(() => InkWell(
                   onTap: () {
                     if (controller.departureDateTime.value == null) {
-                      Get.snackbar(
+                      AppFeedback.show(
                         'diaspo_create.warning'.tr,
                         'diaspo_create.select_departure_first'.tr,
                         snackPosition: SnackPosition.BOTTOM,

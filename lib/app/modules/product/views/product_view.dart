@@ -1,3 +1,4 @@
+import 'package:asso/app/core/utils/app_feedback.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../../data/providers/order_service.dart';
@@ -36,6 +37,7 @@ import '../../../core/widgets/app_ui.dart';
 import '../../../core/widgets/quantity_stepper.dart';
 import '../../../core/widgets/variant_combo_picker.dart';
 import '../../../core/utils/app_navigation.dart';
+import '../../legal/legal_consent.dart';
 
 /// Fiche produit telle que la route l'ouvre : chaque fiche empilée
 /// (produit similaire, boutique, lien partagé…) possède son propre
@@ -1167,7 +1169,7 @@ class ProductView extends GetView<ProductController> {
                       arguments: {'shop_id': shopId.toString()},
                     );
                   } else {
-                    Get.snackbar(
+                    AppFeedback.show(
                       'product.error'.tr,
                       'product.shop_access_error'.tr,
                       snackPosition: SnackPosition.BOTTOM,
@@ -1357,14 +1359,8 @@ class ProductView extends GetView<ProductController> {
     print('🗺️ OUVERTURE DES OPTIONS DE CARTE');
     print('🗺️ ════════════════════════════════════════════════════════════');
     print('📍 Location: $location');
-    print('📌 Latitude brute: $latitude (type: ${latitude?.runtimeType})');
-    print('📌 Longitude brute: $longitude (type: ${longitude?.runtimeType})');
     print('');
     print('🔍 Vérification des sources:');
-    print('   product[latitude]: ${product['latitude']}');
-    print('   product[longitude]: ${product['longitude']}');
-    print('   product[shop][latitude]: ${product['shop']?['latitude']}');
-    print('   product[shop][longitude]: ${product['shop']?['longitude']}');
     print('🗺️ ════════════════════════════════════════════════════════════');
     print('');
 
@@ -1626,7 +1622,7 @@ class ProductView extends GetView<ProductController> {
       );
     } else {
       // Pas de coordonnées disponibles
-      Get.snackbar(
+      AppFeedback.show(
         'product.map_options.position_unavailable_title'.tr,
         'product.map_options.position_unavailable_message'.tr,
         snackPosition: SnackPosition.BOTTOM,
@@ -1654,7 +1650,7 @@ class ProductView extends GetView<ProductController> {
     }
 
     if (lat == null || lng == null) {
-      Get.snackbar(
+      AppFeedback.show(
         'product.map_options.position_unavailable_title'.tr,
         'product.map_options.position_unavailable_message'.tr,
         snackPosition: SnackPosition.BOTTOM,
@@ -1675,7 +1671,7 @@ class ProductView extends GetView<ProductController> {
       if (canLaunch) {
         await launchUrl(url, mode: LaunchMode.externalApplication);
       } else {
-        Get.snackbar(
+        AppFeedback.show(
           'product.error'.tr,
           'product.map_options.google_maps_open_error'.tr,
           snackPosition: SnackPosition.BOTTOM,
@@ -1685,7 +1681,7 @@ class ProductView extends GetView<ProductController> {
         );
       }
     } catch (e) {
-      Get.snackbar(
+      AppFeedback.show(
         'product.error'.tr,
         'product.map_options.google_maps_error'.tr,
         snackPosition: SnackPosition.BOTTOM,
@@ -1835,6 +1831,17 @@ class ProductView extends GetView<ProductController> {
 
             SizedBox(height: 12),
 
+            TextField(
+              controller: controller.recipientNameController,
+              maxLength: 150,
+              textInputAction: TextInputAction.next,
+              decoration: InputDecoration(
+                labelText: 'product.order.recipient_name'.tr,
+                prefixIcon: Icon(Icons.person_outline),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+            ),
+            SizedBox(height: 8),
             TextField(
               controller: controller.addressDetailsController,
               maxLines: 2,
@@ -2453,6 +2460,10 @@ class ProductView extends GetView<ProductController> {
                   icon: Icons.store_mall_directory_outlined,
                 ),
               ],
+              if (partner.isInternationalExport && partner.breakdown != null) ...[
+                const Divider(height: 16),
+                ExportDeliveryCostLines(breakdown: partner.breakdown!, formatPrice: controller.formatPrice),
+              ],
               Align(
                 alignment: Alignment.centerRight,
                 child: TextButton.icon(
@@ -2891,6 +2902,7 @@ class ProductView extends GetView<ProductController> {
             ]),
             section(Icons.local_shipping_rounded, 'product.summary.delivery'.tr, [
               line('product.summary.address'.tr, controller.currentLocation.value),
+              if (controller.deliveryWeightKg != null) line('core.delivery.total_weight'.tr, formatKg(controller.deliveryWeightKg)),
               if (details.isNotEmpty) line('product.summary.address_details'.tr, details),
               line(
                 'product.summary.contact_phone'.tr,
@@ -2924,6 +2936,8 @@ class ProductView extends GetView<ProductController> {
                   controller.orderSubtotal(product),
                 ),
               ),
+              if (quote?.isInternationalExport == true && quote?.breakdown != null)
+                ExportDeliveryCostLines(breakdown: quote!.breakdown!, formatPrice: controller.formatPrice),
               if (controller.deliveryIsFree)
                 Padding(
                   padding: const EdgeInsets.symmetric(vertical: 5),
@@ -2999,6 +3013,9 @@ class ProductView extends GetView<ProductController> {
     Map<String, dynamic> product,
     double total,
   ) async {
+    // Conditions générales d'achat : acceptation obligatoire avant tout achat.
+    if (!await LegalConsent.ensure(LegalStep.purchase)) return;
+
     final amountLabel = DepositProduct.enabled(product)
         ? 'core.deposit.deposit_now'.tr
         : 'product.summary.total_to_pay'.tr;
@@ -3022,7 +3039,7 @@ class ProductView extends GetView<ProductController> {
         await _payViaCard(product);
         break;
       default:
-        Get.snackbar(
+        AppFeedback.show(
           'product.payment.unavailable_title'.tr,
           'product.payment.method_unavailable'.tr,
           snackPosition: SnackPosition.BOTTOM,
@@ -3109,7 +3126,7 @@ class ProductView extends GetView<ProductController> {
   /// Paiement par CARTE (Payment Sheet Stripe native), confirmé côté serveur.
   Future<void> _payViaCard(Map<String, dynamic> product) async {
     if (!StripeNativeService.isSupported) {
-      Get.snackbar(
+      AppFeedback.show(
         'product.payment.unavailable_title'.tr,
         'product.payment.card_mobile_only'.tr,
         snackPosition: SnackPosition.BOTTOM,
@@ -3128,7 +3145,7 @@ class ProductView extends GetView<ProductController> {
     final publishableKey = data['publishable_key']?.toString() ?? '';
     if (clientSecret.isEmpty || publishableKey.isEmpty) {
       await OrderService.abandonUnpaidOrder(orderId);
-      Get.snackbar(
+      AppFeedback.show(
         'product.error'.tr,
         'product.payment.card_data_missing'.tr,
         snackPosition: SnackPosition.BOTTOM,
@@ -3136,14 +3153,18 @@ class ProductView extends GetView<ProductController> {
       return;
     }
 
+    // Vrai une fois la feuille Stripe refermée : une erreur ultérieure ne doit
+    // pas annuler une commande peut-être payée.
+    var sheetClosed = false;
     try {
       final ok = await StripeNativeService().payWithCard(
         publishableKey: publishableKey,
         clientSecret: clientSecret,
       );
+      sheetClosed = true;
       if (!ok) {
         await OrderService.abandonUnpaidOrder(orderId);
-        Get.snackbar(
+        AppFeedback.show(
           'product.payment.cancelled_title'.tr,
           'product.payment.cancelled_message'.tr,
           snackPosition: SnackPosition.BOTTOM,
@@ -3158,9 +3179,11 @@ class ProductView extends GetView<ProductController> {
         'product.payment.card_pending'.tr,
       );
     } catch (e) {
-      Get.snackbar(
+      // La feuille de paiement n'a pas abouti : on libère le stock réservé.
+      if (!sheetClosed) await OrderService.abandonUnpaidOrder(orderId);
+      AppFeedback.show(
         'product.error'.tr,
-        e.toString().replaceAll('Exception: ', ''),
+        AppFeedback.errorMessage(e),
         snackPosition: SnackPosition.BOTTOM,
         duration: const Duration(seconds: 4),
       );
@@ -3296,6 +3319,9 @@ class ProductView extends GetView<ProductController> {
         lat,
         lon,
         fallbackAddress: result['address']?.toString(),
+        city: result['city']?.toString(),
+        country: result['country']?.toString(),
+        postalCode: result['postal_code']?.toString(),
       );
     } finally {
       controller.isLoadingLocation.value = false;
@@ -3306,7 +3332,7 @@ class ProductView extends GetView<ProductController> {
       await controller.loadDeliveryPartners(controller.currentProductId.value);
     }
 
-    Get.snackbar(
+    AppFeedback.show(
       'product.location.updated_title'.tr,
       'product.location.updated_message'.tr,
       snackPosition: SnackPosition.BOTTOM,

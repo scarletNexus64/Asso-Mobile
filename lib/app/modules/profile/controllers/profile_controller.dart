@@ -1,3 +1,4 @@
+import 'package:asso/app/core/utils/app_feedback.dart';
 import 'package:get/get.dart';
 import '../../../core/utils/auth_guard.dart';
 import '../../../core/utils/app_theme_system.dart';
@@ -11,6 +12,7 @@ import '../widgets/logout_loading_dialog.dart';
 class ProfileController extends GetxController {
   final RxMap<String, dynamic> profile = <String, dynamic>{}.obs;
   final RxBool isLoading = false.obs;
+  final RxBool hasLoadError = false.obs;
   final RxBool isGuest = true.obs;
   bool _isLoggingOut = false;
 
@@ -63,6 +65,7 @@ class ProfileController extends GetxController {
     if (isGuest.value) return;
 
     isLoading.value = true;
+    hasLoadError.value = false;
     try {
       final response = await AuthService.getProfile();
       if (response.success && response.data != null) {
@@ -74,6 +77,7 @@ class ProfileController extends GetxController {
     } catch (e) {
       // Use cached data
     } finally {
+      hasLoadError.value = profile.isEmpty;
       isLoading.value = false;
     }
   }
@@ -179,7 +183,7 @@ class ProfileController extends GetxController {
         },
       );
     } catch (e) {
-      Get.snackbar(
+      AppFeedback.show(
         'common.error'.tr,
         'profile.edit_profile_failed'.tr,
         snackPosition: SnackPosition.BOTTOM,

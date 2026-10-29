@@ -17,25 +17,21 @@ class NotificationView extends GetView<NotificationController> {
     timeago.setLocaleMessages('fr', timeago.FrMessages());
 
     return Scaffold(
-      backgroundColor: AppThemeSystem.backgroundColor,
+      backgroundColor: context.ds.canvas,
       appBar: AppBar(
-        backgroundColor: AppThemeSystem.whiteColor,
+        backgroundColor: context.ds.surface,
         elevation: 0,
         title: Text(
           'notification.title'.tr,
-          style: const TextStyle(
-            color: AppThemeSystem.blackColor,
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
-          ),
+          style: Theme.of(context).appBarTheme.titleTextStyle,
         ),
-        leading: const AppBackButton(color: AppThemeSystem.blackColor),
+        leading: const AppBackButton(),
         actions: [
           Obx(() {
             final hasNotifications = controller.notifications.isNotEmpty;
             return hasNotifications
                 ? PopupMenuButton<String>(
-                    icon: const Icon(Icons.more_vert, color: AppThemeSystem.blackColor),
+                    icon: Icon(Icons.more_vert, color: context.ds.textPrimary),
                     onSelected: (value) {
                       if (value == 'mark_all_read') {
                         controller.markAllAsRead();
@@ -58,9 +54,18 @@ class NotificationView extends GetView<NotificationController> {
                         value: 'delete_all',
                         child: Row(
                           children: [
-                            const Icon(Icons.delete_sweep, size: 20, color: AppThemeSystem.errorColor),
+                            const Icon(
+                              Icons.delete_sweep,
+                              size: 20,
+                              color: AppThemeSystem.errorColor,
+                            ),
                             const SizedBox(width: 12),
-                            Text('notification.delete_all'.tr, style: const TextStyle(color: AppThemeSystem.errorColor)),
+                            Text(
+                              'notification.delete_all'.tr,
+                              style: const TextStyle(
+                                color: AppThemeSystem.errorColor,
+                              ),
+                            ),
                           ],
                         ),
                       ),
@@ -73,12 +78,14 @@ class NotificationView extends GetView<NotificationController> {
       body: Obx(() {
         if (controller.isLoading.value && controller.notifications.isEmpty) {
           return const Center(
-            child: CircularProgressIndicator(color: AppThemeSystem.primaryColor),
+            child: CircularProgressIndicator(
+              color: AppThemeSystem.primaryColor,
+            ),
           );
         }
 
         if (controller.notifications.isEmpty) {
-          return _buildEmptyState();
+          return _buildEmptyState(context);
         }
 
         return RefreshIndicator(
@@ -86,14 +93,18 @@ class NotificationView extends GetView<NotificationController> {
           onRefresh: () => controller.fetchNotifications(refresh: true),
           child: ListView.separated(
             padding: const EdgeInsets.symmetric(vertical: 8),
-            itemCount: controller.notifications.length + (controller.isLoadingMore.value ? 1 : 0),
+            itemCount:
+                controller.notifications.length +
+                (controller.isLoadingMore.value ? 1 : 0),
             separatorBuilder: (context, index) => const Divider(height: 1),
             itemBuilder: (context, index) {
               if (index == controller.notifications.length) {
                 return const Center(
                   child: Padding(
                     padding: EdgeInsets.all(16),
-                    child: CircularProgressIndicator(color: AppThemeSystem.primaryColor),
+                    child: CircularProgressIndicator(
+                      color: AppThemeSystem.primaryColor,
+                    ),
                   ),
                 );
               }
@@ -107,7 +118,7 @@ class NotificationView extends GetView<NotificationController> {
     );
   }
 
-  Widget _buildEmptyState() {
+  Widget _buildEmptyState(BuildContext context) {
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -115,7 +126,7 @@ class NotificationView extends GetView<NotificationController> {
           Icon(
             Icons.notifications_none_rounded,
             size: 120,
-            color: AppThemeSystem.blackColor.withOpacity(0.2),
+            color: context.ds.textPrimary.withOpacity(0.2),
           ),
           const SizedBox(height: 16),
           Text(
@@ -123,7 +134,7 @@ class NotificationView extends GetView<NotificationController> {
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.w600,
-              color: AppThemeSystem.blackColor.withOpacity(0.6),
+              color: context.ds.textPrimary.withOpacity(0.6),
             ),
           ),
           const SizedBox(height: 8),
@@ -131,7 +142,7 @@ class NotificationView extends GetView<NotificationController> {
             'notification.empty_message'.tr,
             style: TextStyle(
               fontSize: 14,
-              color: AppThemeSystem.blackColor.withOpacity(0.4),
+              color: context.ds.textPrimary.withOpacity(0.4),
             ),
           ),
         ],
@@ -168,7 +179,9 @@ class NotificationView extends GetView<NotificationController> {
           _handleNotificationTap(notification);
         },
         child: Container(
-          color: isRead ? AppThemeSystem.whiteColor : AppThemeSystem.primaryColor.withOpacity(0.05),
+          color: isRead
+              ? AppThemeSystem.whiteColor
+              : AppThemeSystem.primaryColor.withOpacity(0.05),
           padding: const EdgeInsets.all(16),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -181,7 +194,34 @@ class NotificationView extends GetView<NotificationController> {
                   color: color.withOpacity(0.1),
                   shape: BoxShape.circle,
                 ),
-                child: Icon(iconData, color: color, size: 24),
+                child: Stack(
+                  children: [
+                    Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(6),
+                        child: Image.asset(
+                          'assets/images/logo.png',
+                          fit: BoxFit.contain,
+                          semanticLabel: 'ASSO',
+                          errorBuilder: (_, _, _) =>
+                              Icon(iconData, color: color, size: 24),
+                        ),
+                      ),
+                    ),
+                    Positioned(
+                      right: 0,
+                      bottom: 0,
+                      child: Container(
+                        padding: const EdgeInsets.all(2),
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).colorScheme.surface,
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(iconData, color: color, size: 14),
+                      ),
+                    ),
+                  ],
+                ),
               ),
               const SizedBox(width: 12),
               // Content
@@ -196,8 +236,10 @@ class NotificationView extends GetView<NotificationController> {
                             notification.title,
                             style: TextStyle(
                               fontSize: 15,
-                              fontWeight: isRead ? FontWeight.w500 : FontWeight.bold,
-                              color: AppThemeSystem.blackColor,
+                              fontWeight: isRead
+                                  ? FontWeight.w500
+                                  : FontWeight.bold,
+                              color: context.ds.textPrimary,
                             ),
                           ),
                         ),
@@ -217,7 +259,7 @@ class NotificationView extends GetView<NotificationController> {
                       notification.body,
                       style: TextStyle(
                         fontSize: 14,
-                        color: AppThemeSystem.blackColor.withOpacity(0.7),
+                        color: context.ds.textPrimary.withOpacity(0.7),
                       ),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
@@ -227,7 +269,7 @@ class NotificationView extends GetView<NotificationController> {
                       timeago.format(notification.createdAt),
                       style: TextStyle(
                         fontSize: 12,
-                        color: AppThemeSystem.blackColor.withOpacity(0.5),
+                        color: context.ds.textPrimary.withOpacity(0.5),
                       ),
                     ),
                   ],
@@ -250,6 +292,11 @@ class NotificationView extends GetView<NotificationController> {
         return Icons.error_rounded;
       case 'wallet_withdrawal_success':
         return Icons.arrow_circle_up_rounded;
+      case 'marketing_digest':
+        return Icons.campaign_outlined;
+      case 'real_estate_alert':
+      case 'real_estate_listing_published':
+        return Icons.home_outlined;
       case 'order_update':
         return Icons.shopping_bag_rounded;
       case 'new_message':

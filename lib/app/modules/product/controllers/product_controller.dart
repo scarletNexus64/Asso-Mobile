@@ -1,3 +1,5 @@
+import 'package:asso/app/modules/payment/widgets/payment_preparation.dart';
+import 'package:asso/app/core/utils/app_feedback.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:geocoding/geocoding.dart';
@@ -76,6 +78,9 @@ class ProductController extends GetxController {
 
   /// Texte saisi, observé pour activer/désactiver le bouton de paiement.
   final customerPhone = ''.obs;
+  final recipientName = ''.obs;
+  final deliveryCity = RxnString();
+  final deliveryCountry = RxnString();
   final addressDetails = ''.obs;
   final PageController imagePageController = PageController();
 
@@ -103,6 +108,8 @@ class ProductController extends GetxController {
   final TextEditingController addressDetailsController =
       TextEditingController();
   final TextEditingController customerPhoneController = TextEditingController();
+  final recipientNameController = TextEditingController();
+  final postalCodeController = TextEditingController();
 
   /// Produits dont la consultation a déjà été signalée (statistiques vendeur).
   final Set<String> _trackedProductIds = {};
@@ -147,7 +154,7 @@ class ProductController extends GetxController {
   }) async {
     final url = shareUrl(product);
     if (url == null) {
-      Get.snackbar(
+      AppFeedback.show(
         'product.share.unavailable_title'.tr,
         'product.share.unavailable_message'.tr,
         snackPosition: SnackPosition.BOTTOM,
@@ -289,7 +296,11 @@ class ProductController extends GetxController {
       }
     }, time: const Duration(milliseconds: 500));
 
+    recipientNameController.addListener(
+      () => recipientName.value = recipientNameController.text.trim(),
+    );
     final user = StorageService.getUser();
+    recipientNameController.text = user?.name ?? '';
     final rawPhone = (user?.phone ?? '').trim();
     if (rawPhone.isNotEmpty) {
       customerPhoneController.text = rawPhone;
@@ -301,6 +312,8 @@ class ProductController extends GetxController {
     imagePageController.dispose();
     addressDetailsController.dispose();
     customerPhoneController.dispose();
+    recipientNameController.dispose();
+    postalCodeController.dispose();
     super.onClose();
   }
 
@@ -384,7 +397,7 @@ class ProductController extends GetxController {
 
   /// Explique pourquoi la quantité ne monte plus.
   void notifyStockLimit(int max) {
-    Get.snackbar(
+    AppFeedback.show(
       'product.stock.limited_title'.tr,
       max <= 0
           ? 'product.stock.option_sold_out'.tr
@@ -472,6 +485,9 @@ class ProductController extends GetxController {
     else if (orderQuantity.value < 1)
       'product.order.step_quantity'.tr,
     if (!hasValidLocation) 'product.order.step_address'.tr,
+    if (selectedPartner.value?['international_export'] == true &&
+        recipientName.value.isEmpty)
+      'product.order.recipient_required'.tr,
     if (addressDetails.value.isEmpty) 'product.order.step_address_details'.tr,
     if (!hasValidPhone) 'product.order.step_phone'.tr,
     if (deliveryBlockedMessage.value != null)
@@ -512,8 +528,14 @@ class ProductController extends GetxController {
     double latitude,
     double longitude, {
     String? fallbackAddress,
+    String? city,
+    String? country,
+    String? postalCode,
   }) async {
     final revision = ++_positionRevision;
+    deliveryCity.value = city;
+    deliveryCountry.value = country;
+    postalCodeController.text = postalCode ?? '';
     clientLatitude.value = latitude;
     clientLongitude.value = longitude;
     locationIssue.value = LocationIssue.none;
@@ -548,13 +570,18 @@ class ProductController extends GetxController {
       ).timeout(const Duration(seconds: 8));
       if (placemarks.isNotEmpty) {
         final placemark = placemarks.first;
+        if (revision != _positionRevision) return;
+        deliveryCountry.value = placemark.isoCountryCode;
+        postalCodeController.text = placemark.postalCode ?? '';
         final city = [
           placemark.locality,
           placemark.subAdministrativeArea,
           placemark.administrativeArea,
         ].firstWhereOrNull((part) => part != null && part.isNotEmpty);
+        deliveryCity.value = city;
         final parts = <String>[
           if (city != null) city,
+          if (placemark.country?.isNotEmpty == true) placemark.country!,
           if (placemark.subLocality?.isNotEmpty == true) placemark.subLocality!,
           if (placemark.street?.isNotEmpty == true &&
               !(placemark.street!.contains('+')))
@@ -600,7 +627,9 @@ class ProductController extends GetxController {
         ? null
         : DeliveryPartnerQuote(selectedPartner.value!).key;
     _quotedQuantity = quantity;
-    _quotedCity = currentLocation.value.trim();
+    _quotedCity = deliveryCity.value?.trim().isNotEmpty == true
+        ? deliveryCity.value!.trim()
+        : currentLocation.value.trim();
 
     isLoadingPartners.value = true;
     deliveryPartners.clear();
@@ -617,6 +646,7 @@ class ProductController extends GetxController {
         latitude: clientLatitude.value,
         longitude: clientLongitude.value,
         city: _quotedCity,
+        country: deliveryCountry.value,
         quarter: deliveryQuarter.value,
       );
       if (request != _partnersRequest) return; // réponse périmée
@@ -643,7 +673,7 @@ class ProductController extends GetxController {
       }
 
       if (!response.success) {
-        Get.snackbar(
+        AppFeedback.show(
           'product.delivery.unavailable'.tr,
           response.message,
           snackPosition: SnackPosition.BOTTOM,
@@ -671,7 +701,7 @@ class ProductController extends GetxController {
       }
     } catch (_) {
       if (request != _partnersRequest) return;
-      Get.snackbar(
+      AppFeedback.show(
         'product.error'.tr,
         'product.delivery.partners_load_error'.tr,
         snackPosition: SnackPosition.BOTTOM,
@@ -743,7 +773,7 @@ class ProductController extends GetxController {
 
     final missing = missingOrderSteps(product);
     if (missing.isNotEmpty) {
-      Get.snackbar(
+      AppFeedback.show(
         'product.order.incomplete'.tr,
         missing.first,
         snackPosition: SnackPosition.BOTTOM,
@@ -762,7 +792,7 @@ class ProductController extends GetxController {
         (deliveryRouteId == null &&
             deliveryZoneId == null &&
             deliveryGridId == null)) {
-      Get.snackbar(
+      AppFeedback.show(
         'product.error'.tr,
         'product.delivery.partner_invalid'.tr,
         snackPosition: SnackPosition.BOTTOM,
@@ -783,44 +813,49 @@ class ProductController extends GetxController {
 
     isCreatingOrder.value = true;
     try {
-      final response = await OrderService.createOrder(
-        // Une ligne par option choisie : le serveur vérifie et décompte le
-        // stock de chacune.
-        items: [
-          for (final line in lines)
-            {
-              'product_id': productId,
-              'quantity': line.quantity,
-              if (line.variant?['id'] != null)
-                'variant_id': line.variant!['id'],
-            },
-        ],
-        deliveryCompanyId: deliveryCompanyId,
-        deliveryZoneId: deliveryZoneId,
-        deliveryRouteId: deliveryRouteId,
-        deliveryGridId: deliveryGridId,
-        deliveryVehicle: partner.vehicle,
-        deliveryQuarter: deliveryQuarter.value,
-        deliveryCity: _quotedCity.isNotEmpty
-            ? _quotedCity
-            : currentLocation.value,
-        deliveryCountry: deliveryQuote.value?['destination'] is Map
-            ? deliveryQuote.value!['destination']['country']?.toString()
-            : null,
-        walletProvider: 'kpay',
-        paymentMode: paymentMode,
-        kpayProvider: kpayProvider,
-        kpayPhone: kpayPhone,
-        deliveryAddress: currentLocation.value,
-        deliveryAddressDetails: details.isEmpty ? null : details,
-        customerPhone: customerPhone.value,
-        deliveryLatitude: clientLatitude.value,
-        deliveryLongitude: clientLongitude.value,
-        notes: variantNote.isEmpty ? null : 'Variantes : $variantNote',
+      final response = await PaymentPreparation.run(
+        method: paymentMode,
+        action: () => OrderService.createOrder(
+          // Une ligne par option choisie : le serveur vérifie et décompte le
+          // stock de chacune.
+          items: [
+            for (final line in lines)
+              {
+                'product_id': productId,
+                'quantity': line.quantity,
+                if (line.variant?['id'] != null)
+                  'variant_id': line.variant!['id'],
+              },
+          ],
+          deliveryCompanyId: deliveryCompanyId,
+          deliveryZoneId: deliveryZoneId,
+          deliveryRouteId: deliveryRouteId,
+          deliveryGridId: deliveryGridId,
+          deliveryVehicle: partner.vehicle,
+          deliveryQuarter: deliveryQuarter.value,
+          deliveryCity: _quotedCity.isNotEmpty
+              ? _quotedCity
+              : currentLocation.value,
+          deliveryCountry: deliveryQuote.value?['destination'] is Map
+              ? deliveryQuote.value!['destination']['country']?.toString()
+              : null,
+          walletProvider: 'kpay',
+          paymentMode: paymentMode,
+          kpayProvider: kpayProvider,
+          kpayPhone: kpayPhone,
+          deliveryAddress: currentLocation.value,
+          deliveryAddressDetails: details.isEmpty ? null : details,
+          customerPhone: customerPhone.value,
+          recipientName: recipientNameController.text.trim(),
+          deliveryPostalCode: postalCodeController.text.trim(),
+          deliveryLatitude: clientLatitude.value,
+          deliveryLongitude: clientLongitude.value,
+          notes: variantNote.isEmpty ? null : 'Variantes : $variantNote',
+        ),
       );
 
       if (!response.success) {
-        Get.snackbar(
+        AppFeedback.show(
           'product.order.failed_title'.tr,
           response.message,
           snackPosition: SnackPosition.BOTTOM,
@@ -831,7 +866,7 @@ class ProductController extends GetxController {
       return response.data ?? const {};
     } catch (e) {
       debugPrint('[ProductController] Error creating order: $e');
-      Get.snackbar(
+      AppFeedback.show(
         'product.error'.tr,
         'product.order.failed_title'.tr,
         snackPosition: SnackPosition.BOTTOM,
@@ -862,7 +897,7 @@ class ProductController extends GetxController {
       try {
         final state = await orderPaymentState(orderId);
         if (state.status == 'paid') {
-          Get.snackbar(
+          AppFeedback.show(
             'product.payment.confirmed_title'.tr,
             'product.payment.confirmed_message'.tr,
             snackPosition: SnackPosition.BOTTOM,
@@ -873,7 +908,7 @@ class ProductController extends GetxController {
           return;
         }
         if (state.status == 'failed') {
-          Get.snackbar(
+          AppFeedback.show(
             'product.payment.failed_title'.tr,
             switch (state.failure) {
               final String failure => MobileMoneyWaiting.failureMessage(
@@ -915,7 +950,7 @@ class ProductController extends GetxController {
           '',
     );
     if (sellerId == null) {
-      Get.snackbar(
+      AppFeedback.show(
         'product.error'.tr,
         'product.chat.start_error'.tr,
         snackPosition: SnackPosition.BOTTOM,
@@ -940,7 +975,7 @@ class ProductController extends GetxController {
         );
       }
       if (!response.success || conversationId == null) {
-        Get.snackbar(
+        AppFeedback.show(
           'product.error'.tr,
           response.message.isNotEmpty
               ? response.message
@@ -974,7 +1009,7 @@ class ProductController extends GetxController {
         },
       );
     } catch (_) {
-      Get.snackbar(
+      AppFeedback.show(
         'product.error'.tr,
         'product.chat.start_error'.tr,
         snackPosition: SnackPosition.BOTTOM,

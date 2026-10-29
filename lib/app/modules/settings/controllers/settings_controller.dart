@@ -1,4 +1,12 @@
+import 'package:asso/app/core/utils/app_feedback.dart';
+import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart'
+    show defaultTargetPlatform, TargetPlatform;
+import 'package:permission_handler/permission_handler.dart';
+import '../../../data/models/push_preferences.dart';
+import '../../../data/providers/notification_preference_provider.dart';
+import '../../../data/services/firebase_messaging_service.dart';
 import 'package:get/get.dart';
 import '../../../core/utils/app_theme_system.dart';
 import '../../../data/providers/auth_service.dart';
@@ -25,12 +33,18 @@ class SettingsController extends GetxController {
   /// Code de la langue affichée (`fr`, `en`), tenu par [LocaleService].
   RxString get selectedLanguage => LocaleService.to.language;
   final notificationsEnabled = true.obs;
+  final notificationCategories = <String, bool>{
+    for (final key in PushPreferences.categoryKeys) key: true,
+  }.obs;
+  final notificationPreferenceBusy = false.obs;
 
   // Pays et devise
   final selectedCountry = ''.obs;
   final selectedCurrency = ''.obs;
-  final RxList<Map<String, dynamic>> allCountries = <Map<String, dynamic>>[].obs;
-  final RxList<Map<String, dynamic>> filteredCountries = <Map<String, dynamic>>[].obs;
+  final RxList<Map<String, dynamic>> allCountries =
+      <Map<String, dynamic>>[].obs;
+  final RxList<Map<String, dynamic>> filteredCountries =
+      <Map<String, dynamic>>[].obs;
   final RxString searchQuery = ''.obs;
 
   @override
@@ -54,10 +68,23 @@ class SettingsController extends GetxController {
   }
 
   /// Charge les préférences depuis le storage local
+  void _applyPushPreferences(PushPreferences value) {
+    notificationsEnabled.value = value.enabled;
+    notificationCategories.assignAll(value.categories);
+  }
+
   void _loadPreferences() {
-    final preferences = StorageService.getPreferences();
-    if (preferences != null) {
-      notificationsEnabled.value = preferences['notifications'] ?? true;
+    _applyPushPreferences(NotificationPreferenceProvider.cached());
+    unawaited(_refreshPushPreferences());
+  }
+
+  Future<void> _refreshPushPreferences() async {
+    try {
+      final value = await NotificationPreferenceProvider.fetch();
+      if (value != null && !notificationPreferenceBusy.value)
+        _applyPushPreferences(value);
+    } catch (_) {
+      /* Cached preferences remain available offline. */
     }
   }
 
@@ -82,7 +109,9 @@ class SettingsController extends GetxController {
     final lastName = data['last_name'] ?? '';
     final fullName = '$firstName $lastName'.trim();
 
-    userName.value = fullName.isEmpty ? 'settings.default_user_name'.tr : fullName;
+    userName.value = fullName.isEmpty
+        ? 'settings.default_user_name'.tr
+        : fullName;
     userEmail.value = data['email'] ?? '';
     userPhone.value = data['phone'] ?? '';
   }
@@ -123,13 +152,19 @@ class SettingsController extends GetxController {
                         Container(
                           padding: EdgeInsets.all(context.elementSpacing),
                           decoration: BoxDecoration(
-                            color: AppThemeSystem.primaryColor.withValues(alpha: 0.1),
-                            borderRadius: context.borderRadius(BorderRadiusType.medium),
+                            color: AppThemeSystem.primaryColor.withValues(
+                              alpha: 0.1,
+                            ),
+                            borderRadius: context.borderRadius(
+                              BorderRadiusType.medium,
+                            ),
                           ),
                           child: Icon(
                             Icons.phone_outlined,
                             color: AppThemeSystem.primaryColor,
-                            size: context.deviceType == DeviceType.mobile ? 24 : 28,
+                            size: context.deviceType == DeviceType.mobile
+                                ? 24
+                                : 28,
                           ),
                         ),
                         SizedBox(width: context.elementSpacing),
@@ -152,7 +187,9 @@ class SettingsController extends GetxController {
                       padding: EdgeInsets.all(context.elementSpacing),
                       decoration: BoxDecoration(
                         color: AppThemeSystem.grey100,
-                        borderRadius: context.borderRadius(BorderRadiusType.medium),
+                        borderRadius: context.borderRadius(
+                          BorderRadiusType.medium,
+                        ),
                       ),
                       child: Row(
                         children: [
@@ -164,7 +201,9 @@ class SettingsController extends GetxController {
                           SizedBox(width: context.elementSpacing * 0.5),
                           Expanded(
                             child: Text(
-                              'settings.phone_change.current'.trParams({'phone': userPhone.value}),
+                              'settings.phone_change.current'.trParams({
+                                'phone': userPhone.value,
+                              }),
                               style: context.textStyle(
                                 FontSizeType.caption,
                                 color: AppThemeSystem.grey600,
@@ -194,15 +233,21 @@ class SettingsController extends GetxController {
                         filled: true,
                         fillColor: context.inputFieldColor,
                         border: OutlineInputBorder(
-                          borderRadius: context.borderRadius(BorderRadiusType.medium),
+                          borderRadius: context.borderRadius(
+                            BorderRadiusType.medium,
+                          ),
                           borderSide: BorderSide(color: context.borderColor),
                         ),
                         enabledBorder: OutlineInputBorder(
-                          borderRadius: context.borderRadius(BorderRadiusType.medium),
+                          borderRadius: context.borderRadius(
+                            BorderRadiusType.medium,
+                          ),
                           borderSide: BorderSide(color: context.borderColor),
                         ),
                         focusedBorder: OutlineInputBorder(
-                          borderRadius: context.borderRadius(BorderRadiusType.medium),
+                          borderRadius: context.borderRadius(
+                            BorderRadiusType.medium,
+                          ),
                           borderSide: const BorderSide(
                             color: AppThemeSystem.primaryColor,
                             width: 2,
@@ -262,7 +307,9 @@ class SettingsController extends GetxController {
                               style: OutlinedButton.styleFrom(
                                 side: BorderSide(color: context.borderColor),
                                 shape: RoundedRectangleBorder(
-                                  borderRadius: context.borderRadius(BorderRadiusType.medium),
+                                  borderRadius: context.borderRadius(
+                                    BorderRadiusType.medium,
+                                  ),
                                 ),
                               ),
                               child: Text(
@@ -286,9 +333,12 @@ class SettingsController extends GetxController {
                                 backgroundColor: AppThemeSystem.primaryColor,
                                 foregroundColor: Colors.white,
                                 elevation: 2,
-                                shadowColor: AppThemeSystem.primaryColor.withValues(alpha: 0.3),
+                                shadowColor: AppThemeSystem.primaryColor
+                                    .withValues(alpha: 0.3),
                                 shape: RoundedRectangleBorder(
-                                  borderRadius: context.borderRadius(BorderRadiusType.medium),
+                                  borderRadius: context.borderRadius(
+                                    BorderRadiusType.medium,
+                                  ),
                                 ),
                               ),
                               child: Text(
@@ -317,7 +367,7 @@ class SettingsController extends GetxController {
 
         // Validate phone number (basic validation)
         if (newPhone.length < 8) {
-          Get.snackbar(
+          AppFeedback.show(
             'common.error'.tr,
             'settings.phone_change.invalid'.tr,
             snackPosition: SnackPosition.BOTTOM,
@@ -337,13 +387,17 @@ class SettingsController extends GetxController {
 
         if (response.success) {
           // Navigate to OTP verification page with phone change context
-          Get.toNamed('/otp', arguments: {
-            'phoneNumber': countryCode + newPhone,
-            'isPhoneChange': true, // Special flag to indicate this is phone change
-            'newPhone': countryCode + newPhone,
-          });
+          Get.toNamed(
+            '/otp',
+            arguments: {
+              'phoneNumber': countryCode + newPhone,
+              'isPhoneChange':
+                  true, // Special flag to indicate this is phone change
+              'newPhone': countryCode + newPhone,
+            },
+          );
 
-          Get.snackbar(
+          AppFeedback.show(
             'settings.phone_change.code_sent'.tr,
             response.message,
             snackPosition: SnackPosition.BOTTOM,
@@ -351,7 +405,7 @@ class SettingsController extends GetxController {
             colorText: Colors.white,
           );
         } else {
-          Get.snackbar(
+          AppFeedback.show(
             'common.error'.tr,
             response.message,
             snackPosition: SnackPosition.BOTTOM,
@@ -361,7 +415,7 @@ class SettingsController extends GetxController {
         }
       }
     } catch (e) {
-      Get.snackbar(
+      AppFeedback.show(
         'common.error'.tr,
         'settings.phone_change.failed'.tr,
         snackPosition: SnackPosition.BOTTOM,
@@ -398,13 +452,19 @@ class SettingsController extends GetxController {
                       Container(
                         padding: EdgeInsets.all(context.elementSpacing),
                         decoration: BoxDecoration(
-                          color: AppThemeSystem.warningColor.withValues(alpha: 0.1),
-                          borderRadius: context.borderRadius(BorderRadiusType.medium),
+                          color: AppThemeSystem.warningColor.withValues(
+                            alpha: 0.1,
+                          ),
+                          borderRadius: context.borderRadius(
+                            BorderRadiusType.medium,
+                          ),
                         ),
                         child: Icon(
                           Icons.delete_sweep_rounded,
                           color: AppThemeSystem.warningColor,
-                          size: context.deviceType == DeviceType.mobile ? 24 : 28,
+                          size: context.deviceType == DeviceType.mobile
+                              ? 24
+                              : 28,
                         ),
                       ),
                       SizedBox(width: context.elementSpacing),
@@ -425,10 +485,7 @@ class SettingsController extends GetxController {
                   // Message
                   Text(
                     'settings.cache.confirm_question'.tr,
-                    style: context.textStyle(
-                      FontSizeType.body1,
-                      height: 1.5,
-                    ),
+                    style: context.textStyle(FontSizeType.body1, height: 1.5),
                   ),
 
                   SizedBox(height: context.elementSpacing),
@@ -438,7 +495,9 @@ class SettingsController extends GetxController {
                     padding: EdgeInsets.all(context.elementSpacing),
                     decoration: BoxDecoration(
                       color: AppThemeSystem.infoColor.withValues(alpha: 0.1),
-                      borderRadius: context.borderRadius(BorderRadiusType.medium),
+                      borderRadius: context.borderRadius(
+                        BorderRadiusType.medium,
+                      ),
                       border: Border.all(
                         color: AppThemeSystem.infoColor.withValues(alpha: 0.3),
                       ),
@@ -478,7 +537,9 @@ class SettingsController extends GetxController {
                             style: OutlinedButton.styleFrom(
                               side: BorderSide(color: context.borderColor),
                               shape: RoundedRectangleBorder(
-                                borderRadius: context.borderRadius(BorderRadiusType.medium),
+                                borderRadius: context.borderRadius(
+                                  BorderRadiusType.medium,
+                                ),
                               ),
                             ),
                             child: Text(
@@ -502,9 +563,12 @@ class SettingsController extends GetxController {
                               backgroundColor: AppThemeSystem.warningColor,
                               foregroundColor: Colors.white,
                               elevation: 2,
-                              shadowColor: AppThemeSystem.warningColor.withValues(alpha: 0.3),
+                              shadowColor: AppThemeSystem.warningColor
+                                  .withValues(alpha: 0.3),
                               shape: RoundedRectangleBorder(
-                                borderRadius: context.borderRadius(BorderRadiusType.medium),
+                                borderRadius: context.borderRadius(
+                                  BorderRadiusType.medium,
+                                ),
                               ),
                             ),
                             child: Text(
@@ -534,7 +598,7 @@ class SettingsController extends GetxController {
       // TODO: Effacer le cache
       await Future.delayed(const Duration(seconds: 1));
 
-      Get.snackbar(
+      AppFeedback.show(
         'common.success'.tr,
         'settings.cache.cleared'.tr,
         snackPosition: SnackPosition.BOTTOM,
@@ -542,7 +606,7 @@ class SettingsController extends GetxController {
         colorText: Colors.white,
       );
     } catch (e) {
-      Get.snackbar(
+      AppFeedback.show(
         'common.error'.tr,
         'settings.cache.failed'.tr,
         snackPosition: SnackPosition.BOTTOM,
@@ -583,7 +647,9 @@ class SettingsController extends GetxController {
                         color: AppThemeSystem.errorColor.withValues(alpha: 0.1),
                         shape: BoxShape.circle,
                         border: Border.all(
-                          color: AppThemeSystem.errorColor.withValues(alpha: 0.3),
+                          color: AppThemeSystem.errorColor.withValues(
+                            alpha: 0.3,
+                          ),
                           width: 2,
                         ),
                       ),
@@ -617,7 +683,9 @@ class SettingsController extends GetxController {
                     padding: EdgeInsets.all(context.elementSpacing),
                     decoration: BoxDecoration(
                       color: AppThemeSystem.errorColor.withValues(alpha: 0.05),
-                      borderRadius: context.borderRadius(BorderRadiusType.medium),
+                      borderRadius: context.borderRadius(
+                        BorderRadiusType.medium,
+                      ),
                       border: Border.all(
                         color: AppThemeSystem.errorColor.withValues(alpha: 0.2),
                       ),
@@ -633,10 +701,22 @@ class SettingsController extends GetxController {
                           ),
                         ),
                         SizedBox(height: context.elementSpacing * 0.75),
-                        _buildWarningItem(context, 'settings.delete_account.consequence_data'.tr),
-                        _buildWarningItem(context, 'settings.delete_account.consequence_orders'.tr),
-                        _buildWarningItem(context, 'settings.delete_account.consequence_products'.tr),
-                        _buildWarningItem(context, 'settings.delete_account.consequence_history'.tr),
+                        _buildWarningItem(
+                          context,
+                          'settings.delete_account.consequence_data'.tr,
+                        ),
+                        _buildWarningItem(
+                          context,
+                          'settings.delete_account.consequence_orders'.tr,
+                        ),
+                        _buildWarningItem(
+                          context,
+                          'settings.delete_account.consequence_products'.tr,
+                        ),
+                        _buildWarningItem(
+                          context,
+                          'settings.delete_account.consequence_history'.tr,
+                        ),
                       ],
                     ),
                   ),
@@ -669,7 +749,9 @@ class SettingsController extends GetxController {
                             style: OutlinedButton.styleFrom(
                               side: BorderSide(color: context.borderColor),
                               shape: RoundedRectangleBorder(
-                                borderRadius: context.borderRadius(BorderRadiusType.medium),
+                                borderRadius: context.borderRadius(
+                                  BorderRadiusType.medium,
+                                ),
                               ),
                             ),
                             child: Text(
@@ -693,9 +775,13 @@ class SettingsController extends GetxController {
                               backgroundColor: AppThemeSystem.errorColor,
                               foregroundColor: Colors.white,
                               elevation: 2,
-                              shadowColor: AppThemeSystem.errorColor.withValues(alpha: 0.3),
+                              shadowColor: AppThemeSystem.errorColor.withValues(
+                                alpha: 0.3,
+                              ),
                               shape: RoundedRectangleBorder(
-                                borderRadius: context.borderRadius(BorderRadiusType.medium),
+                                borderRadius: context.borderRadius(
+                                  BorderRadiusType.medium,
+                                ),
                               ),
                             ),
                             child: Text(
@@ -746,13 +832,19 @@ class SettingsController extends GetxController {
                         Container(
                           padding: EdgeInsets.all(context.elementSpacing),
                           decoration: BoxDecoration(
-                            color: AppThemeSystem.errorColor.withValues(alpha: 0.1),
-                            borderRadius: context.borderRadius(BorderRadiusType.medium),
+                            color: AppThemeSystem.errorColor.withValues(
+                              alpha: 0.1,
+                            ),
+                            borderRadius: context.borderRadius(
+                              BorderRadiusType.medium,
+                            ),
                           ),
                           child: Icon(
                             Icons.lock_rounded,
                             color: AppThemeSystem.errorColor,
-                            size: context.deviceType == DeviceType.mobile ? 24 : 28,
+                            size: context.deviceType == DeviceType.mobile
+                                ? 24
+                                : 28,
                           ),
                         ),
                         SizedBox(width: context.elementSpacing),
@@ -773,10 +865,7 @@ class SettingsController extends GetxController {
                     // Instructions
                     Text(
                       'settings.delete_account.type_instruction'.tr,
-                      style: context.textStyle(
-                        FontSizeType.body2,
-                        height: 1.5,
-                      ),
+                      style: context.textStyle(FontSizeType.body2, height: 1.5),
                     ),
 
                     SizedBox(height: context.elementSpacing),
@@ -789,10 +878,16 @@ class SettingsController extends GetxController {
                           vertical: context.elementSpacing * 0.75,
                         ),
                         decoration: BoxDecoration(
-                          color: AppThemeSystem.errorColor.withValues(alpha: 0.1),
-                          borderRadius: context.borderRadius(BorderRadiusType.medium),
+                          color: AppThemeSystem.errorColor.withValues(
+                            alpha: 0.1,
+                          ),
+                          borderRadius: context.borderRadius(
+                            BorderRadiusType.medium,
+                          ),
                           border: Border.all(
-                            color: AppThemeSystem.errorColor.withValues(alpha: 0.3),
+                            color: AppThemeSystem.errorColor.withValues(
+                              alpha: 0.3,
+                            ),
                           ),
                         ),
                         child: Text(
@@ -821,15 +916,21 @@ class SettingsController extends GetxController {
                         filled: true,
                         fillColor: context.inputFieldColor,
                         border: OutlineInputBorder(
-                          borderRadius: context.borderRadius(BorderRadiusType.medium),
+                          borderRadius: context.borderRadius(
+                            BorderRadiusType.medium,
+                          ),
                           borderSide: BorderSide(color: context.borderColor),
                         ),
                         enabledBorder: OutlineInputBorder(
-                          borderRadius: context.borderRadius(BorderRadiusType.medium),
+                          borderRadius: context.borderRadius(
+                            BorderRadiusType.medium,
+                          ),
                           borderSide: BorderSide(color: context.borderColor),
                         ),
                         focusedBorder: OutlineInputBorder(
-                          borderRadius: context.borderRadius(BorderRadiusType.medium),
+                          borderRadius: context.borderRadius(
+                            BorderRadiusType.medium,
+                          ),
                           borderSide: const BorderSide(
                             color: AppThemeSystem.errorColor,
                             width: 2,
@@ -860,7 +961,9 @@ class SettingsController extends GetxController {
                               style: OutlinedButton.styleFrom(
                                 side: BorderSide(color: context.borderColor),
                                 shape: RoundedRectangleBorder(
-                                  borderRadius: context.borderRadius(BorderRadiusType.medium),
+                                  borderRadius: context.borderRadius(
+                                    BorderRadiusType.medium,
+                                  ),
                                 ),
                               ),
                               child: Text(
@@ -885,15 +988,22 @@ class SettingsController extends GetxController {
                                     'settings.delete_account.confirm_word'.tr) {
                                   Get.back(result: true);
                                 } else {
-                                  Get.snackbar(
+                                  AppFeedback.show(
                                     'common.error'.tr,
-                                    'settings.delete_account.type_exact_error'.trParams({
-                                      'word': 'settings.delete_account.confirm_word'.tr,
-                                    }),
+                                    'settings.delete_account.type_exact_error'
+                                        .trParams({
+                                          'word':
+                                              'settings.delete_account.confirm_word'
+                                                  .tr,
+                                        }),
                                     snackPosition: SnackPosition.BOTTOM,
-                                    backgroundColor: AppThemeSystem.warningColor,
+                                    backgroundColor:
+                                        AppThemeSystem.warningColor,
                                     colorText: Colors.white,
-                                    icon: const Icon(Icons.error_outline, color: Colors.white),
+                                    icon: const Icon(
+                                      Icons.error_outline,
+                                      color: Colors.white,
+                                    ),
                                   );
                                 }
                               },
@@ -901,9 +1011,12 @@ class SettingsController extends GetxController {
                                 backgroundColor: AppThemeSystem.errorColor,
                                 foregroundColor: Colors.white,
                                 elevation: 2,
-                                shadowColor: AppThemeSystem.errorColor.withValues(alpha: 0.3),
+                                shadowColor: AppThemeSystem.errorColor
+                                    .withValues(alpha: 0.3),
                                 shape: RoundedRectangleBorder(
-                                  borderRadius: context.borderRadius(BorderRadiusType.medium),
+                                  borderRadius: context.borderRadius(
+                                    BorderRadiusType.medium,
+                                  ),
                                 ),
                               ),
                               child: Text(
@@ -935,7 +1048,7 @@ class SettingsController extends GetxController {
       final response = await AuthService.deleteAccount();
 
       if (response.success) {
-        Get.snackbar(
+        AppFeedback.show(
           'settings.delete_account.deleted_title'.tr,
           'settings.delete_account.deleted_message'.tr,
           snackPosition: SnackPosition.BOTTOM,
@@ -948,7 +1061,7 @@ class SettingsController extends GetxController {
         await Future.delayed(const Duration(seconds: 1));
         Get.offAllNamed('/login');
       } else {
-        Get.snackbar(
+        AppFeedback.show(
           'common.error'.tr,
           response.message,
           snackPosition: SnackPosition.BOTTOM,
@@ -957,7 +1070,7 @@ class SettingsController extends GetxController {
         );
       }
     } catch (e) {
-      Get.snackbar(
+      AppFeedback.show(
         'common.error'.tr,
         'settings.delete_account.failed'.tr,
         snackPosition: SnackPosition.BOTTOM,
@@ -1020,10 +1133,7 @@ class SettingsController extends GetxController {
                   // Message
                   Text(
                     'settings.logout.confirm'.tr,
-                    style: context.textStyle(
-                      FontSizeType.body1,
-                      height: 1.5,
-                    ),
+                    style: context.textStyle(FontSizeType.body1, height: 1.5),
                     textAlign: TextAlign.center,
                   ),
 
@@ -1040,7 +1150,9 @@ class SettingsController extends GetxController {
                             style: OutlinedButton.styleFrom(
                               side: BorderSide(color: context.borderColor),
                               shape: RoundedRectangleBorder(
-                                borderRadius: context.borderRadius(BorderRadiusType.medium),
+                                borderRadius: context.borderRadius(
+                                  BorderRadiusType.medium,
+                                ),
                               ),
                             ),
                             child: Text(
@@ -1064,9 +1176,12 @@ class SettingsController extends GetxController {
                               backgroundColor: AppThemeSystem.primaryColor,
                               foregroundColor: Colors.white,
                               elevation: 2,
-                              shadowColor: AppThemeSystem.primaryColor.withValues(alpha: 0.3),
+                              shadowColor: AppThemeSystem.primaryColor
+                                  .withValues(alpha: 0.3),
                               shape: RoundedRectangleBorder(
-                                borderRadius: context.borderRadius(BorderRadiusType.medium),
+                                borderRadius: context.borderRadius(
+                                  BorderRadiusType.medium,
+                                ),
                               ),
                             ),
                             child: Text(
@@ -1094,12 +1209,12 @@ class SettingsController extends GetxController {
       try {
         await AuthService.logout();
       } catch (e) {
-        StorageService.clearAuth();
+        await StorageService.clearAuth();
       }
 
       Get.offAllNamed(Routes.LOGIN);
     } catch (e) {
-      Get.snackbar(
+      AppFeedback.show(
         'common.error'.tr,
         'settings.logout.failed'.tr,
         snackPosition: SnackPosition.BOTTOM,
@@ -1126,7 +1241,9 @@ class SettingsController extends GetxController {
             children: [
               // Section Pays et Devise
               Padding(
-                padding: EdgeInsets.symmetric(horizontal: context.horizontalPadding),
+                padding: EdgeInsets.symmetric(
+                  horizontal: context.horizontalPadding,
+                ),
                 child: Text(
                   'settings.preferences.country_currency'.tr,
                   style: context.textStyle(
@@ -1141,7 +1258,9 @@ class SettingsController extends GetxController {
 
               // Country and currency selection
               Container(
-                margin: EdgeInsets.symmetric(horizontal: context.horizontalPadding),
+                margin: EdgeInsets.symmetric(
+                  horizontal: context.horizontalPadding,
+                ),
                 child: Material(
                   color: Colors.transparent,
                   child: InkWell(
@@ -1151,16 +1270,24 @@ class SettingsController extends GetxController {
                       padding: EdgeInsets.all(context.elementSpacing),
                       decoration: BoxDecoration(
                         color: context.surfaceColor,
-                        borderRadius: context.borderRadius(BorderRadiusType.medium),
+                        borderRadius: context.borderRadius(
+                          BorderRadiusType.medium,
+                        ),
                         border: Border.all(color: context.borderColor),
                       ),
                       child: Row(
                         children: [
                           Container(
-                            padding: EdgeInsets.all(context.elementSpacing * 0.6),
+                            padding: EdgeInsets.all(
+                              context.elementSpacing * 0.6,
+                            ),
                             decoration: BoxDecoration(
-                              color: AppThemeSystem.primaryColor.withValues(alpha: 0.1),
-                              borderRadius: context.borderRadius(BorderRadiusType.small),
+                              color: AppThemeSystem.primaryColor.withValues(
+                                alpha: 0.1,
+                              ),
+                              borderRadius: context.borderRadius(
+                                BorderRadiusType.small,
+                              ),
                             ),
                             child: Icon(
                               Icons.public,
@@ -1170,30 +1297,35 @@ class SettingsController extends GetxController {
                           ),
                           SizedBox(width: context.elementSpacing),
                           Expanded(
-                            child: Obx(() => Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      selectedCountry.value.isEmpty
-                                          ? 'settings.preferences.select_country'.tr
-                                          : selectedCountry.value,
-                                      style: context.textStyle(
-                                        FontSizeType.body1,
-                                        fontWeight: FontWeight.w600,
-                                      ),
+                            child: Obx(
+                              () => Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    selectedCountry.value.isEmpty
+                                        ? 'settings.preferences.select_country'
+                                              .tr
+                                        : selectedCountry.value,
+                                    style: context.textStyle(
+                                      FontSizeType.body1,
+                                      fontWeight: FontWeight.w600,
                                     ),
-                                    SizedBox(height: context.elementSpacing * 0.25),
-                                    Text(
-                                      selectedCurrency.value.isEmpty
-                                          ? 'settings.preferences.no_currency'.tr
-                                          : selectedCurrency.value,
-                                      style: context.textStyle(
-                                        FontSizeType.caption,
-                                        color: AppThemeSystem.grey600,
-                                      ),
+                                  ),
+                                  SizedBox(
+                                    height: context.elementSpacing * 0.25,
+                                  ),
+                                  Text(
+                                    selectedCurrency.value.isEmpty
+                                        ? 'settings.preferences.no_currency'.tr
+                                        : selectedCurrency.value,
+                                    style: context.textStyle(
+                                      FontSizeType.caption,
+                                      color: AppThemeSystem.grey600,
                                     ),
-                                  ],
-                                )),
+                                  ),
+                                ],
+                              ),
+                            ),
                           ),
                           Icon(
                             Icons.arrow_forward_ios,
@@ -1211,7 +1343,9 @@ class SettingsController extends GetxController {
 
               // Section Langue
               Padding(
-                padding: EdgeInsets.symmetric(horizontal: context.horizontalPadding),
+                padding: EdgeInsets.symmetric(
+                  horizontal: context.horizontalPadding,
+                ),
                 child: Text(
                   'settings.language.title'.tr,
                   style: context.textStyle(
@@ -1225,34 +1359,38 @@ class SettingsController extends GetxController {
               SizedBox(height: context.elementSpacing * 0.75),
 
               // Options de langue
-              Obx(() => Column(
-                children: [
-                  // Chaque langue est nommée dans sa propre langue : on la
-                  // reconnaît même sans lire la langue courante.
-                  _buildLanguageOption(
-                    context,
-                    'fr',
-                    'Français',
-                    '🇫🇷',
-                    isSelected: selectedLanguage.value == 'fr',
-                    isAvailable: true,
-                  ),
-                  _buildLanguageOption(
-                    context,
-                    'en',
-                    'English',
-                    '🇬🇧',
-                    isSelected: selectedLanguage.value == 'en',
-                    isAvailable: true,
-                  ),
-                ],
-              )),
+              Obx(
+                () => Column(
+                  children: [
+                    // Chaque langue est nommée dans sa propre langue : on la
+                    // reconnaît même sans lire la langue courante.
+                    _buildLanguageOption(
+                      context,
+                      'fr',
+                      'Français',
+                      '🇫🇷',
+                      isSelected: selectedLanguage.value == 'fr',
+                      isAvailable: true,
+                    ),
+                    _buildLanguageOption(
+                      context,
+                      'en',
+                      'English',
+                      '🇬🇧',
+                      isSelected: selectedLanguage.value == 'en',
+                      isAvailable: true,
+                    ),
+                  ],
+                ),
+              ),
 
               SizedBox(height: context.sectionSpacing),
 
               // Section Notifications
               Padding(
-                padding: EdgeInsets.symmetric(horizontal: context.horizontalPadding),
+                padding: EdgeInsets.symmetric(
+                  horizontal: context.horizontalPadding,
+                ),
                 child: Text(
                   'settings.notifications.title'.tr,
                   style: context.textStyle(
@@ -1267,7 +1405,9 @@ class SettingsController extends GetxController {
 
               // Toggle notifications
               Container(
-                margin: EdgeInsets.symmetric(horizontal: context.horizontalPadding),
+                margin: EdgeInsets.symmetric(
+                  horizontal: context.horizontalPadding,
+                ),
                 padding: EdgeInsets.all(context.elementSpacing),
                 decoration: BoxDecoration(
                   color: context.surfaceColor,
@@ -1280,7 +1420,9 @@ class SettingsController extends GetxController {
                       padding: EdgeInsets.all(context.elementSpacing * 0.6),
                       decoration: BoxDecoration(
                         color: AppThemeSystem.infoColor.withValues(alpha: 0.1),
-                        borderRadius: context.borderRadius(BorderRadiusType.small),
+                        borderRadius: context.borderRadius(
+                          BorderRadiusType.small,
+                        ),
                       ),
                       child: Icon(
                         Icons.notifications_outlined,
@@ -1311,17 +1453,46 @@ class SettingsController extends GetxController {
                         ],
                       ),
                     ),
-                    Obx(() => Switch(
-                          value: notificationsEnabled.value,
-                          onChanged: (value) {
-                            notificationsEnabled.value = value;
-                            _saveNotificationPreference(value);
-                          },
-                          activeTrackColor: AppThemeSystem.primaryColor,
-                          thumbColor: WidgetStateProperty.all(Colors.white),
-                        )),
+                    Obx(
+                      () => Switch(
+                        value: notificationsEnabled.value,
+                        onChanged: notificationPreferenceBusy.value
+                            ? null
+                            : (value) => _saveNotificationPreference(value),
+                        activeTrackColor: AppThemeSystem.primaryColor,
+                        thumbColor: WidgetStateProperty.all(Colors.white),
+                      ),
+                    ),
                   ],
                 ),
+              ),
+              Obx(
+                () => Column(
+                  children: [
+                    for (final category in PushPreferences.categoryKeys)
+                      SwitchListTile(
+                        title: Text(
+                          'settings.notifications.categories.$category'.tr,
+                        ),
+                        subtitle: category == 'marketing'
+                            ? Text('settings.notifications.daily_summary'.tr)
+                            : null,
+                        value: notificationCategories[category] ?? true,
+                        onChanged:
+                            !notificationsEnabled.value ||
+                                notificationPreferenceBusy.value
+                            ? null
+                            : (value) =>
+                                  _saveNotificationCategory(category, value),
+                      ),
+                  ],
+                ),
+              ),
+              ListTile(
+                leading: const Icon(Icons.notifications_active_outlined),
+                title: Text('settings.notifications.diagnostics.title'.tr),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: showNotificationDiagnostics,
               ),
             ],
           ),
@@ -1387,7 +1558,9 @@ class SettingsController extends GetxController {
                         language,
                         style: context.textStyle(
                           FontSizeType.body1,
-                          fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
+                          fontWeight: isSelected
+                              ? FontWeight.bold
+                              : FontWeight.w600,
                           color: isAvailable
                               ? context.primaryTextColor
                               : AppThemeSystem.grey400,
@@ -1401,8 +1574,12 @@ class SettingsController extends GetxController {
                             vertical: context.elementSpacing * 0.25,
                           ),
                           decoration: BoxDecoration(
-                            color: AppThemeSystem.warningColor.withValues(alpha: 0.1),
-                            borderRadius: context.borderRadius(BorderRadiusType.small),
+                            color: AppThemeSystem.warningColor.withValues(
+                              alpha: 0.1,
+                            ),
+                            borderRadius: context.borderRadius(
+                              BorderRadiusType.small,
+                            ),
                           ),
                           child: Text(
                             'common.coming_soon'.tr,
@@ -1445,7 +1622,7 @@ class SettingsController extends GetxController {
     if (code == selectedLanguage.value) return;
     await LocaleService.to.setLanguage(code, manual: true);
 
-    Get.snackbar(
+    AppFeedback.show(
       'settings.language.changed_title'.tr,
       'settings.language.changed_message'.trParams({'language': language}),
       snackPosition: SnackPosition.BOTTOM,
@@ -1456,27 +1633,125 @@ class SettingsController extends GetxController {
     );
   }
 
-  /// Sauvegarder la préférence de notifications
-  void _saveNotificationPreference(bool enabled) {
-    final preferences = StorageService.getPreferences() ?? {};
-    preferences['notifications'] = enabled;
-    StorageService.savePreferences(preferences);
+  Future<void> _saveNotificationPreference(bool enabled) =>
+      _savePushPreferences(
+        PushPreferences(
+          enabled: enabled,
+          categories: Map<String, bool>.from(notificationCategories),
+        ),
+      );
 
-    // TODO: Configurer les notifications système (Firebase, etc.)
+  Future<void> _saveNotificationCategory(String key, bool value) =>
+      _savePushPreferences(
+        PushPreferences(
+          enabled: notificationsEnabled.value,
+          categories: {...notificationCategories, key: value},
+        ),
+      );
 
-    Get.snackbar(
-      enabled ? 'settings.notifications.enabled_title'.tr : 'settings.notifications.disabled_title'.tr,
-      enabled
-          ? 'settings.notifications.enabled_message'.tr
-          : 'settings.notifications.disabled_message'.tr,
-      snackPosition: SnackPosition.BOTTOM,
-      backgroundColor: enabled ? AppThemeSystem.successColor : AppThemeSystem.grey600,
-      colorText: Colors.white,
-      icon: Icon(
-        enabled ? Icons.notifications_active : Icons.notifications_off,
-        color: Colors.white,
+  Future<void> _savePushPreferences(PushPreferences value) async {
+    if (notificationPreferenceBusy.value) return;
+    notificationPreferenceBusy.value = true;
+    try {
+      final success = await NotificationPreferenceProvider.save(value);
+      if (!success) throw StateError('Preference synchronization failed');
+      _applyPushPreferences(value);
+      AppFeedback.show(
+        'settings.notifications.title'.tr,
+        'settings.notifications.saved'.tr,
+        snackPosition: SnackPosition.BOTTOM,
+      );
+    } catch (_) {
+      AppFeedback.show(
+        'settings.notifications.title'.tr,
+        'settings.notifications.save_failed'.tr,
+        snackPosition: SnackPosition.BOTTOM,
+      );
+    } finally {
+      notificationPreferenceBusy.value = false;
+    }
+  }
+
+  Future<void> showNotificationDiagnostics() async {
+    if (!Get.isRegistered<FirebaseMessagingService>()) return;
+    final messaging = FirebaseMessagingService.to;
+    try {
+      await messaging.refreshNotificationDiagnostics();
+    } catch (_) {}
+    Map<String, dynamic> server = {};
+    if (ApiProvider.isAuthenticated) {
+      try {
+        final response = await ApiProvider.get('/v1/notifications/diagnostics');
+        if (response.success && response.data?['diagnostics'] is Map)
+          server = Map<String, dynamic>.from(response.data!['diagnostics']);
+      } catch (_) {}
+    }
+    final lines = [
+      'settings.notifications.diagnostics.permission'.trParams({
+        'status':
+            'settings.notifications.diagnostics.status.${messaging.permissionStatus.value}'
+                .tr,
+      }),
+      if (defaultTargetPlatform == TargetPlatform.iOS)
+        'settings.notifications.diagnostics.apple'.trParams({
+          'status':
+              (messaging.apnsReady.value
+                      ? 'settings.notifications.diagnostics.ready'
+                      : 'settings.notifications.diagnostics.not_ready')
+                  .tr,
+        }),
+      'settings.notifications.diagnostics.registered'.trParams({
+        'status':
+            (messaging.registrationSucceeded.value
+                    ? 'settings.notifications.diagnostics.ready'
+                    : 'settings.notifications.diagnostics.not_ready')
+                .tr,
+      }),
+      if (server['active_devices'] != null)
+        'settings.notifications.diagnostics.devices'.trParams({
+          'count': '${server['active_devices']}',
+        }),
+      if (server['pending_deliveries'] != null)
+        'settings.notifications.diagnostics.pending'.trParams({
+          'count': '${server['pending_deliveries']}',
+        }),
+      if (server['latest_error_code'] != null)
+        'settings.notifications.diagnostics.error'.trParams({
+          'code': '${server['latest_error_code']}',
+        }),
+      'settings.notifications.diagnostics.explanation'.tr,
+    ];
+    await Get.dialog<void>(
+      AlertDialog(
+        title: Text('settings.notifications.diagnostics.title'.tr),
+        content: SingleChildScrollView(child: Text(lines.join('\n\n'))),
+        actions: [
+          TextButton(
+            onPressed: () {
+              unawaited(openAppSettings());
+            },
+            child: Text('settings.notifications.diagnostics.open_settings'.tr),
+          ),
+          if (ApiProvider.isAuthenticated)
+            TextButton(
+              onPressed: () async {
+                final response = await ApiProvider.post(
+                  '/v1/notifications/test',
+                );
+                AppFeedback.show(
+                  'settings.notifications.title'.tr,
+                  response.message,
+                  snackPosition: SnackPosition.BOTTOM,
+                );
+              },
+              child: Text('settings.notifications.diagnostics.test'.tr),
+            ),
+          TextButton(
+            onPressed: () => Get.back<void>(),
+            child: Text('common.close'.tr),
+          ),
+        ],
       ),
-      duration: const Duration(seconds: 2),
     );
   }
 
@@ -1496,7 +1771,7 @@ class SettingsController extends GetxController {
       final country = CurrencyService.to.detectedCountry;
       final currency = CurrencyService.to.userCurrency;
 
-      if (country != null && country.isNotEmpty) {
+      if (country.isNotEmpty) {
         selectedCountry.value = country;
       }
 
@@ -1524,14 +1799,18 @@ class SettingsController extends GetxController {
             children: [
               // Search bar
               Padding(
-                padding: EdgeInsets.symmetric(horizontal: context.horizontalPadding),
+                padding: EdgeInsets.symmetric(
+                  horizontal: context.horizontalPadding,
+                ),
                 child: TextField(
                   onChanged: filterCountries,
                   decoration: InputDecoration(
                     hintText: 'settings.country.search_hint'.tr,
                     prefixIcon: const Icon(Icons.search),
                     border: OutlineInputBorder(
-                      borderRadius: context.borderRadius(BorderRadiusType.medium),
+                      borderRadius: context.borderRadius(
+                        BorderRadiusType.medium,
+                      ),
                     ),
                     filled: true,
                     fillColor: context.inputFieldColor,
@@ -1545,9 +1824,7 @@ class SettingsController extends GetxController {
               Expanded(
                 child: Obx(() {
                   if (isLoading.value && allCountries.isEmpty) {
-                    return const Center(
-                      child: CircularProgressIndicator(),
-                    );
+                    return const Center(child: CircularProgressIndicator());
                   }
 
                   if (filteredCountries.isEmpty) {
@@ -1579,7 +1856,9 @@ class SettingsController extends GetxController {
                     keyboardDismissBehavior:
                         ScrollViewKeyboardDismissBehavior.onDrag,
                     itemCount: filteredCountries.length,
-                    padding: EdgeInsets.symmetric(horizontal: context.horizontalPadding),
+                    padding: EdgeInsets.symmetric(
+                      horizontal: context.horizontalPadding,
+                    ),
                     itemBuilder: (context, index) {
                       final item = filteredCountries[index];
                       final String country = item['country'];
@@ -1633,7 +1912,8 @@ class SettingsController extends GetxController {
                           size: 16,
                           color: AppThemeSystem.grey400,
                         ),
-                        onTap: () => _showCountryConfirmationDialog(context, item),
+                        onTap: () =>
+                            _showCountryConfirmationDialog(context, item),
                       );
                     },
                   );
@@ -1652,10 +1932,11 @@ class SettingsController extends GetxController {
       isLoading.value = true;
       print('🌍 Fetching all countries and currencies from API...');
 
-      final response = await ApiProvider.get('/v1/currencies/all-with-countries');
+      final response = await ApiProvider.get(
+        '/v1/currencies/all-with-countries',
+      );
 
       print('📡 API Response - Success: ${response.success}');
-      print('📡 API Response - Data null?: ${response.data == null}');
 
       if (response.success && response.data != null) {
         final List currencies = response.data!['data'];
@@ -1666,7 +1947,9 @@ class SettingsController extends GetxController {
 
         for (var currency in currencies) {
           final currencyModel = CurrencyModel.fromJson(currency);
-          print('   Processing: ${currencyModel.code} with ${currencyModel.countries.length} countries');
+          print(
+            '   Processing: ${currencyModel.code} with ${currencyModel.countries.length} countries',
+          );
 
           // `countries_detailed` porte le drapeau calculé côté serveur. Le
           // backend renvoyant des noms anglais, le catalogue local (indexé en
@@ -1696,8 +1979,8 @@ class SettingsController extends GetxController {
         print('📋 Total countries created: ${countries.length}');
 
         // Sort countries alphabetically
-        countries.sort((a, b) =>
-          (a['country'] as String).compareTo(b['country'] as String)
+        countries.sort(
+          (a, b) => (a['country'] as String).compareTo(b['country'] as String),
         );
 
         allCountries.value = countries;
@@ -1705,12 +1988,11 @@ class SettingsController extends GetxController {
         print('✅ Countries loaded successfully!');
       } else {
         print('❌ API call failed or no data');
-        print('   Message: ${response.message}');
       }
     } catch (e, stackTrace) {
       print('❌ Error fetching countries: $e');
       print('Stack trace: $stackTrace');
-      Get.snackbar(
+      AppFeedback.show(
         'common.error'.tr,
         'settings.country.load_failed'.tr,
         snackPosition: SnackPosition.BOTTOM,
@@ -1735,14 +2017,17 @@ class SettingsController extends GetxController {
         final search = query.toLowerCase();
 
         return country.contains(search) ||
-               currencyCode.contains(search) ||
-               currencyName.contains(search);
+            currencyCode.contains(search) ||
+            currencyName.contains(search);
       }).toList();
     }
   }
 
   /// Show confirmation dialog for country selection
-  void _showCountryConfirmationDialog(BuildContext context, Map<String, dynamic> countryData) {
+  void _showCountryConfirmationDialog(
+    BuildContext context,
+    Map<String, dynamic> countryData,
+  ) {
     final String country = countryData['country'];
     final CurrencyModel currency = countryData['currency'];
 
@@ -1768,18 +2053,12 @@ class SettingsController extends GetxController {
                   'code': currency.code,
                   'symbol': currency.symbol,
                 }),
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Colors.grey[700],
-                ),
+                style: TextStyle(fontSize: 14, color: Colors.grey[700]),
               ),
               const SizedBox(height: 8),
               Text(
                 currency.name,
-                style: TextStyle(
-                  fontSize: 13,
-                  color: Colors.grey[600],
-                ),
+                style: TextStyle(fontSize: 13, color: Colors.grey[600]),
               ),
               const SizedBox(height: 16),
               Container(
@@ -1794,11 +2073,10 @@ class SettingsController extends GetxController {
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        'settings.country.prices_in'.trParams({'code': currency.code}),
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: AppDesign.info,
-                        ),
+                        'settings.country.prices_in'.trParams({
+                          'code': currency.code,
+                        }),
+                        style: TextStyle(fontSize: 12, color: AppDesign.info),
                       ),
                     ),
                   ],
@@ -1850,7 +2128,7 @@ class SettingsController extends GetxController {
       // Close the bottom sheet
       Get.back();
 
-      Get.snackbar(
+      AppFeedback.show(
         'common.success'.tr,
         'settings.country.updated'.trParams({
           'country': country,
@@ -1864,7 +2142,7 @@ class SettingsController extends GetxController {
       );
     } catch (e) {
       print('Error selecting country: $e');
-      Get.snackbar(
+      AppFeedback.show(
         'common.error'.tr,
         'settings.country.select_failed'.tr,
         snackPosition: SnackPosition.BOTTOM,
@@ -1883,19 +2161,12 @@ class SettingsController extends GetxController {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(
-            Icons.close_rounded,
-            size: 16,
-            color: AppThemeSystem.errorColor,
-          ),
+          Icon(Icons.close_rounded, size: 16, color: AppThemeSystem.errorColor),
           SizedBox(width: context.elementSpacing * 0.5),
           Expanded(
             child: Text(
               text,
-              style: context.textStyle(
-                FontSizeType.body2,
-                height: 1.4,
-              ),
+              style: context.textStyle(FontSizeType.body2, height: 1.4),
             ),
           ),
         ],

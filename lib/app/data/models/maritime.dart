@@ -39,12 +39,17 @@ class MaritimeHub {
     openingHours: json['opening_hours']?.toString(),
   );
 
-  String get fullAddress =>
-      [name, address, city].where((part) => part.trim().isNotEmpty).join(', ');
+  String get fullAddress => [
+    name,
+    address,
+    city,
+    countryName.isNotEmpty ? countryName : country,
+  ].where((part) => part.trim().isNotEmpty).join(', ');
 }
 
 /// Départ maritime d'un partenaire entre deux QG.
 class MaritimeDeparture {
+  final bool requiresQuote;
   final int id;
   final String partnerName;
   final String? partnerLogo;
@@ -68,14 +73,17 @@ class MaritimeDeparture {
   final String status;
   final String transportMode;
   final String cargoCategory;
+  final List<MaritimeCargoOption> cargoOptions;
   final int? transitDaysMin;
   final int? transitDaysMax;
   final int? frequencyDays;
   final bool meetingDetailsAvailable;
 
-  String get commercialSummary => [
+  String get commercialSummary => commercialSummaryFor(cargoCategory);
+
+  String commercialSummaryFor(String category) => [
     'partner_freight.$transportMode'.tr,
-    'partner_freight.$cargoCategory'.tr,
+    'partner_freight.$category'.tr,
     if (transitDaysMin != null && transitDaysMax != null)
       'partner_freight.transit_days'.trParams({
         'min': '$transitDaysMin',
@@ -88,6 +96,7 @@ class MaritimeDeparture {
   final String? notes;
 
   MaritimeDeparture({
+    this.requiresQuote = false,
     required this.id,
     required this.partnerName,
     this.partnerLogo,
@@ -107,12 +116,17 @@ class MaritimeDeparture {
     required this.status,
     this.transportMode = 'sea',
     this.cargoCategory = 'general',
+    this.cargoOptions = const [],
     this.transitDaysMin,
     this.transitDaysMax,
     this.frequencyDays,
     this.meetingDetailsAvailable = false,
     this.notes,
   });
+
+  bool get isSea => transportMode == 'sea';
+  double get remainingCbm => remainingKg / (kgPerCbm ?? 1000);
+  double get publicCbmRate => pricePerCbm ?? pricePerKg * (kgPerCbm ?? 1000);
 
   bool get isPricedPerCbm => (pricePerCbm ?? 0) > 0 && (kgPerCbm ?? 0) > 0;
 
@@ -152,6 +166,7 @@ class MaritimeDeparture {
       daysLeftToBook: (json['days_left_to_book'] as num?)?.toInt() ?? -1,
       isBookable: json['is_bookable'] == true,
       remainingKg: _d(json['remaining_kg']),
+      requiresQuote: json['requires_quote'] == true,
       pricePerKg: _d(json['price_per_kg']),
       pricePerCbm: json['price_per_cbm'] == null
           ? null
@@ -161,6 +176,13 @@ class MaritimeDeparture {
       status: json['status']?.toString() ?? 'open',
       transportMode: json['transport_mode']?.toString() ?? 'sea',
       cargoCategory: json['cargo_category']?.toString() ?? 'general',
+      cargoOptions: (json['cargo_options'] as List? ?? [])
+          .whereType<Map>()
+          .map(
+            (option) =>
+                MaritimeCargoOption.fromJson(Map<String, dynamic>.from(option)),
+          )
+          .toList(),
       transitDaysMin: int.tryParse('${json['transit_days_min']}'),
       transitDaysMax: int.tryParse('${json['transit_days_max']}'),
       frequencyDays: int.tryParse('${json['frequency_days']}'),
@@ -168,6 +190,28 @@ class MaritimeDeparture {
       notes: meetingVisible ? json['notes']?.toString() : null,
     );
   }
+}
+
+class MaritimeCargoOption {
+  const MaritimeCargoOption({
+    required this.category,
+    required this.pricePerUnit,
+    required this.unit,
+    required this.currency,
+  });
+
+  final String category;
+  final double pricePerUnit;
+  final String unit;
+  final String currency;
+
+  factory MaritimeCargoOption.fromJson(Map<String, dynamic> json) =>
+      MaritimeCargoOption(
+        category: json['cargo_category']?.toString() ?? 'general',
+        pricePerUnit: _d(json['price_per_unit']),
+        unit: json['unit']?.toString() ?? 'CBM',
+        currency: json['currency']?.toString() ?? 'EUR',
+      );
 }
 
 /// Envoi maritime d'un expéditeur.

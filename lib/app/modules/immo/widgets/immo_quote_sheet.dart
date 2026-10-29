@@ -1,6 +1,7 @@
 import 'immo_summary_row.dart';
 import 'package:flutter/material.dart';
 import 'immo_fee_details.dart';
+import 'immo_lot_payment.dart';
 import 'package:get/get.dart';
 
 import '../../../core/utils/app_design.dart';
@@ -114,22 +115,16 @@ class _QuoteSheetState extends State<_QuoteSheet> {
                     ),
                     const SizedBox(height: AppDesign.space4),
                   ],
-                  _row(
-                    context,
-                    listing.isLand
-                        ? 'immo.quote.lot_price'.tr
-                        : 'immo.quote.monthly_rent'.tr,
-                    immoPrice(q.unitPrice),
-                  ),
                   if (listing.isLand)
+                    ImmoLotPaymentDetails(
+                      payment: immoLotPayment(q, widget.unit),
+                    )
+                  else ...[
                     _row(
                       context,
-                      'immo.quote.deposit'.trParams({
-                        'percent': (q.depositPercent ?? 0).toStringAsFixed(0),
-                      }),
-                      immoPrice(q.baseAmount),
-                    )
-                  else
+                      'immo.quote.monthly_rent'.tr,
+                      immoPrice(q.unitPrice),
+                    ),
                     _row(
                       context,
                       'immo.quote.advance'.trParams({
@@ -137,26 +132,26 @@ class _QuoteSheetState extends State<_QuoteSheet> {
                       }),
                       immoPrice(q.baseAmount),
                     ),
-                  ImmoFeeDetails(
-                    netAmount: q.netAmount,
-                    platformAmount: q.platformAmount,
-                    cabinetName: q.commissionCabinet?.name,
-                    netPayeeKind: q.netPayeeKind,
-                  ),
-                  if (q.commission > 0)
+                    ImmoFeeDetails(
+                      netAmount: q.netAmount,
+                      platformAmount: q.platformAmount,
+                      netPayeeKind: q.netPayeeKind,
+                    ),
+                    if (q.commission > 0)
+                      _row(
+                        context,
+                        'immo.quote.commission'.tr,
+                        immoPrice(q.commission),
+                        help: 'immo.quote.commission_help'.tr,
+                      ),
+                    const Divider(height: AppDesign.space6),
                     _row(
                       context,
-                      'immo.quote.commission'.tr,
-                      immoPrice(q.commission),
-                      help: 'immo.quote.commission_help'.tr,
+                      'immo.quote.total'.tr,
+                      immoPrice(q.total),
+                      bold: true,
                     ),
-                  const Divider(height: AppDesign.space6),
-                  _row(
-                    context,
-                    'immo.quote.total'.tr,
-                    immoPrice(q.total),
-                    bold: true,
-                  ),
+                  ],
                   const SizedBox(height: AppDesign.space2),
                   Text(
                     'immo.quote.non_refundable_note'.tr,

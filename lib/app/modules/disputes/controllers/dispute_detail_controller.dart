@@ -1,3 +1,4 @@
+import 'package:asso/app/core/utils/app_feedback.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -105,6 +106,53 @@ class DisputeDetailController extends GetxController {
 
   // ── Vendeur ─────────────────────────────────────────────────────────────
 
+  Future<void> contestReceipt(Map<String, dynamic> receipt) async {
+    final current = dispute.value;
+    if (current == null || isBusy.value) return;
+    final form = await DisputeFormSheet.show(
+      productName: current.productName,
+      withReason: false,
+      title: 'disputes.receipt.contest'.tr,
+      notice: 'disputes.receipt.proof_required'.tr,
+    );
+    if (form == null || form.photos.isEmpty) return;
+    isBusy.value = true;
+    try {
+      final response = await DisputeService.sendEvidence(
+        disputeId,
+        note: form.description,
+        files: form.photos,
+      );
+      if (!response.success) {
+        _snack(response.message, error: true);
+        return;
+      }
+      final payload = Map<String, dynamic>.from(
+        response.data?['dispute'] as Map? ?? const {},
+      );
+      final events = (payload['events'] as List? ?? const []).whereType<Map>();
+      final pieces = events
+          .where((e) => e['type'] == 'evidence' && e['actor_type'] == 'vendor')
+          .expand(
+            (e) => (e['attachments'] as List? ?? const []).whereType<Map>(),
+          )
+          .toList();
+      if (pieces.isEmpty) return;
+      final attachmentId = pieces
+          .map((p) => int.tryParse('${p['id']}') ?? 0)
+          .reduce((a, b) => a > b ? a : b);
+      final result = await DisputeService.contestReceipt(
+        int.parse('${receipt['id']}'),
+        attachmentId: attachmentId,
+        note: form.description,
+      );
+      _snack(result.message, error: !result.success);
+    } finally {
+      isBusy.value = false;
+      await load();
+    }
+  }
+
   Future<void> sendEvidence() async {
     final current = dispute.value;
     if (current == null) return;
@@ -124,7 +172,14 @@ class DisputeDetailController extends GetxController {
   }
 
   Future<void> replace() async {
-    if (!await _confirm('disputes.vendor.replace_confirm'.tr)) return;
+    if (!await _confirm(
+      (dispute.value?.internationalExport == true
+              ? 'disputes.vendor.international_replace_confirm'
+              : 'disputes.vendor.replace_confirm')
+          .tr,
+    )) {
+      return;
+    }
     final ok = await _run(() => DisputeService.replace(disputeId));
     if (ok) await payShipment();
   }
@@ -142,7 +197,9 @@ class DisputeDetailController extends GetxController {
     try {
       await DisputeShipmentPayment.pay(
         shipmentId: shipmentId,
-        isReturn: dispute.value?.status == 'return',
+        isReturn:
+            dispute.value?.status == 'return' ||
+            dispute.value?.collection?.id == shipmentId,
       );
     } finally {
       isBusy.value = false;
@@ -152,6 +209,23 @@ class DisputeDetailController extends GetxController {
 
   Future<void> markShipped() =>
       _shipmentStep(dispute.value?.replacement?.id, 'shipped');
+
+  Future<void> prepareReplacement() async {
+    if (!await _confirm('disputes.vendor.prepare_confirm'.tr)) return;
+    final ok = await _run(() => DisputeService.replace(disputeId));
+    if (ok) await payShipment();
+  }
+
+  Future<void> confirmReturnReceived() async {
+    final current = dispute.value;
+    final shipmentId = current?.receiptShipmentId;
+    if (current == null || shipmentId == null) return;
+    final message = current.isExchangeReceipt
+        ? 'disputes.vendor.received_exchange_confirm'
+        : 'disputes.vendor.received_confirm';
+    if (!await _confirm(message.tr)) return;
+    await _shipmentStep(shipmentId, 'confirmed');
+  }
 
   /// Appelle le livreur de la course.
   Future<void> callCourier(String phone) =>
@@ -206,7 +280,7 @@ class DisputeDetailController extends GetxController {
     return ok == true;
   }
 
-  void _snack(String message, {bool error = false}) => Get.snackbar(
+  void _snack(String message, {bool error = false}) => AppFeedback.show(
     error ? 'my_order.errors.title'.tr : 'disputes.title'.tr,
     message,
     snackPosition: SnackPosition.BOTTOM,

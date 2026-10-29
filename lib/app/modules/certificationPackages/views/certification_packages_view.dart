@@ -1,3 +1,4 @@
+import 'package:asso/app/core/utils/app_feedback.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../../core/utils/app_design.dart';
@@ -461,7 +462,7 @@ class CertificationPackagesView
         await _payViaCard(context, packageId);
         break;
       default:
-        Get.snackbar(
+        AppFeedback.show(
           'package_subscription.unavailable'.tr,
           'certification.view.method_unavailable'.tr,
           snackPosition: SnackPosition.BOTTOM,
@@ -504,7 +505,7 @@ class CertificationPackagesView
         break; // motif déjà expliqué
       default:
         controller.pollOrderPayment(subscriptionId);
-        Get.snackbar(
+        AppFeedback.show(
           'certification.view.order_created'.tr,
           'certification.view.validate_ussd'.tr,
           snackPosition: SnackPosition.BOTTOM,
@@ -534,7 +535,7 @@ class CertificationPackagesView
     );
     if (message == null) return; // erreur déjà affichée
 
-    Get.snackbar(
+    AppFeedback.show(
       'certification.view.certified'.tr,
       message,
       snackPosition: SnackPosition.BOTTOM,
@@ -547,7 +548,7 @@ class CertificationPackagesView
   /// Sous-parcours CARTE (Payment Sheet Stripe native).
   Future<void> _payViaCard(BuildContext context, int packageId) async {
     if (!StripeNativeService.isSupported) {
-      Get.snackbar(
+      AppFeedback.show(
         'package_subscription.unavailable'.tr,
         'wallet.recharge.card_mobile_only'.tr,
         snackPosition: SnackPosition.BOTTOM,
@@ -558,16 +559,26 @@ class CertificationPackagesView
     final data = await controller.createCardOrder(packageId: packageId);
     if (data == null) return; // échec (snackbar déjà affiché)
 
-    final orderId = data['order_id'] as int;
+    final orderId = int.tryParse('${data['order_id']}');
+    final publishableKey = data['publishable_key']?.toString() ?? '';
+    final clientSecret = data['client_secret']?.toString() ?? '';
+    if (orderId == null || publishableKey.isEmpty || clientSecret.isEmpty) {
+      AppFeedback.show(
+        'certification.error'.tr,
+        'package_subscription.card_data_unavailable'.tr,
+        snackPosition: SnackPosition.BOTTOM,
+      );
+      return;
+    }
 
     try {
       final ok = await StripeNativeService().payWithCard(
-        publishableKey: data['publishable_key'] as String,
-        clientSecret: data['client_secret'] as String,
+        publishableKey: publishableKey,
+        clientSecret: clientSecret,
       );
 
       if (!ok) {
-        Get.snackbar(
+        AppFeedback.show(
           'wallet.webview.cancelled'.tr,
           'package_subscription.payment_not_finalized'.tr,
           snackPosition: SnackPosition.BOTTOM,
@@ -577,7 +588,7 @@ class CertificationPackagesView
       }
 
       controller.pollOrderPayment(orderId);
-      Get.snackbar(
+      AppFeedback.show(
         'package_subscription.payment_in_progress'.tr,
         'package_subscription.payment_confirming'.tr,
         snackPosition: SnackPosition.BOTTOM,
@@ -586,9 +597,10 @@ class CertificationPackagesView
         duration: const Duration(seconds: 5),
       );
     } catch (e) {
-      Get.snackbar(
+      debugPrint('[Certification] Card payment error: $e');
+      AppFeedback.show(
         'certification.error'.tr,
-        e.toString().replaceAll('Exception: ', ''),
+        'common.generic_error_retry'.tr,
         snackPosition: SnackPosition.BOTTOM,
         duration: const Duration(seconds: 4),
       );

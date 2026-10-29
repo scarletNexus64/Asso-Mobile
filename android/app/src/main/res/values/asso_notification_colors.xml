@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Miroir natif de AppBrandColors.primary (notifications Android). -->
+    <color name="asso_notification_accent">#FC9141</color>
+</resources>

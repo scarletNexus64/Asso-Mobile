@@ -1,3 +1,4 @@
+import 'package:asso/app/core/utils/app_feedback.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
@@ -105,7 +106,7 @@ class MaritimeController extends GetxController {
       _lastPage = result.lastPage;
     } catch (e) {
       if (generation == _generation) {
-        error.value = e.toString().replaceAll('Exception: ', '');
+        error.value = AppFeedback.errorMessage(e);
       }
     } finally {
       if (generation == _generation) isLoading.value = false;
@@ -137,7 +138,7 @@ class MaritimeController extends GetxController {
     try {
       myBookings.assignAll(await _service.getMyBookings());
     } catch (e) {
-      error.value = e.toString().replaceAll('Exception: ', '');
+      error.value = AppFeedback.errorMessage(e);
     } finally {
       isLoadingBookings.value = false;
     }
@@ -153,8 +154,12 @@ class MaritimeController extends GetxController {
   }
 
   void openDeparture(MaritimeDeparture departure) {
+    if (departure.requiresQuote) {
+      selectedTab.value = 2;
+      return;
+    }
     if (!departure.isBookable) {
-      Get.snackbar(
+      AppFeedback.show(
         'maritime.trip_impossible_title'.tr,
         'maritime.trip_impossible'.tr,
         backgroundColor: AppDesign.accent,
@@ -185,7 +190,7 @@ class MaritimeController extends GetxController {
     if (confirmed != true) return;
     try {
       await _service.cancel(booking.id);
-      Get.snackbar(
+      AppFeedback.show(
         'maritime.cancelled_title'.tr,
         'maritime.cancelled_message'.tr,
         backgroundColor: AppDesign.success,
@@ -193,9 +198,9 @@ class MaritimeController extends GetxController {
       );
       loadMyBookings();
     } catch (e) {
-      Get.snackbar(
+      AppFeedback.show(
         'maritime.error'.tr,
-        e.toString().replaceAll('Exception: ', ''),
+        AppFeedback.errorMessage(e),
         backgroundColor: AppDesign.danger,
         colorText: Colors.white,
       );
@@ -259,7 +264,7 @@ class MaritimeController extends GetxController {
         Get.toNamed(Routes.CHATDETAIL, arguments: args);
       }
     } catch (e) {
-      contactErrors[booking.id] = e.toString().replaceAll('Exception: ', '');
+      contactErrors[booking.id] = AppFeedback.errorMessage(e);
     } finally {
       contactingBookingIds.remove(booking.id);
     }
@@ -355,7 +360,7 @@ class MaritimeController extends GetxController {
     if (reason == null || reason.isEmpty) return;
     try {
       await _service.reportLoss(bookingId: booking.id, reason: reason);
-      Get.snackbar(
+      AppFeedback.show(
         'maritime.claim.report_title'.tr,
         'maritime.claim.report_success'.tr,
         backgroundColor: AppDesign.success,
@@ -363,9 +368,9 @@ class MaritimeController extends GetxController {
       );
       await loadMyBookings();
     } catch (e) {
-      Get.snackbar(
+      AppFeedback.show(
         'maritime.error'.tr,
-        e.toString().replaceAll('Exception: ', ''),
+        AppFeedback.errorMessage(e),
         backgroundColor: AppDesign.danger,
         colorText: Colors.white,
       );

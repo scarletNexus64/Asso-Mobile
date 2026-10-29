@@ -6,7 +6,7 @@ import '../../../core/utils/app_design.dart';
 import '../../../core/utils/app_theme_system.dart';
 import '../../../core/widgets/app_ui.dart';
 import '../../../core/widgets/auth_scaffold.dart';
-import '../../../core/widgets/markdown_bottom_sheet.dart';
+import '../../legal/legal_consent.dart';
 import '../controllers/welcomer_controller.dart';
 
 /// Création de compte, premier écran après l'introduction.
@@ -150,7 +150,7 @@ class WelcomerView extends GetView<WelcomerController> {
 
   Widget _buildTermsRow(BuildContext context) {
     // Toute la ligne coche la case : la seule case de 24 px était difficile
-    // à atteindre. Le lien garde son propre geste et ouvre la politique.
+    // à atteindre. Chaque lien garde son propre geste et ouvre le document.
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: controller.toggleTermsAccepted,
@@ -179,18 +179,14 @@ class WelcomerView extends GetView<WelcomerController> {
                   ),
                   children: [
                     TextSpan(text: 'welcomer.terms_prefix'.tr),
-                    TextSpan(
-                      text: 'welcomer.privacy_policy_link'.tr,
-                      style: TextStyle(
-                        color: AppDesign.accent,
-                        fontWeight: FontWeight.w600,
-                      ),
-                      recognizer: TapGestureRecognizer()
-                        ..onTap = () => MarkdownBottomSheet.show(
-                          context: context,
-                          title: 'welcomer.privacy_policy_title'.tr,
-                          assetPath: 'Politique de confidentialité.md',
-                        ),
+                    _legalLink(
+                      'welcomer.cgu_link'.tr,
+                      LegalSlugs.cgu,
+                    ),
+                    TextSpan(text: 'welcomer.terms_and'.tr),
+                    _legalLink(
+                      'welcomer.trust_charter_link'.tr,
+                      LegalSlugs.trustCharter,
                     ),
                     const TextSpan(text: '.'),
                   ],
@@ -202,6 +198,14 @@ class WelcomerView extends GetView<WelcomerController> {
       ),
     );
   }
+
+  /// Lien vers un document légal, lu dans l'app (contenu du back-office).
+  TextSpan _legalLink(String label, String slug) => TextSpan(
+    text: label,
+    style: TextStyle(color: AppDesign.accent, fontWeight: FontWeight.w600),
+    recognizer: TapGestureRecognizer()
+      ..onTap = () => LegalConsent.open(slug, label),
+  );
 
   Widget _buildSubmit(BuildContext context) {
     return Obx(

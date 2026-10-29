@@ -1,3 +1,4 @@
+import 'package:asso/app/core/utils/app_feedback.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
@@ -8,6 +9,7 @@ import '../../../data/providers/deliverer_service.dart';
 import '../../../data/providers/storage_service.dart';
 import '../models/sync_models.dart';
 import '../../../core/utils/app_design.dart';
+import '../../legal/legal_consent.dart';
 
 class ShipConfigController extends GetxController {
   // Storage
@@ -85,7 +87,6 @@ class ShipConfigController extends GetxController {
 
       print('  └─ Response success: ${response.success}');
       print('  └─ Response status: ${response.statusCode}');
-      print('  └─ Response data type: ${response.data.runtimeType}');
 
       if (response.success && response.data != null) {
         final responseData = response.data!;
@@ -101,7 +102,7 @@ class ShipConfigController extends GetxController {
 
           try {
             final user = UserModel.fromJson(userData);
-            StorageService.saveUser(user);
+            await StorageService.saveUser(user);
             print(
               '✅ Profil rafraîchi: role=${user.role}, roles=${user.roles}, isDelivery=${user.isDelivery}',
             );
@@ -115,7 +116,6 @@ class ShipConfigController extends GetxController {
           print('⚠️  Pas de données utilisateur dans la réponse');
         }
       } else {
-        print('⚠️  Erreur lors du rafraîchissement: ${response.message}');
       }
     } catch (e, stackTrace) {
       print('❌ Exception lors du rafraîchissement du profil: $e');
@@ -294,6 +294,10 @@ class ShipConfigController extends GetxController {
       return;
     }
 
+    // Charte livreur & partenaires : acceptation obligatoire avant de devenir
+    // partenaire livreur.
+    if (!await LegalConsent.ensure(LegalStep.deliveryPartner)) return;
+
     isSyncing.value = true;
 
     try {
@@ -405,7 +409,7 @@ class ShipConfigController extends GetxController {
 
   /// Affiche un snackbar d'erreur
   void _showErrorSnackbar(String title, String message) {
-    Get.snackbar(
+    AppFeedback.show(
       title,
       message,
       snackPosition: SnackPosition.BOTTOM,
@@ -420,7 +424,7 @@ class ShipConfigController extends GetxController {
 
   /// Affiche un snackbar de succès
   void _showSuccessSnackbar(String title, String message) {
-    Get.snackbar(
+    AppFeedback.show(
       title,
       message,
       snackPosition: SnackPosition.BOTTOM,
@@ -435,7 +439,7 @@ class ShipConfigController extends GetxController {
 
   /// Affiche un snackbar d'information
   void _showInfoSnackbar(String title, String message) {
-    Get.snackbar(
+    AppFeedback.show(
       title,
       message,
       snackPosition: SnackPosition.BOTTOM,

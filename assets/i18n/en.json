@@ -1,4 +1,31 @@
 {
+  "freight_quote": {
+    "tab": "Quotes",
+    "intro": "Sea freight from China to countries other than Cameroon: agree on a price with ASSO before payment.",
+    "request": "Request a sea freight quote",
+    "empty": "No quote requests yet.",
+    "accept": "Accept and book",
+    "accept_message": "Accept freight of @amount for @volume CBM? Optional insurance is added at payment.",
+    "unavailable": "This quote is unavailable.",
+    "expiry": "Valid until @date",
+    "discuss": "Chat with ASSO",
+    "destination": "Destination country",
+    "weight": "Weight (kg)",
+    "volume": "Volume (CBM)",
+    "general": "General cargo",
+    "sensitive": "Sensitive cargo",
+    "description": "Parcel description and destination city",
+    "country_error": "Choose a country other than China or Cameroon.",
+    "on_request": "Request a quote",
+    "chat_message": "Hello, I would like to discuss sea freight quote #@id.",
+    "status": {
+      "pending": "In discussion",
+      "quoted": "Quote proposed",
+      "accepted": "Quote accepted",
+      "booked": "Booking created",
+      "cancelled": "Cancelled"
+    }
+  },
   "partner_freight": {
     "air_travellers": "Travellers",
     "air_partners": "Partners",
@@ -45,6 +72,8 @@
     "cancelled": "Cancelled"
   },
   "common": {
+    "previous": "Previous step",
+    "next": "Next step",
     "coming_soon": "Coming soon",
     "error": "Error",
     "success": "Success",
@@ -122,7 +151,41 @@
       "enabled_title": "Notifications enabled",
       "disabled_title": "Notifications disabled",
       "enabled_message": "You will receive push notifications",
-      "disabled_message": "You will no longer receive push notifications"
+      "disabled_message": "You will no longer receive push notifications",
+      "saved": "Your notification preferences have been saved.",
+      "save_failed": "Unable to sync your preferences. The change was not applied. Try again when you have a connection.",
+      "daily_summary": "One quiet daily summary.",
+      "categories": {
+        "orders": "Orders and deliveries",
+        "payments": "Payments and Wallet",
+        "messages": "Messages",
+        "disputes": "Disputes and required actions",
+        "real_estate": "Property and saved alerts",
+        "marketing": "News and promotions",
+        "system": "Account and service information"
+      },
+      "diagnostics": {
+        "title": "Check my notifications",
+        "permission": "Phone permission: @status",
+        "registered": "This device’s registration with ASSO: @status",
+        "apple": "Apple notification connection: @status",
+        "ready": "available",
+        "not_ready": "needs checking",
+        "devices": "Active devices on this account: @count",
+        "pending": "Pending deliveries on this account: @count",
+        "error": "Code to share with support: @code",
+        "explanation": "Phone permission, ASSO registration and actual reception are separate checks. Firebase acceptance does not prove that you read the message on your phone.",
+        "open_settings": "Phone settings",
+        "test": "Send a test",
+        "status": {
+          "authorized": "allowed",
+          "denied": "denied",
+          "provisional": "allowed quietly",
+          "notDetermined": "not requested",
+          "unavailable": "unavailable",
+          "ephemeral": "temporarily allowed"
+        }
+      }
     },
     "country": {
       "sheet_title": "Select your country",
@@ -193,6 +256,9 @@
     "show_password": "Show",
     "hide_password": "Hide",
     "terms_prefix": "I accept the ",
+    "cgu_link": "Terms of Use",
+    "terms_and": " and the ",
+    "trust_charter_link": "Trust & Safety Charter",
     "privacy_policy_link": "privacy policy",
     "privacy_policy_title": "Privacy policy",
     "submit": "Create my account",
@@ -202,8 +268,8 @@
     "password_too_short_message": "The password must contain at least 6 characters",
     "passwords_mismatch_title": "Passwords don't match",
     "passwords_mismatch_message": "The passwords do not match",
-    "policy_required_title": "Policy required",
-    "policy_required_message": "Please accept our Privacy Policy to continue",
+    "policy_required_title": "Acceptance required",
+    "policy_required_message": "Please accept the Terms of Use and the Trust & Safety Charter to create your account",
     "code_sent_title": "Code sent",
     "code_sent_message": "A verification code has been sent to @email",
     "google_signing_in": "Signing in with Google...",
@@ -539,7 +605,28 @@
     "open_in_browser": "Open in browser",
     "document_unavailable": "Document unavailable",
     "document_fallback": "Document",
-    "updated_at": "Updated on @date"
+    "updated_at": "Updated on @date",
+    "consent": {
+      "accept": "Accept and continue",
+      "checkbox": "I have read and accept these documents",
+      "load_failed_title": "Documents unavailable",
+      "registration": {
+        "title": "Before creating your account",
+        "message": "Read and accept the documents below to create your ASSO account."
+      },
+      "purchase": {
+        "title": "General Terms of Purchase",
+        "message": "To complete your purchase, read and accept the General Terms of Purchase."
+      },
+      "vendor": {
+        "title": "Seller Charter",
+        "message": "To create your seller account, read and accept the Seller Charter."
+      },
+      "delivery_partner": {
+        "title": "Courier & Partners Charter",
+        "message": "To become a delivery partner, read and accept the Courier & Partners Charter."
+      }
+    }
   },
   "profile": {
     "guest_name": "Guest",
@@ -718,6 +805,10 @@
     },
     "delivery": {
       "steps": {
+        "export_pickup_requested": "Solex collection scheduled",
+        "export_collected": "Collected from seller by Solex",
+        "export_at_solex": "Received at Solex agency",
+        "shipment_issue": "Shipment incident",
         "pending": "Order placed",
         "confirmed": "Confirmed by the seller",
         "preparing": "Being prepared",
@@ -867,6 +958,11 @@
       "skip": "Skip"
     },
     "delivery": {
+      "export_path": "Seller → Solex collection → @agency → @carrier → recipient",
+      "asso_fee": "ASSO service fee",
+      "excl_tax_short": "excl. tax",
+      "collection_distance": "Estimated pickup distance",
+      "straight_line": "straight-line",
       "total_weight": "Total parcel weight",
       "applied_range": "Applied bracket",
       "included": "Included",
@@ -948,6 +1044,9 @@
       "address": "Address"
     },
     "offline": {
+      "no_saved_data": "No data saved on this device. Connect once to synchronise.",
+      "saved_copy": "Offline · Last synced: @date. Showing saved data; balances may have changed.",
+      "online_required": "Reconnect to perform this action.",
       "label": "Offline"
     },
     "free_delivery": {
@@ -1186,7 +1285,9 @@
       "cancel_message": "Are you sure you want to cancel this payment?",
       "no": "No",
       "yes_cancel": "Yes, cancel",
-      "cancelled_by_user": "Payment cancelled by the user"
+      "cancelled_by_user": "Payment cancelled by the user",
+      "verifying_title": "Payment being verified",
+      "verifying_message": "Your payment is being confirmed. You will be notified once it is validated."
     },
     "recharge": {
       "title": "Top up my wallet",
@@ -1274,10 +1375,20 @@
       "amount_to_pay": "Amount to pay",
       "pay_now": "Pay now",
       "debited_by_operator": "Debited by your operator",
-      "operator_mismatch": "This looks like an @operator number."
+      "operator_mismatch": "This looks like an @operator number.",
+      "operator_unstable": "@operator is temporarily unstable. Please choose another operator or try again in a few minutes.",
+      "try_operator": "Try @operator"
     }
   },
   "payment": {
+    "preparation": {
+      "wallet_title": "Wallet payment in progress",
+      "wallet_message": "Please wait while your payment with your ASSO Wallet balance is confirmed.",
+      "mobile_money_title": "Preparing Mobile Money payment",
+      "mobile_money_message": "Please wait while the payment request is sent to your phone.",
+      "card_title": "Opening card payment",
+      "card_message": "Please wait while the secure payment form is prepared."
+    },
     "wallet_confirm": {
       "title": "Pay with my Wallet",
       "current_balance": "Current balance",
@@ -1670,6 +1781,7 @@
     "clear": "Clear"
   },
   "chatdetail": {
+    "send": "Send",
     "error": "Error",
     "success": "Success",
     "message_not_sent": "Message not sent",
@@ -1847,7 +1959,7 @@
   },
   "post": {
     "title": "Post",
-    "working": "Post screen is working"
+    "working": "Creating posts will be available soon."
   },
   "post_detail": {
     "title": "Discussion",
@@ -1935,6 +2047,9 @@
       "only_left_plural": "Only @count items left."
     },
     "order": {
+      "recipient_name": "Recipient name",
+      "postal_code": "Postal code (if applicable)",
+      "recipient_required": "Enter the recipient name.",
       "step_option_quantity": "Enter the quantity for at least one option",
       "step_quantity": "Enter a quantity",
       "step_address": "Enter the delivery address",
@@ -2016,6 +2131,8 @@
     },
     "retry": "Retry",
     "map": {
+      "international_destinations": "DHL / FedEx · @count destinations",
+      "search_destination": "Search for a country or carrier…",
       "default_address": "Douala, Cameroon",
       "locate_failed_hint": "Move the pin on the map or search for your address.",
       "title_readonly": "Product location",
@@ -2037,7 +2154,12 @@
       "no_courier_here": "No courier serves this location",
       "covered_quote_unavailable": "Covered area, delivery for this item needs checking",
       "offers_depend_on_shop": "Offers and prices depend on the shop: they're shown in the next step.",
-      "move_to_zone_hint": "Move the pin to a colored zone, or choose another delivery method."
+      "move_to_zone_hint": "Move the pin to a colored zone, or choose another delivery method.",
+      "choose_country_address": "Choose your address in @country",
+      "select_actual_address": "Tap the map or search for your address",
+      "country_covered": "International delivery across the whole country",
+      "approximate_agency_position": "Approximate location on this street",
+      "provisional_reference": "Provisional reference — agency to confirm"
     },
     "not_found": {
       "title": "Product not found",
@@ -2241,7 +2363,21 @@
     "delete": "Delete",
     "delete_all_title": "Delete all notifications",
     "delete_all_message": "Do you really want to delete all your notifications?",
-    "delete_all_confirm": "Delete all"
+    "delete_all_confirm": "Delete all",
+    "channels": {
+      "actions": "Orders and important actions",
+      "actions_description": "Messages, payments and actions required on your cases.",
+      "updates": "News and summaries",
+      "updates_description": "Quiet promotional summaries and property alerts."
+    },
+    "digest": {
+      "title": "Your ASSO summary",
+      "date": "Updates for @date",
+      "load_failed": "Unable to load the summary. Check your connection.",
+      "more": "Load more",
+      "retry": "Try again",
+      "empty": "No announcements are available in this summary."
+    }
   },
   "add_product": {
     "steps": {
@@ -2978,7 +3114,7 @@
     },
     "validate_dialog": {
       "title": "Validate order",
-      "message": "Do you want to validate order #@id from @name?\n\nThe funds will be credited to your wallet and available immediately.",
+      "message": "Do you want to validate order #@id from @name?\n\nThe funds remain on hold until the order is completed. They will then be available in your wallet.",
       "success_title": "Order validated",
       "success_carrier": "Drop the parcel off at the @agency agency, then tap “Hand to carrier”.",
       "default_carrier": "carrier",
@@ -3446,6 +3582,8 @@
       "return_title": "Return to the seller",
       "pickup": "Pickup",
       "dropoff": "Drop-off",
+      "code_hint_agency": "Hand over to Solex against the agency recipient’s 6-digit code.",
+      "code_prompt_agency": "Handover code provided by the Solex agency",
       "code_hint_client": "Hand over against the customer's 6-digit code.",
       "code_hint_vendor": "Hand over against the seller's 6-digit code.",
       "picked_up": "Parcel collected",
@@ -3593,7 +3731,7 @@
       "air": "Plane",
       "sea": "Sea",
       "air_hint": "Best for parcels under @kg kg",
-      "sea_hint": "Best for parcels over @kg kg"
+      "sea_hint": "Sea shipments are booked in CBM (m³). Choose air freight for small parcels."
     }
   },
   "diaspo_detail": {
@@ -4181,6 +4319,8 @@
       "unfounded": "Claim not upheld"
     },
     "shipment": {
+      "international_return_route": "Customer → @carrier → Solex → seller",
+      "international_replacement_route": "Seller → Solex → @carrier → customer",
       "collection_title": "Collection for exchange",
       "return_title": "Product return",
       "replacement_title": "Replacement product",
@@ -4236,15 +4376,39 @@
       "pay_shipment": "Choose courier and pay",
       "replace": "Replace the product",
       "organize_return": "Organize the return",
+      "prepare_replacement": "Replacement ready — confirm and fund transport",
+      "prepare_confirm": "Have you received the returned product and prepared its replacement?",
+      "confirm_exchange_received": "Case A — Confirm receipt for exchange",
+      "received_exchange_confirm": "Case A — Have you received the product for exchange? You can then prepare its replacement. The funds remain held during the exchange; the customer is not refunded at this step.",
+      "confirm_received": "Case B — Receive the return and refund",
+      "received_confirm": "Case B — Have you received the final return? Confirming immediately refunds the claimed item amount to the customer’s Wallet.",
       "mark_shipped": "Product handed to the courier",
       "send_evidence": "Send my explanations / evidence",
       "evidence_title": "Your explanations for ASSO",
       "asso_decides": "ASSO decides the outcome; you can't close the case yourself.",
-      "replace_confirm": "You'll send a replacement product to the customer and pay for the delivery. Only one replacement is allowed. Continue?",
+      "international_replace_confirm": "The product must first return from the customer via DHL/FedEx and Solex. After receipt and preparation, you will fund the replacement shipment via Solex and DHL/FedEx. You pay for transport. Continue?",
+      "international_pay_notice": "The fees include international transit and the Solex leg. The customer does not pay for the return.",
+      "pay_transport": "Choose transport and pay",
+      "replace_confirm": "The defective item will be collected before preparing the replacement. You fund the transport. Continue?",
       "return_confirm": "The product will be collected from the customer and returned at your expense; the customer will be refunded. Continue?",
       "todo_pay": "To do: pay for the delivery",
       "todo_choose": "To do: replace or organize the return",
       "todo_ship": "To do: hand the replacement to the courier"
+    },
+    "delivery_claim": {
+      "button": "Order not received: report or track",
+      "title": "Problem before delivery",
+      "notice": "Describe the delay or missing preparation or delivery. ASSO will check the evidence and communicate its decision.",
+      "status": {
+        "open": "ASSO investigation in progress",
+        "refunded": "Order refunded",
+        "rejected": "Claim reviewed and rejected"
+      }
+    },
+    "receipt": {
+      "contest": "Dispute receipt evidence",
+      "proof_required": "Attach at least one supporting photo and explain your objection.",
+      "notice": "Receipt verified at @location. Objections accepted until @date."
     }
   },
   "package_details": {
@@ -4322,8 +4486,8 @@
       "explanation": "Share this code with vendors: when they use it for their first subscription, you receive @rate% of the amount directly in your wallet."
     }
   },
-
   "parcel_insurance": {
+    "quote_unavailable": "The insurance quote is unavailable. Please try again before paying.",
     "title": "Parcel contents and value",
     "intro": "Tell us what the parcel contains and its value: an insurance supplement is added to the price. If it is lost, ASSO compensates you up to the declared value.",
     "nature": "Parcel contents",
@@ -4343,7 +4507,8 @@
     "several_faces": "Several faces detected: you must be alone in the photo.",
     "too_far": "Come closer: your face must fill the oval.",
     "eyes_closed": "Keep your eyes open and look at the camera."
-  },"maritime": {
+  },
+  "maritime": {
   "trip_impossible_title": "Departure closed",
   "trip_impossible": "This trip is no longer possible. Please check the next dates for this destination.",
   "error": "Error",
@@ -4359,6 +4524,7 @@
   "no_departure_matches": "No departures match your search or filter.",
   "no_shipments": "You have no sea shipments yet.",
   "departure_on": "Departs on @date",
+  "cbm_left": "@volume CBM available",
   "kg_left": "@kg kg available",
   "last_day_to_book": "Last day to book",
   "days_left_to_book": "@days days left to book",
@@ -4381,6 +4547,7 @@
     "see_shipments": "See my shipments"
   },
   "form": {
+    "cargo_category": "Parcel category",
     "title": "Ship by boat",
     "insurance_fields_intro": "Describe the parcel and its declared value. This information is still required even if you do not opt into insurance.",
     "insurance_opt_in": "I want to purchase maritime insurance",
@@ -4390,9 +4557,11 @@
     "insurance_quote_unknown": "—",
     "insurance_quote_unavailable": "The insurance quote is unavailable. Try again or opt out of insurance.",
     "parcel": "Parcel",
-    "kg": "Weight",
+    "kg": "Total weight",
     "parcels": "Number of parcels",
     "kg_available": "@kg kg available on this departure",
+    "volume": "Shipment volume (CBM)",
+    "volume_available": "@volume CBM available",
     "sender": "Your details",
     "first_name": "First name",
     "last_name": "Last name",
@@ -4410,12 +4579,16 @@
     "dropoff_warning": "We expect your parcel at @hub before @date. After that, your money will be returned, minus ASSO fees.",
     "fill_all": "Please fill in all contact details.",
     "kg_range": "The weight must be between 0.5 and @max kg.",
-    "payment_failed_released": "The payment did not go through: the kilos have been released.",
+    "payment_failed_released": "The payment did not go through: the reserved capacity has been released.",
     "volume_line": "That is @volume m³ at @price per m³"
   },
   "validation": {
     "fix_fields": "Please fix the fields highlighted in red.",
     "kg_required": "Enter the weight of your shipment.",
+    "volume_required": "Enter a volume in CBM.",
+    "volume_min": "Minimum volume is 0.001 CBM.",
+    "volume_max": "Available volume: @max CBM.",
+
     "kg_min": "The minimum weight is 0.5 kg.",
     "kg_max": "Maximum @max kg available.",
     "parcels_min": "Enter at least 1 parcel.",
@@ -4467,6 +4640,10 @@
       "reservations": "your bookings"
     },
     "home": {
+      "tab_houses": "Houses",
+      "transaction_rent": "For rent",
+      "transaction_sale": "For sale",
+      "count_houses": "@count house(s)",
       "subtitle": "Find your next home",
       "tab_rent": "Homes to rent",
       "tab_land": "Land for sale",
@@ -4503,6 +4680,7 @@
       "other": "Other"
     },
     "card": {
+      "price_on_request": "Price per m² on request",
       "rooms": "@count rooms",
       "bedrooms": "@count bedrooms",
       "furnished": "Furnished",
@@ -4524,9 +4702,18 @@
       "titled": "Titled",
       "not_titled": "No title",
       "plot": "Plot",
-      "serviced": "Serviced"
+      "serviced": "Serviced",
+      "from": "from",
+      "per_lot": "per plot",
+      "per_lot_of": "per plot of @surface",
+      "surface_range": "@min to @max m²",
+      "sold_whole": "Sold as a whole",
+      "sold_per_lot": "Sold by plot · @available/@total available",
+      "lot_sold": "Sold",
+      "lots_available": "@count available"
     },
     "filters": {
+      "price_per_m2": "Price per m²",
       "all": "All",
       "price": "Price",
       "budget": "Budget",
@@ -4564,6 +4751,8 @@
       "featured": "Featured"
     },
     "criteria": {
+      "land_title": "Your land search criteria",
+      "land_subtitle": "Get alerts for new land listings matching your city and budget.",
       "title": "Your criteria, our best homes",
       "subtitle": "Your rent, your dates, your wishes: we filter everything for you.",
       "you_are": "You are:",
@@ -4587,6 +4776,7 @@
       "banner_update": "Update my alert"
     },
     "detail": {
+      "for_sale": "@kind for sale",
       "not_found": "This property is no longer available",
       "for_rent": "@kind for rent",
       "photos": "Photos",
@@ -4607,6 +4797,7 @@
       "address_hidden": "The exact address is shared with you after payment.",
       "units": "Available homes",
       "lots": "Available plots",
+      "one_payment_one_lot": "One payment = one plot. For several plots, make one reservation per plot.",
       "capacity": "@count people max.",
       "kitchen_private": "Kitchen (private)",
       "kitchen_shared": "Kitchen (shared)",
@@ -4701,6 +4892,9 @@
       "commission": "Partner agency commission",
       "commission_help": "Non-refundable",
       "total": "Total to pay",
+      "fees": "Fees",
+      "pay_now": "To pay now",
+      "balance_due": "Balance due to the firm",
       "escrow": "The rent is held for @days days so you can visit. You confirm on ASSO that the home matches, then the landlord is paid.",
       "escrow_land": "The deposit is held for @days days. You meet the firm, confirm on ASSO, then the firm is paid.",
       "continue": "Continue",
@@ -5031,5 +5225,7 @@
   "core.delivery.agency_phone": "Agency phone",
   "core.delivery.agency_pickup_instructions": "Your parcel is ready. Present your order reference at the agency for collection.",
   "delivery_dashboard.distance_unavailable": "Distance unavailable",
-  "delivery_dashboard.straight_line": "straight line"
+  "delivery_dashboard.straight_line": "straight line",
+  "profile.load_error": "Unable to load your profile.",
+  "order_management.details.copy": "Copy"
 }

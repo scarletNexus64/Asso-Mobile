@@ -1,3 +1,4 @@
+import 'package:asso/app/core/utils/app_feedback.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
@@ -12,6 +13,7 @@ import '../../../data/models/real_estate_models.dart';
 import '../../../data/providers/real_estate_service.dart';
 import '../immo_actions.dart';
 import '../immo_nav.dart';
+import '../widgets/immo_lot_payment.dart';
 import '../widgets/immo_quote_sheet.dart';
 import '../widgets/immo_widgets.dart';
 import 'immo_reserve_view.dart';
@@ -104,8 +106,12 @@ class _ImmoListingViewState extends State<ImmoListingView> {
 
   /// Récapitulatif des montants, puis parcours de réservation (compte requis).
   void _reserve(RealEstateListing listing, RealEstateUnit? unit) {
+    if (listing.isSale) {
+      ImmoActions.contactAsso(context, listing);
+      return;
+    }
     if (listing.isOwnListing) {
-      Get.snackbar(
+      AppFeedback.show(
         'immo.reserve.own_listing_title'.tr,
         'immo.reserve.own_listing_message'.tr,
         snackPosition: SnackPosition.BOTTOM,
@@ -122,7 +128,11 @@ class _ImmoListingViewState extends State<ImmoListingView> {
         unit: unit,
         onContinue: (advanceMonths) => ImmoNav.push(
           ImmoNav.reserve,
-          arguments: ImmoReserveArgs(listing: listing, unit: unit, advanceMonths: advanceMonths),
+          arguments: ImmoReserveArgs(
+            listing: listing,
+            unit: unit,
+            advanceMonths: advanceMonths,
+          ),
         ),
       ),
     );
@@ -335,6 +345,16 @@ class _ImmoListingViewState extends State<ImmoListingView> {
                         color: context.ds.textPrimary,
                       ),
                     ),
+                    if (listing.isSoldPerLot) ...[
+                      const SizedBox(height: AppDesign.space1),
+                      Text(
+                        'immo.detail.one_payment_one_lot'.tr,
+                        style: context.textStyle(
+                          FontSizeType.body2,
+                          color: context.ds.textSecondary,
+                        ),
+                      ),
+                    ],
                     const SizedBox(height: AppDesign.space3),
                     for (final unit in listing.units) ...[
                       _UnitCard(
@@ -357,10 +377,8 @@ class _ImmoListingViewState extends State<ImmoListingView> {
                     ],
                   ],
                   const SizedBox(height: AppDesign.space4),
-                  _Protection(listing: listing),
+                  if (!listing.isSale) _Protection(listing: listing),
                   const SizedBox(height: AppDesign.space4),
-                  if (listing.cabinet != null || listing.commissionCabinet != null)
-                    _CabinetCard(listing: listing),
                   if (!listing.isLand && listing.netPayeeKind != 'cabinet')
                     _OwnerCard(
                       listing: listing,
@@ -519,9 +537,10 @@ class _Intro extends StatelessWidget {
         Text(
           listing.isLand
               ? immoKindLabel(listing)
-              : 'immo.detail.for_rent'.trParams({
-                  'kind': immoKindLabel(listing),
-                }),
+              : (listing.isSale
+                        ? 'immo.detail.for_sale'
+                        : 'immo.detail.for_rent')
+                    .trParams({'kind': immoKindLabel(listing)}),
           style: context.textStyle(
             FontSizeType.body2,
             color: context.ds.textSecondary,
@@ -599,6 +618,8 @@ class _Intro extends StatelessWidget {
                     : AppBadgeTone.warning,
                 icon: Icons.description_outlined,
               ),
+            if (listing.isLand && listing.subdivision != null)
+              ImmoSaleModeBadge(listing: listing),
             if (listing.isLand && listing.serviced)
               AppBadge(
                 label: 'immo.land.serviced'.tr,
@@ -778,14 +799,14 @@ class _AccessList extends StatelessWidget {
       if (a.hasParking) (Icons.local_parking_rounded, 'immo.access.parking'.tr),
       if (a.hasFence) (Icons.fence_rounded, 'immo.access.fence'.tr),
       if (a.hasGuard) (Icons.security_rounded, 'immo.access.guard'.tr),
-      if (!listing.isLand && listing.minLeaseMonths != null)
+      if (listing.isRent && listing.minLeaseMonths != null)
         (
           Icons.event_repeat_rounded,
           'immo.access.min_lease'.trParams({
             'months': '${listing.minLeaseMonths}',
           }),
         ),
-      if (!listing.isLand && listing.advanceMonths != null)
+      if (listing.isRent && listing.advanceMonths != null)
         (
           Icons.payments_outlined,
           'immo.access.advance'.trParams({
@@ -997,13 +1018,19 @@ class _UnitCard extends StatelessWidget {
         (Icons.bolt_rounded, 'immo.land.serviced'.tr),
     ];
     final threshold =
+        !listing.isLand &&
         unit.unitsTotal > 1 &&
         unit.unitsAvailable > 0 &&
         unit.unitsAvailable <= 4;
+    final sold = !unit.isAvailable;
+    // Terrain : prix du morceau en grand, prix au m² en dessous.
+    final lotPrice = listing.isLand
+        ? immoPrice(unit.payment?.lotPrice ?? unit.price)
+        : null;
 
-    return AppCard(
+    final card = AppCard(
       onTap: onSelect,
-      color: selected ? AppDesign.accentSubtle : null,
+      color: selected && !sold ? AppDesign.accentSubtle : null,
       padding: const EdgeInsets.all(AppDesign.space4),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1011,7 +1038,7 @@ class _UnitCard extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              AppSelectionDot(isSelected: selected),
+              AppSelectionDot(isSelected: selected && !sold),
               const SizedBox(width: AppDesign.space3),
               Expanded(
                 child: Column(
@@ -1041,30 +1068,30 @@ class _UnitCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     Text(
-                      immoPrice(unit.price),
+                      lotPrice ?? immoOfferPrice(listing, unit: unit),
                       style: context.textStyle(
                         FontSizeType.subtitle1,
                         fontWeight: FontWeight.w800,
                         color: AppDesign.accent,
                       ),
                     ),
-                    if (unit.oldPrice != null && unit.oldPrice! > unit.price)
+                    if (lotPrice != null)
                       Text(
-                        immoPrice(unit.oldPrice!),
+                        immoOfferPrice(listing, unit: unit),
+                        style: context.textStyle(
+                          FontSizeType.caption,
+                          color: context.ds.textSecondary,
+                        ),
+                      ),
+                    if (immoHasDiscount(listing, unit: unit))
+                      Text(
+                        immoOfferPrice(listing, unit: unit, old: true),
                         style: context
                             .textStyle(
                               FontSizeType.caption,
                               color: context.ds.textTertiary,
                             )
                             .copyWith(decoration: TextDecoration.lineThrough),
-                      ),
-                    if (!listing.isLand)
-                      Text(
-                        'immo.card.per_month'.tr,
-                        style: context.textStyle(
-                          FontSizeType.caption,
-                          color: context.ds.textSecondary,
-                        ),
                       ),
                   ],
                 ),
@@ -1096,9 +1123,9 @@ class _UnitCard extends StatelessWidget {
             ),
           ],
           const Divider(height: AppDesign.space6),
-          if (!unit.isAvailable)
+          if (sold)
             Text(
-              'immo.card.unavailable'.tr,
+              listing.isLand ? 'immo.land.lot_sold'.tr : 'immo.card.unavailable'.tr,
               style: context.textStyle(
                 FontSizeType.body2,
                 fontWeight: FontWeight.w700,
@@ -1142,7 +1169,11 @@ class _UnitCard extends StatelessWidget {
                 ),
                 const SizedBox(width: AppDesign.space2),
                 Text(
-                  unit.availableFrom == null ||
+                  listing.isLand && unit.unitsTotal > 1
+                      ? 'immo.land.lots_available'.trParams({
+                          'count': '${unit.unitsAvailable}',
+                        })
+                      : unit.availableFrom == null ||
                           !unit.availableFrom!.isAfter(DateTime.now())
                       ? (listing.isLand
                             ? 'immo.card.land_available'.tr
@@ -1156,6 +1187,29 @@ class _UnitCard extends StatelessWidget {
                   ),
                 ),
               ],
+            ),
+          ],
+          if (listing.isLand &&
+              selected &&
+              !sold &&
+              unit.payment != null) ...[
+            const SizedBox(height: AppDesign.space3),
+            Container(
+              padding: const EdgeInsets.fromLTRB(
+                AppDesign.space3,
+                AppDesign.space3,
+                AppDesign.space3,
+                AppDesign.space1,
+              ),
+              decoration: BoxDecoration(
+                color: context.ds.surface,
+                borderRadius: BorderRadius.circular(AppDesign.radiusSm),
+                border: Border.all(color: context.ds.border),
+              ),
+              child: ImmoLotPaymentDetails(
+                payment: unit.payment!,
+                showLotPrice: false,
+              ),
             ),
           ],
           const SizedBox(height: AppDesign.space3),
@@ -1172,7 +1226,9 @@ class _UnitCard extends StatelessWidget {
               const SizedBox(width: AppDesign.space3),
               Expanded(
                 child: AppButton(
-                  label: listing.isLand
+                  label: listing.isSale
+                      ? 'immo.detail.contact'.tr
+                      : listing.isLand
                       ? 'immo.detail.pay_deposit'.tr
                       : 'immo.detail.reserve'.tr,
                   size: AppButtonSize.small,
@@ -1184,6 +1240,9 @@ class _UnitCard extends StatelessWidget {
         ],
       ),
     );
+
+    // Morceau vendu : grisé, non sélectionnable.
+    return sold ? Opacity(opacity: 0.5, child: card) : card;
   }
 }
 
@@ -1466,125 +1525,6 @@ class _OwnerCard extends StatelessWidget {
   );
 }
 
-/// Carte du cabinet partenaire d'un terrain.
-class _CabinetCard extends StatelessWidget {
-  const _CabinetCard({required this.listing});
-
-  final RealEstateListing listing;
-
-  @override
-  Widget build(BuildContext context) {
-    final cabinet = (listing.cabinet ?? listing.commissionCabinet)!;
-    final contact = cabinet.contact;
-
-    return AppCard(
-      onTap: () => ImmoNav.push(ImmoNav.cabinet, arguments: cabinet.id),
-      padding: const EdgeInsets.all(AppDesign.space4),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              ImmoCabinetLogo(url: cabinet.logoUrl, size: 52),
-              const SizedBox(width: AppDesign.space3),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Flexible(
-                          child: Text(
-                            cabinet.name,
-                            style: context.textStyle(
-                              FontSizeType.subtitle1,
-                              fontWeight: FontWeight.w700,
-                              color: context.ds.textPrimary,
-                            ),
-                          ),
-                        ),
-                        if (cabinet.isVerified) ...[
-                          const SizedBox(width: AppDesign.space1),
-                          const Icon(
-                            Icons.verified_rounded,
-                            size: 18,
-                            color: AppDesign.success,
-                          ),
-                        ],
-                      ],
-                    ),
-                    if (cabinet.tagline != null)
-                      Text(
-                        cabinet.tagline!,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: context.textStyle(
-                          FontSizeType.body2,
-                          color: context.ds.textSecondary,
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-              Icon(Icons.chevron_right_rounded, color: context.ds.textTertiary),
-            ],
-          ),
-          const SizedBox(height: AppDesign.space3),
-          if (cabinet.contactUnlocked && contact != null) ...[
-            if (contact['phone'] != null)
-              _line(context, Icons.phone_outlined, contact['phone'].toString()),
-            if (contact['whatsapp'] != null)
-              _line(
-                context,
-                Icons.chat_outlined,
-                contact['whatsapp'].toString(),
-              ),
-            if (contact['email'] != null)
-              _line(
-                context,
-                Icons.mail_outline_rounded,
-                contact['email'].toString(),
-              ),
-            if (contact['address'] != null)
-              _line(
-                context,
-                Icons.location_on_outlined,
-                contact['address'].toString(),
-              ),
-          ] else
-            Text(
-              'immo.cabinet.contact_hidden'.tr,
-              style: context.textStyle(
-                FontSizeType.body2,
-                color: context.ds.textSecondary,
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-
-  Widget _line(BuildContext context, IconData icon, String text) => Padding(
-    padding: const EdgeInsets.only(bottom: AppDesign.space1),
-    child: Row(
-      children: [
-        Icon(icon, size: 18, color: AppDesign.success),
-        const SizedBox(width: AppDesign.space2),
-        Expanded(
-          child: Text(
-            text,
-            style: context.textStyle(
-              FontSizeType.body1,
-              fontWeight: FontWeight.w600,
-              color: context.ds.textPrimary,
-            ),
-          ),
-        ),
-      ],
-    ),
-  );
-}
-
 /// Barre fixe : prix, « Contacter ASSO », « Réserver ».
 class _BottomBar extends StatelessWidget {
   const _BottomBar({
@@ -1601,8 +1541,6 @@ class _BottomBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final price = unit?.price ?? listing.price;
-    final old = unit?.oldPrice ?? listing.oldPrice;
     final available = unit?.isAvailable ?? listing.unitsAvailable > 0;
 
     return Container(
@@ -1633,9 +1571,9 @@ class _BottomBar extends StatelessWidget {
                       ),
                     ),
                   Text(
-                    listing.isLand
-                        ? immoPrice(price)
-                        : '${immoPrice(price)} ${'immo.card.per_month'.tr}',
+                    listing.isLand && unit != null
+                        ? immoPrice(unit!.payment?.lotPrice ?? unit!.price)
+                        : immoOfferPrice(listing, unit: unit),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: context.textStyle(
@@ -1644,9 +1582,9 @@ class _BottomBar extends StatelessWidget {
                       color: context.ds.textPrimary,
                     ),
                   ),
-                  if (old != null && old > price)
+                  if (immoHasDiscount(listing, unit: unit))
                     Text(
-                      immoPrice(old),
+                      immoOfferPrice(listing, unit: unit, old: true),
                       style: context
                           .textStyle(
                             FontSizeType.caption,
@@ -1665,11 +1603,15 @@ class _BottomBar extends StatelessWidget {
           ),
           const SizedBox(width: AppDesign.space2),
           AppButton(
-            label: listing.isLand
+            label: listing.isSale
+                ? 'immo.detail.contact'.tr
+                : listing.isLand
                 ? 'immo.detail.pay_deposit'.tr
                 : 'immo.detail.reserve'.tr,
             expand: false,
-            onPressed: available && !listing.isOwnListing ? onReserve : null,
+            onPressed: available && !listing.isOwnListing
+                ? (listing.isSale ? onContact : onReserve)
+                : null,
           ),
         ],
       ),

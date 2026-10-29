@@ -1,6 +1,8 @@
+import 'package:asso/app/core/utils/app_feedback.dart';
 import '../widgets/immo_summary_row.dart';
 import 'package:flutter/material.dart';
 import '../widgets/immo_fee_details.dart';
+import '../widgets/immo_lot_payment.dart';
 import 'package:get/get.dart';
 
 import '../../../core/utils/app_design.dart';
@@ -72,6 +74,7 @@ class _ImmoReserveViewState extends State<ImmoReserveView> {
       widget.args.advanceMonths ?? widget.args.listing.advanceMonths ?? 1;
   int _quoteRequest = 0;
   RealEstateQuote? _quote;
+  bool _quoteLoading = false;
   bool _accepted = false;
   bool _paying = false;
 
@@ -107,6 +110,7 @@ class _ImmoReserveViewState extends State<ImmoReserveView> {
     final request = ++_quoteRequest;
     setState(() {
       _quote = null;
+      _quoteLoading = true;
       _accepted = false;
     });
     final q = await RealEstateService.quote(
@@ -114,7 +118,12 @@ class _ImmoReserveViewState extends State<ImmoReserveView> {
       unitId: widget.args.unit?.id,
       advanceMonths: _isLand ? null : _advance,
     );
-    if (mounted && request == _quoteRequest) setState(() => _quote = q);
+    if (mounted && request == _quoteRequest) {
+      setState(() {
+        _quote = q;
+        _quoteLoading = false;
+      });
+    }
   }
 
   /// Écarts avec les conditions du bailleur (bandeau « Attention »).
@@ -160,8 +169,9 @@ class _ImmoReserveViewState extends State<ImmoReserveView> {
   }
 
   Future<void> _pay() async {
+    if (_paying) return;
     if (_listing.isOwnListing) {
-      Get.snackbar(
+      AppFeedback.show(
         'immo.reserve.own_listing_title'.tr,
         'immo.reserve.own_listing_message'.tr,
         snackPosition: SnackPosition.BOTTOM,
@@ -171,34 +181,48 @@ class _ImmoReserveViewState extends State<ImmoReserveView> {
     final q = _quote;
     if (q == null) return;
     setState(() => _paying = true);
-    final reservation = await ImmoPayment.pay(
-      listingId: _listing.id,
-      total: q.total,
-      label: _listing.title,
-      body: {
-        'unit_id': ?widget.args.unit?.id,
-        if (!_isLand) 'advance_months': _advance,
-        if (!_isLand) 'months': _months ?? 0,
-        if (_moveIn != null) 'move_in_date': immoMoveInApiValue(_moveIn),
-        'applicant_status': ?_status,
-        if (_school.text.trim().isNotEmpty)
-          'school_or_employer': _school.text.trim(),
-        if (_message.text.trim().isNotEmpty) 'message': _message.text.trim(),
-        if (_accompanied && _coTenants.isNotEmpty)
-          'occupants': [
-            for (final c in _coTenants)
-              if (c.text.trim().isNotEmpty) {'name': c.text.trim()},
-          ],
-        'contract_accepted': true,
-        'expected_total': q.total,
-      },
-    );
-    if (!mounted) return;
-    setState(() => _paying = false);
-    if (reservation != null) {
-      Navigator.of(
-        context,
-      ).pushReplacementNamed(ImmoNav.reservation, arguments: reservation.id);
+    try {
+      final reservation = await ImmoPayment.pay(
+        listingId: _listing.id,
+        total: q.total,
+        label: _listing.title,
+        // Prix modifié entre-temps : nouveau montant, à accepter de nouveau.
+        onQuoteChanged: () {
+          if (mounted) _loadQuote();
+        },
+        body: {
+          'unit_id': ?widget.args.unit?.id,
+          if (!_isLand) 'advance_months': _advance,
+          if (!_isLand) 'months': _months ?? 0,
+          if (_moveIn != null) 'move_in_date': immoMoveInApiValue(_moveIn),
+          'applicant_status': ?_status,
+          if (_school.text.trim().isNotEmpty)
+            'school_or_employer': _school.text.trim(),
+          if (_message.text.trim().isNotEmpty) 'message': _message.text.trim(),
+          if (_accompanied && _coTenants.isNotEmpty)
+            'occupants': [
+              for (final c in _coTenants)
+                if (c.text.trim().isNotEmpty) {'name': c.text.trim()},
+            ],
+          'contract_accepted': true,
+          'expected_total': q.total,
+        },
+      );
+      if (!mounted) return;
+      if (reservation != null) {
+        Navigator.of(
+          context,
+        ).pushReplacementNamed(ImmoNav.reservation, arguments: reservation.id);
+      }
+    } catch (error) {
+      if (!mounted) return;
+      AppFeedback.show(
+        'immo.reserve.error'.tr,
+        error.toString().replaceFirst('Exception: ', ''),
+        snackPosition: SnackPosition.BOTTOM,
+      );
+    } finally {
+      if (mounted) setState(() => _paying = false);
     }
   }
 
@@ -246,7 +270,7 @@ class _ImmoReserveViewState extends State<ImmoReserveView> {
                 child: AppButton(
                   label: 'immo.reserve.edit'.tr,
                   variant: AppButtonVariant.secondary,
-                  onPressed: () => _go(_step - 1),
+                  onPressed: _paying ? null : () => _go(_step - 1),
                 ),
               ),
             if (_step > 0) const SizedBox(width: AppDesign.space3),
@@ -260,7 +284,6 @@ class _ImmoReserveViewState extends State<ImmoReserveView> {
                               'amount': immoPrice(_quote!.total),
                             }))
                     : 'immo.reserve.continue'.tr,
-                isLoading: _paying,
                 onPressed: _paying
                     ? null
                     : last
@@ -727,8 +750,22 @@ class _ImmoReserveViewState extends State<ImmoReserveView> {
           ),
         ),
       const SizedBox(height: AppDesign.space4),
-      if (q == null)
+      if (q == null && _quoteLoading)
         const Center(child: CircularProgressIndicator())
+      else if (q == null)
+        AppEmptyState(
+          icon: Icons.error_outline_rounded,
+          title: 'immo.quote.error'.tr,
+          actionLabel: 'immo.home.retry'.tr,
+          onAction: _loadQuote,
+        )
+      else if (_isLand)
+        AppCard(
+          padding: const EdgeInsets.all(AppDesign.space4),
+          child: ImmoLotPaymentDetails(
+            payment: immoLotPayment(q, widget.args.unit),
+          ),
+        )
       else
         Obx(
           () => AppCard(
@@ -762,7 +799,6 @@ class _ImmoReserveViewState extends State<ImmoReserveView> {
                 ImmoFeeDetails(
                   netAmount: q.netAmount,
                   platformAmount: q.platformAmount,
-                  cabinetName: q.commissionCabinet?.name,
                   netPayeeKind: q.netPayeeKind,
                 ),
                 if (q.commission > 0)

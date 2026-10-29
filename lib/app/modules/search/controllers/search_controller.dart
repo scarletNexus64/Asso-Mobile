@@ -1,3 +1,4 @@
+import 'package:asso/app/core/utils/app_feedback.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
@@ -29,6 +30,22 @@ class SearchWholesaleEntry {
   final WholesaleProduct product;
   final String countryFlag;
   final List<ShippingOption> shippingOptions;
+}
+
+/// Première page et totaux complets des catalogues d'import consultés.
+class SearchWholesaleResults {
+  const SearchWholesaleResults({
+    this.entries = const [],
+    this.catalogs = const {},
+    this.isComplete = true,
+  });
+
+  final List<SearchWholesaleEntry> entries;
+  final Map<String, WholesaleCatalog> catalogs;
+  final bool isComplete;
+
+  int get total =>
+      catalogs.values.fold(0, (sum, catalog) => sum + catalog.total);
 }
 
 /// Une tuile du mur de recherche.
@@ -124,6 +141,9 @@ class SearchWall {
 
   /// Nombre total de produits locaux annoncé par le serveur.
   final RxInt total = 0.obs;
+  final RxInt wholesaleTotal = 0.obs;
+  final RxBool wholesaleCountComplete = true.obs;
+  final Map<String, WholesaleCatalog> wholesaleCatalogs = {};
 
   /// Requête à laquelle correspondent les résultats affichés.
   final RxString query = ''.obs;
@@ -183,7 +203,7 @@ class SearchController extends GetxController {
 
   /// Articles de gros par requête, pour qu'un retour sur une recherche
   /// récente (historique, onglet) ne relance pas les appels par pays.
-  final Map<String, List<SearchWholesaleEntry>> _wholesaleCache = {};
+  final Map<String, SearchWholesaleResults> _wholesaleCache = {};
   static const int _wholesaleCacheSize = 12;
   List<Map<String, String>>? _importCountries;
 
@@ -309,8 +329,11 @@ class SearchController extends GetxController {
   int get resultCount {
     final current = wall;
     return current.total.value +
-        (wholesaleApplies ? current.wholesale.length : 0);
+        (wholesaleApplies ? current.wholesaleTotal.value : 0);
   }
+
+  bool get isResultCountComplete =>
+      !wholesaleApplies || wall.wholesaleCountComplete.value;
 
   /// Texte saisi dont les résultats ne sont pas encore arrivés (attente du
   /// debounce ou de la réponse). Tant que c'est le cas, un mur vide n'est
@@ -460,7 +483,7 @@ class SearchController extends GetxController {
         _fetchLocalPage(page: 1, query: query),
         withWholesale
             ? _fetchWholesale(query)
-            : Future.value(const <SearchWholesaleEntry>[]),
+            : Future.value(const SearchWholesaleResults()),
       ).wait;
 
       if (request != target.request) return;
@@ -472,6 +495,9 @@ class SearchController extends GetxController {
           target.products.clear();
           target.wholesale.clear();
           target.total.value = 0;
+          target.wholesaleTotal.value = 0;
+          target.wholesaleCountComplete.value = false;
+          target.wholesaleCatalogs.clear();
         } else if (target.products.isNotEmpty) {
           _showError('search.refresh_failed'.tr);
         }
@@ -485,7 +511,12 @@ class SearchController extends GetxController {
         ..filtersVersion = filtersVersion;
       target.loadFailed.value = false;
       target.products.assignAll(page.products);
-      target.wholesale.assignAll(wholesale);
+      target.wholesale.assignAll(wholesale.entries);
+      target.wholesaleTotal.value = wholesale.total;
+      target.wholesaleCountComplete.value = wholesale.isComplete;
+      target.wholesaleCatalogs
+        ..clear()
+        ..addAll(wholesale.catalogs);
       target.total.value = page.total;
       target.hasMore.value = page.hasMore;
       target.query.value = query;
@@ -544,7 +575,7 @@ class SearchController extends GetxController {
   /// Les pays sont interrogés en parallèle ; un pays qui ne répond pas ne
   /// prive pas le mur des autres. Jamais d'exception : sans articles de
   /// gros, le mur reste celui du catalogue local.
-  Future<List<SearchWholesaleEntry>> _fetchWholesale(String query) async {
+  Future<SearchWholesaleResults> _fetchWholesale(String query) async {
     final key = query.toLowerCase();
     final cached = _wholesaleCache[key];
     if (cached != null) return cached;
@@ -555,16 +586,22 @@ class SearchController extends GetxController {
 
       final catalogs = await Future.wait([
         for (final country in countries)
-          ImportService.getCatalog(
-            country['code']!,
-            query: query,
-          ).catchError((_) => null),
+          ImportService.getCatalog(country['code']!, query: query).catchError((
+            Object error,
+          ) {
+            debugPrint(
+              '[Search] catalogue ${country['code']} indisponible : $error',
+            );
+            return null;
+          }),
       ]);
 
       final perCountry = <List<SearchWholesaleEntry>>[];
+      final loadedCatalogs = <String, WholesaleCatalog>{};
       for (var i = 0; i < countries.length; i++) {
         final catalog = catalogs[i];
         if (catalog == null) continue;
+        loadedCatalogs[countries[i]['code']!] = catalog;
         final flag = catalog.countryFlag.isNotEmpty
             ? catalog.countryFlag
             : (countries[i]['flag'] ?? '');
@@ -578,20 +615,24 @@ class SearchController extends GetxController {
         ]);
       }
 
-      final entries = interleaveWholesale(perCountry);
+      final results = SearchWholesaleResults(
+        entries: interleaveWholesale(perCountry),
+        catalogs: loadedCatalogs,
+        isComplete: loadedCatalogs.length == countries.length,
+      );
 
-      // Un échec de tous les pays n'est pas un « aucun article » : on ne le
-      // retient pas, le prochain passage réessaiera.
-      if (perCountry.isNotEmpty) {
+      // Une réponse partielle n'est pas un total complet : ne pas la garder
+      // en cache, le prochain passage réessaiera les pays indisponibles.
+      if (loadedCatalogs.length == countries.length) {
         if (_wholesaleCache.length >= _wholesaleCacheSize) {
           _wholesaleCache.remove(_wholesaleCache.keys.first);
         }
-        _wholesaleCache[key] = entries;
+        _wholesaleCache[key] = results;
       }
-      return entries;
+      return results;
     } catch (e) {
       debugPrint('[Search] articles de gros indisponibles : $e');
-      return const [];
+      return const SearchWholesaleResults(isComplete: false);
     }
   }
 
@@ -696,6 +737,9 @@ class SearchController extends GetxController {
     _searchWall.products.clear();
     _searchWall.wholesale.clear();
     _searchWall.total.value = 0;
+    _searchWall.wholesaleTotal.value = 0;
+    _searchWall.wholesaleCountComplete.value = true;
+    _searchWall.wholesaleCatalogs.clear();
     _searchWall.query.value = '';
     _searchWall.loadFailed.value = false;
 
@@ -725,7 +769,10 @@ class SearchController extends GetxController {
   /// Charge la page suivante du mur affiché.
   Future<void> loadMore() async {
     final target = wall;
-    if (!target.hasMore.value ||
+    final hasWholesaleMore =
+        wholesaleApplies &&
+        target.wholesaleCatalogs.values.any((catalog) => catalog.hasMore);
+    if ((!target.hasMore.value && !hasWholesaleMore) ||
         target.isLoading.value ||
         target.isLoadingMore.value ||
         target.loadFailed.value) {
@@ -739,6 +786,10 @@ class SearchController extends GetxController {
     target.isLoadingMore.value = true;
 
     try {
+      if (!target.hasMore.value) {
+        await _loadMoreWholesale(target, request);
+        return;
+      }
       final page = await _fetchLocalPage(
         page: target.page + 1,
         query: target.query.value,
@@ -759,9 +810,51 @@ class SearchController extends GetxController {
         ),
       );
       target.hasMore.value = page.hasMore;
+      target.total.value = page.total;
     } finally {
       if (request == target.request) target.isLoadingMore.value = false;
     }
+  }
+
+  /// Après les pages locales, prolonge le mur avec les pages d'import.
+  Future<void> _loadMoreWholesale(SearchWall target, int request) async {
+    final pending = target.wholesaleCatalogs.entries
+        .where((entry) => entry.value.hasMore)
+        .toList();
+    final pages = await Future.wait([
+      for (final entry in pending)
+        ImportService.getCatalog(
+          entry.key,
+          query: target.query.value,
+          page: entry.value.page + 1,
+        ).catchError((_) => null),
+    ]);
+    if (request != target.request) return;
+
+    final seen = target.wholesale.map((entry) => entry.product.id).toSet();
+    final additions = <List<SearchWholesaleEntry>>[];
+    for (var i = 0; i < pages.length; i++) {
+      final catalog = pages[i];
+      if (catalog == null) continue;
+      final previous = pending[i];
+      target.wholesaleCatalogs[previous.key] = catalog;
+      additions.add([
+        for (final product in catalog.products)
+          if (seen.add(product.id))
+            SearchWholesaleEntry(
+              product: product,
+              countryFlag: catalog.countryFlag.isNotEmpty
+                  ? catalog.countryFlag
+                  : previous.value.countryFlag,
+              shippingOptions: catalog.shippingOptions,
+            ),
+      ]);
+    }
+    target.wholesale.addAll(interleaveWholesale(additions));
+    target.wholesaleTotal.value = target.wholesaleCatalogs.values.fold(
+      0,
+      (sum, catalog) => sum + catalog.total,
+    );
   }
 
   /// Un filtre ou le tri a changé : on recharge le mur affiché, l'autre le
@@ -981,7 +1074,7 @@ extension SortOptionExtension on SortOption {
 }
 
 void _showError(String message) {
-  Get.snackbar(
+  AppFeedback.show(
     'search.error_title'.tr,
     message,
     snackPosition: SnackPosition.BOTTOM,

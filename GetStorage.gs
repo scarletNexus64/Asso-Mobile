@@ -1,1 +1,1 @@
-{}
+{"user_currency_rate":{"code":"EUR","rate":655.957,"fetched_at":"2026-10-29T06:17:34.126260"},"session_revoked_v1":true}

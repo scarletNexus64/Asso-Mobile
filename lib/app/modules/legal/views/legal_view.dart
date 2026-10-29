@@ -80,6 +80,10 @@ class LegalDocumentsCard extends StatelessWidget {
     if (slug.contains('vente') || slug.contains('cgv')) {
       return Icons.receipt_long_outlined;
     }
+    if (slug.contains('achat')) return Icons.shopping_bag_outlined;
+    if (slug.contains('livreur')) return Icons.delivery_dining_outlined;
+    if (slug.contains('vendeur')) return Icons.storefront_outlined;
+    if (slug.contains('confiance')) return Icons.verified_user_outlined;
     if (slug.contains('mention')) return Icons.gavel_outlined;
     if (slug.contains('cookie')) return Icons.cookie_outlined;
     return Icons.description_outlined;

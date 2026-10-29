@@ -1,4 +1,4 @@
-import 'dart:developer' as developer;
+import 'package:asso/app/core/utils/app_feedback.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../../data/providers/auth_service.dart';
@@ -53,10 +53,6 @@ class LoginController extends GetxController {
   @override
   void onInit() {
     super.onInit();
-    developer.log(
-      '========== LOGIN CONTROLLER INIT ==========',
-      name: 'LoginController',
-    );
     emailController = TextEditingController();
     passwordController = TextEditingController();
     ever(email, (_) => _onInputChanged());
@@ -81,12 +77,6 @@ class LoginController extends GetxController {
 
     isFormValid.value = emailValid && passwordValid;
 
-    developer.log(
-      'Form validation',
-      name: 'LoginController',
-      error:
-          'Email: $emailValid, Password: $passwordValid, Valid: ${isFormValid.value}',
-    );
   }
 
   void togglePasswordVisibility() {
@@ -95,15 +85,9 @@ class LoginController extends GetxController {
 
   Future<void> login() async {
     var loginSucceeded = false;
-    developer.log(
-      '========== LOGIN ATTEMPT ==========',
-      name: 'LoginController',
-      error: 'Email: ${email.value}',
-    );
 
     if (!isFormValid.value) {
-      developer.log('Invalid form', name: 'LoginController');
-      Get.snackbar(
+      AppFeedback.show(
         'login.invalid_form_title'.tr,
         'login.invalid_form_message'.tr,
         snackPosition: SnackPosition.BOTTOM,
@@ -126,24 +110,10 @@ class LoginController extends GetxController {
         password: password.value,
       );
 
-      developer.log(
-        'Login response',
-        name: 'LoginController',
-        error: 'Success: ${response.success}, Message: ${response.message}',
-      );
 
       if (response.success) {
-        developer.log(
-          '✅ LOGIN SUCCESS',
-          name: 'LoginController',
-          error: 'Email: ${email.value}',
-        );
 
         // Envoyer le token FCM au backend ET s'abonner au topic des annonces
-        developer.log(
-          '📱 Registering device and subscribing to topics...',
-          name: 'LoginController',
-        );
         try {
           final results = await FirebaseMessagingService.to
               .registerDeviceAndSubscribe()
@@ -151,37 +121,15 @@ class LoginController extends GetxController {
               // Google Play, l'abonnement ne rend jamais la main et ne lève
               // rien — la connexion restait alors suspendue sans fin.
               .timeout(const Duration(seconds: 10));
-          developer.log(
-            'FCM registration result',
-            name: 'LoginController',
-            error:
-                'Token sent: ${results['token_sent']}, Topic subscribed: ${results['topic_subscribed']}',
-          );
         } catch (e) {
-          developer.log(
-            'Error registering device/subscribing to topics',
-            name: 'LoginController',
-            error: e,
-          );
           // On ne bloque pas la navigation même si l'opération échoue
         }
 
         loginSucceeded = true;
       } else {
-        developer.log(
-          'Login failed',
-          name: 'LoginController',
-          error: '[${response.statusCode}] ${response.message}',
-        );
         loginError.value = LoginErrorKind.fromStatus(response.statusCode);
       }
     } catch (e, stackTrace) {
-      developer.log(
-        'Login error',
-        name: 'LoginController',
-        error: e,
-        stackTrace: stackTrace,
-      );
       loginError.value = LoginErrorKind.generic;
     } finally {
       // Toujours terminer l'Obx du formulaire AVANT de retirer LoginView de
@@ -196,7 +144,6 @@ class LoginController extends GetxController {
   }
 
   Future<void> _finishLoginNavigation() async {
-    developer.log('Navigating after login', name: 'LoginController');
 
     // Laisser Flutter terminer la frame du bouton/loader avant toute mutation
     // de la pile de navigation.
@@ -210,7 +157,7 @@ class LoginController extends GetxController {
     Get.offAllNamed(Routes.HOME);
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      Get.snackbar(
+      AppFeedback.show(
         'common.success'.tr,
         'login.success'.tr,
         snackPosition: SnackPosition.BOTTOM,
@@ -224,7 +171,6 @@ class LoginController extends GetxController {
   }
 
   void goToRegister() {
-    developer.log('Navigating to register/welcomer', name: 'LoginController');
     Get.offNamed(Routes.WELCOMER);
   }
 

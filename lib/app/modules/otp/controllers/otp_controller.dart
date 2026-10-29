@@ -1,5 +1,5 @@
+import 'package:asso/app/core/utils/app_feedback.dart';
 import 'dart:async';
-import 'dart:developer' as developer;
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../../data/providers/auth_service.dart';
@@ -25,7 +25,6 @@ class OtpController extends GetxController {
   @override
   void onInit() {
     super.onInit();
-    developer.log('========== OTP CONTROLLER INIT ==========', name: 'OtpController');
 
     if (Get.arguments != null) {
       phoneNumber.value = Get.arguments['phoneNumber'] ?? '';
@@ -34,11 +33,6 @@ class OtpController extends GetxController {
       isPhoneChange.value = Get.arguments['isPhoneChange'] ?? false;
       isEmailAuth.value = Get.arguments['isEmailAuth'] ?? false;
       newPhone.value = Get.arguments['newPhone'] ?? '';
-      developer.log(
-        'Arguments received',
-        name: 'OtpController',
-        error: 'Phone: ${phoneNumber.value}, Email: ${email.value}, Is new user: ${isNewUser.value}, Is phone change: ${isPhoneChange.value}, Is email auth: ${isEmailAuth.value}',
-      );
     }
 
     otpControllers = List.generate(6, (index) => TextEditingController());
@@ -70,7 +64,6 @@ class OtpController extends GetxController {
   }
 
   void _startTimer() {
-    developer.log('Starting OTP timer (120s)', name: 'OtpController');
     secondsRemaining.value = 120;
     _timer?.cancel();
 
@@ -78,7 +71,6 @@ class OtpController extends GetxController {
       if (secondsRemaining.value > 0) {
         secondsRemaining.value--;
       } else {
-        developer.log('OTP timer expired', name: 'OtpController');
         timer.cancel();
       }
     });
@@ -102,11 +94,6 @@ class OtpController extends GetxController {
   void _checkOtpComplete() {
     isOtpComplete.value = otpControllers.every((c) => c.text.isNotEmpty);
     if (isOtpComplete.value) {
-      developer.log(
-        'OTP complete',
-        name: 'OtpController',
-        error: 'Code: ${getOtpCode()}',
-      );
     }
   }
 
@@ -115,11 +102,6 @@ class OtpController extends GetxController {
   }
 
   Future<void> resendOtp() async {
-    developer.log(
-      '========== RESEND OTP ==========',
-      name: 'OtpController',
-      error: 'Phone: ${phoneNumber.value}, Is phone change: ${isPhoneChange.value}',
-    );
 
     // Extract raw phone from full phone
     final rawPhone = phoneNumber.value.replaceAll(RegExp(r'^\+\d{1,3}'), '');
@@ -137,11 +119,6 @@ class OtpController extends GetxController {
             countryCode: countryCode,
           );
 
-    developer.log(
-      'Resend OTP response',
-      name: 'OtpController',
-      error: 'Success: ${response.success}',
-    );
 
     for (var controller in otpControllers) {
       controller.clear();
@@ -150,7 +127,7 @@ class OtpController extends GetxController {
     _startTimer();
     focusNodes[0].requestFocus();
 
-    Get.snackbar(
+    AppFeedback.show(
       response.success ? 'otp.code_resent_title'.tr : 'common.error'.tr,
       response.success
           ? 'otp.code_resent_message'.trParams({'phone': phoneNumber.value})
@@ -169,20 +146,13 @@ class OtpController extends GetxController {
   }
 
   void changePhoneNumber() {
-    developer.log('Changing phone number - going back', name: 'OtpController');
     Get.back();
   }
 
   Future<void> verifyOtp() async {
-    developer.log(
-      '========== VERIFY OTP ==========',
-      name: 'OtpController',
-      error: 'OTP complete: ${isOtpComplete.value}, Is phone change: ${isPhoneChange.value}',
-    );
 
     if (!isOtpComplete.value) {
-      developer.log('OTP incomplete', name: 'OtpController');
-      Get.snackbar(
+      AppFeedback.show(
         'otp.incomplete_title'.tr,
         'otp.incomplete_message'.tr,
         snackPosition: SnackPosition.BOTTOM,
@@ -202,25 +172,15 @@ class OtpController extends GetxController {
 
       // Check if this is a phone change verification
       if (isPhoneChange.value) {
-        developer.log(
-          'Verifying OTP for phone change',
-          name: 'OtpController',
-          error: 'New phone: ${newPhone.value}, Code: $otpCode',
-        );
 
         final response = await AuthService.confirmPhoneChange(
           newPhone: newPhone.value,
           otpCode: otpCode,
         );
 
-        developer.log(
-          'Phone change OTP verification response',
-          name: 'OtpController',
-          error: 'Success: ${response.success}, Message: ${response.message}',
-        );
 
         if (response.success) {
-          Get.snackbar(
+          AppFeedback.show(
             'common.success'.tr,
             'otp.phone_changed'.tr,
             snackPosition: SnackPosition.BOTTOM,
@@ -234,15 +194,9 @@ class OtpController extends GetxController {
           await Future.delayed(const Duration(milliseconds: 500));
 
           // After successful phone change, go back to settings
-          developer.log('Phone changed successfully - going to SETTINGS', name: 'OtpController');
           Get.offAllNamed(Routes.SETTINGS);
         } else {
-          developer.log(
-            'Phone change OTP verification failed',
-            name: 'OtpController',
-            error: response.message,
-          );
-          Get.snackbar(
+          AppFeedback.show(
             'otp.incorrect_code'.tr,
             response.message,
             snackPosition: SnackPosition.BOTTOM,
@@ -265,14 +219,9 @@ class OtpController extends GetxController {
             ? await _verifyEmailOtp(otpCode)
             : await _verifyPhoneOtp(otpCode);
 
-        developer.log(
-          'Verify OTP response',
-          name: 'OtpController',
-          error: 'Success: ${response.success}, Message: ${response.message}',
-        );
 
         if (response.success) {
-          Get.snackbar(
+          AppFeedback.show(
             'common.success'.tr,
             'login.success'.tr,
             snackPosition: SnackPosition.BOTTOM,
@@ -286,7 +235,6 @@ class OtpController extends GetxController {
           await Future.delayed(const Duration(milliseconds: 500));
 
           // Envoyer le token FCM au backend ET s'abonner au topic des annonces
-          developer.log('📱 Registering device and subscribing to topics...', name: 'OtpController');
           try {
             final results = await FirebaseMessagingService.to
                 .registerDeviceAndSubscribe()
@@ -294,17 +242,7 @@ class OtpController extends GetxController {
                 // services Google Play, l'abonnement ne rend jamais la main
                 // et ne lève rien — la validation restait suspendue sans fin.
                 .timeout(const Duration(seconds: 10));
-            developer.log(
-              'FCM registration result',
-              name: 'OtpController',
-              error: 'Token sent: ${results['token_sent']}, Topic subscribed: ${results['topic_subscribed']}',
-            );
           } catch (e) {
-            developer.log(
-              'Error registering device/subscribing to topics',
-              name: 'OtpController',
-              error: e,
-            );
             // On ne bloque pas la navigation même si l'opération échoue
           }
 
@@ -315,26 +253,14 @@ class OtpController extends GetxController {
 
           // Navigate based on profile completeness
           final isNew = response.data?['is_new_user'] ?? false;
-          developer.log(
-            'Navigation decision',
-            name: 'OtpController',
-            error: 'Is new user: $isNew',
-          );
 
           if (isNew) {
-            developer.log('Navigating to PREFERENCES', name: 'OtpController');
             Get.offAllNamed(Routes.PREFERENCES, arguments: {'onboarding': true});
           } else {
-            developer.log('Navigating to HOME', name: 'OtpController');
             Get.offAllNamed(Routes.HOME);
           }
         } else {
-          developer.log(
-            'OTP verification failed',
-            name: 'OtpController',
-            error: response.message,
-          );
-          Get.snackbar(
+          AppFeedback.show(
             'otp.incorrect_code'.tr,
             response.message,
             snackPosition: SnackPosition.BOTTOM,
@@ -353,13 +279,7 @@ class OtpController extends GetxController {
         }
       }
     } catch (e, stackTrace) {
-      developer.log(
-        'OTP verification error',
-        name: 'OtpController',
-        error: e,
-        stackTrace: stackTrace,
-      );
-      Get.snackbar(
+      AppFeedback.show(
         'common.error'.tr,
         'common.generic_error_retry'.tr,
         snackPosition: SnackPosition.BOTTOM,
@@ -375,11 +295,6 @@ class OtpController extends GetxController {
   }
 
   Future<dynamic> _verifyEmailOtp(String otpCode) async {
-    developer.log(
-      'Verifying OTP for email login',
-      name: 'OtpController',
-      error: 'Email: ${email.value}, Code: $otpCode, Is new user: ${isNewUser.value}',
-    );
 
     return await AuthService.verifyEmailOtp(
       email: email.value,
@@ -388,11 +303,6 @@ class OtpController extends GetxController {
   }
 
   Future<dynamic> _verifyPhoneOtp(String otpCode) async {
-    developer.log(
-      'Verifying OTP for phone login',
-      name: 'OtpController',
-      error: 'Phone: ${phoneNumber.value}, Code: $otpCode, Is new user: ${isNewUser.value}',
-    );
 
     return await AuthService.verifyOtp(
       fullPhone: phoneNumber.value,

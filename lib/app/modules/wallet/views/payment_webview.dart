@@ -1,3 +1,4 @@
+import 'package:asso/app/core/utils/app_feedback.dart';
 import 'package:asso/app/core/utils/app_theme_system.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -29,6 +30,10 @@ class _PaymentWebViewState extends State<PaymentWebView> {
   late final WebViewController _controller;
   final isLoading = true.obs;
   final loadingProgress = 0.0.obs;
+
+  /// Retour de paiement déjà traité : l'URL de retour et les canaux JS peuvent
+  /// signaler la même fin de paiement plusieurs fois.
+  bool _handled = false;
 
   @override
   void initState() {
@@ -122,7 +127,6 @@ class _PaymentWebViewState extends State<PaymentWebView> {
         return;
       }
 
-      print('[PaymentWebView] Parsed data: $data');
 
       final success = data['success'] == true;
       final cancelled = data['cancelled'] == true;
@@ -209,13 +213,17 @@ class _PaymentWebViewState extends State<PaymentWebView> {
   }
 
   void _handlePaymentSuccess(String message) {
+    if (_handled) return;
+    _handled = true;
     if (widget.onPaymentComplete != null) {
       widget.onPaymentComplete!(true, message);
     } else {
+      // Le retour de la page ne prouve pas l'encaissement : seul le serveur
+      // (webhook + suivi) confirme. On annonce donc une vérification en cours.
       _close({'success': true, 'message': message});
-      Get.snackbar(
-        'wallet.webview.success_title'.tr,
-        message,
+      AppFeedback.show(
+        'wallet.webview.verifying_title'.tr,
+        'wallet.webview.verifying_message'.tr,
         backgroundColor: AppThemeSystem.successColor,
         colorText: AppThemeSystem.whiteColor,
         duration: const Duration(seconds: 3),
@@ -224,11 +232,13 @@ class _PaymentWebViewState extends State<PaymentWebView> {
   }
 
   void _handlePaymentFailure(String message) {
+    if (_handled) return;
+    _handled = true;
     if (widget.onPaymentComplete != null) {
       widget.onPaymentComplete!(false, message);
     } else {
       _close({'success': false, 'message': message});
-      Get.snackbar(
+      AppFeedback.show(
         'wallet.webview.failure_title'.tr,
         message,
         backgroundColor: AppThemeSystem.errorColor,
@@ -249,7 +259,7 @@ class _PaymentWebViewState extends State<PaymentWebView> {
                   ? 'wallet.webview.title_card'.tr
                   : 'wallet.webview.title_mobile_money'.tr,
         ),
-        centerTitle: true,
+        centerTitle: false,
         backgroundColor: AppThemeSystem.primaryColor,
         foregroundColor: AppThemeSystem.whiteColor,
         leading: AppBackButton(

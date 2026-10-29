@@ -1,10 +1,10 @@
+import 'package:asso/app/core/utils/app_feedback.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
 import 'app_design.dart';
-import '../../core/utils/app_design.dart';
 
-/// Système de theming automatique et responsive pour Estuaire Emploi
+/// Système de theming automatique et responsive pour ASSO
 /// Gère automatiquement les thèmes sombre/clair et toutes les tailles d'écran
 class AppThemeSystem {
   // ================================
@@ -22,28 +22,28 @@ class AppThemeSystem {
 
   /// Conservée pour compatibilité : alias de l'accent unique `AppDesign.accent`.
   static const Color primaryColor = AppDesign.accent;
-  static const Color secondaryColor = Color(0xFF2B2B2B); // Noir doux UI
+  static const Color secondaryColor = AppDesign.neutral800; // Noir doux UI
   static const Color tertiaryColor = AppDesign.accentHover;
 
   // Couleurs neutres
   static const Color whiteColor = Color(0xFFFFFFFF);
   static const Color blackColor = Color(0xFF000000);
-  static const Color backgroundColor = Color(0xFFF6F6F6);
-  static const Color darkBackgroundColor = Color(0xFF0D1117);
+  static const Color backgroundColor = AppDesign.neutral50;
+  static const Color darkBackgroundColor = AppDesign.neutralDark900;
   static const Color cardColor = Color(0xFFFFFFFF);
-  static const Color darkCardColor = Color(0xFF151B23);
+  static const Color darkCardColor = AppDesign.neutralDark800;
 
   // Couleurs grises
-  static const Color grey50 = Color(0xFFFAFAFA);
-  static const Color grey100 = Color(0xFFF5F5F5);
-  static const Color grey200 = Color(0xFFEEEEEE);
-  static const Color grey300 = Color(0xFFE0E0E0);
-  static const Color grey400 = Color(0xFFBDBDBD);
-  static const Color grey500 = Color(0xFF9E9E9E);
-  static const Color grey600 = Color(0xFF757575);
-  static const Color grey700 = Color(0xFF616161);
-  static const Color grey800 = Color(0xFF424242);
-  static const Color grey900 = Color(0xFF212121);
+  static const Color grey50 = AppDesign.neutral25;
+  static const Color grey100 = AppDesign.neutral100;
+  static const Color grey200 = AppDesign.neutral200;
+  static const Color grey300 = AppDesign.neutral300;
+  static const Color grey400 = AppDesign.neutral400;
+  static const Color grey500 = AppDesign.neutral500;
+  static const Color grey600 = AppDesign.neutral600;
+  static const Color grey700 = AppDesign.neutral700;
+  static const Color grey800 = AppDesign.neutral800;
+  static const Color grey900 = AppDesign.neutral900;
 
   // Couleurs sémantiques
   static const Color successColor = AppDesign.success;
@@ -54,7 +54,8 @@ class AppThemeSystem {
   // Couleurs des providers de paiement
   static const Color kpayColor = Color(0xFFFF6F00); // Orange
   static const Color paypalColor = Color(0xFF0070ba); // Bleu PayPal
-  static const Color bankColor = AppDesign.success; // Vert virement bancaire (IBAN)
+  static const Color bankColor =
+      AppDesign.success; // Vert virement bancaire (IBAN)
 
   // ================================
   // BREAKPOINTS RESPONSIVE
@@ -64,7 +65,7 @@ class AppThemeSystem {
   static const double tabletBreakpoint = 900;
   static const double largeTabletBreakpoint = 1024;
   static const double iPadPro13Breakpoint = 1366; // iPad Pro 13" width
-  static const double desktopBreakpoint = 1200;
+  static const double desktopBreakpoint = iPadPro13Breakpoint;
 
   /// Détermine le type d'appareil basé sur la largeur d'écran
   static DeviceType getDeviceType(BuildContext context) {
@@ -83,214 +84,36 @@ class AppThemeSystem {
 
   /// Vérifie si l'appareil est une tablette ou plus grand
   static bool isTabletOrLarger(BuildContext context) {
-    return MediaQuery.of(context).size.width >= tabletBreakpoint;
+    return MediaQuery.of(context).size.width >= mobileBreakpoint;
   }
 
   // ================================
   // SYSTÈME DE TYPOGRAPHIE RESPONSIVE
   // ================================
 
-  /// Tailles de police responsives basées sur le type d'appareil
-  static double getFontSize(BuildContext context, FontSizeType type) {
-    final deviceType = getDeviceType(context);
-    final screenHeight = MediaQuery.of(context).size.height;
-    final screenWidth = MediaQuery.of(context).size.width;
-
-    // Facteur de scaling adaptatif basé sur le type d'appareil
-    double scaleFactor;
-    if (deviceType == DeviceType.iPadPro13) {
-      // Pour iPad Pro 13", on utilise un facteur plus généreux
-      final heightFactor = (screenHeight / 1024).clamp(1.1, 1.4);
-      final widthFactor = (screenWidth / 1366).clamp(1.1, 1.3);
-      scaleFactor = (heightFactor + widthFactor) / 2;
-    } else if (deviceType == DeviceType.largeTablet) {
-      final heightFactor = (screenHeight / 1024).clamp(1.0, 1.3);
-      final widthFactor = (screenWidth / 1024).clamp(1.0, 1.2);
-      scaleFactor = (heightFactor + widthFactor) / 2;
-    } else if (deviceType == DeviceType.tablet) {
-      scaleFactor = (screenHeight / 800).clamp(0.95, 1.25);
-    } else {
-      scaleFactor = (screenHeight / 800).clamp(0.8, 1.2);
-    }
-
-    switch (type) {
-      case FontSizeType.h1:
-        switch (deviceType) {
-          case DeviceType.mobile:
-            return (32 * scaleFactor);
-          case DeviceType.tablet:
-            return (36 * scaleFactor);
-          case DeviceType.largeTablet:
-            return (42 * scaleFactor);
-          case DeviceType.iPadPro13:
-            return (48 * scaleFactor); // Plus grand pour iPad Pro 13"
-          case DeviceType.desktop:
-            return (40 * scaleFactor);
-        }
-      case FontSizeType.h2:
-        switch (deviceType) {
-          case DeviceType.mobile:
-            return (28 * scaleFactor);
-          case DeviceType.tablet:
-            return (32 * scaleFactor);
-          case DeviceType.largeTablet:
-            return (36 * scaleFactor);
-          case DeviceType.iPadPro13:
-            return (40 * scaleFactor);
-          case DeviceType.desktop:
-            return (36 * scaleFactor);
-        }
-      case FontSizeType.h3:
-        switch (deviceType) {
-          case DeviceType.mobile:
-            return (24 * scaleFactor);
-          case DeviceType.tablet:
-            return (28 * scaleFactor);
-          case DeviceType.largeTablet:
-            return (32 * scaleFactor);
-          case DeviceType.iPadPro13:
-            return (36 * scaleFactor);
-          case DeviceType.desktop:
-            return (32 * scaleFactor);
-        }
-      case FontSizeType.h4:
-        switch (deviceType) {
-          case DeviceType.mobile:
-            return (20 * scaleFactor);
-          case DeviceType.tablet:
-            return (24 * scaleFactor);
-          case DeviceType.largeTablet:
-            return (28 * scaleFactor);
-          case DeviceType.iPadPro13:
-            return (32 * scaleFactor);
-          case DeviceType.desktop:
-            return (28 * scaleFactor);
-        }
-      case FontSizeType.h5:
-        switch (deviceType) {
-          case DeviceType.mobile:
-            return (18 * scaleFactor);
-          case DeviceType.tablet:
-            return (20 * scaleFactor);
-          case DeviceType.largeTablet:
-            return (24 * scaleFactor);
-          case DeviceType.iPadPro13:
-            return (28 * scaleFactor);
-          case DeviceType.desktop:
-            return (24 * scaleFactor);
-        }
-      case FontSizeType.h6:
-        switch (deviceType) {
-          case DeviceType.mobile:
-            return (16 * scaleFactor);
-          case DeviceType.tablet:
-            return (18 * scaleFactor);
-          case DeviceType.largeTablet:
-            return (20 * scaleFactor);
-          case DeviceType.iPadPro13:
-            return (24 * scaleFactor);
-          case DeviceType.desktop:
-            return (20 * scaleFactor);
-        }
-      case FontSizeType.subtitle1:
-        switch (deviceType) {
-          case DeviceType.mobile:
-            return (16 * scaleFactor);
-          case DeviceType.tablet:
-            return (18 * scaleFactor);
-          case DeviceType.largeTablet:
-            return (20 * scaleFactor);
-          case DeviceType.iPadPro13:
-            return (22 * scaleFactor);
-          case DeviceType.desktop:
-            return (20 * scaleFactor);
-        }
-      case FontSizeType.subtitle2:
-        switch (deviceType) {
-          case DeviceType.mobile:
-            return (14 * scaleFactor);
-          case DeviceType.tablet:
-            return (16 * scaleFactor);
-          case DeviceType.largeTablet:
-            return (18 * scaleFactor);
-          case DeviceType.iPadPro13:
-            return (20 * scaleFactor);
-          case DeviceType.desktop:
-            return (18 * scaleFactor);
-        }
-      case FontSizeType.body1:
-        switch (deviceType) {
-          case DeviceType.mobile:
-            return (16 * scaleFactor);
-          case DeviceType.tablet:
-            return (17 * scaleFactor);
-          case DeviceType.largeTablet:
-            return (18 * scaleFactor);
-          case DeviceType.iPadPro13:
-            return (20 * scaleFactor);
-          case DeviceType.desktop:
-            return (18 * scaleFactor);
-        }
-      case FontSizeType.body2:
-        switch (deviceType) {
-          case DeviceType.mobile:
-            return (14 * scaleFactor);
-          case DeviceType.tablet:
-            return (15 * scaleFactor);
-          case DeviceType.largeTablet:
-            return (16 * scaleFactor);
-          case DeviceType.iPadPro13:
-            return (18 * scaleFactor);
-          case DeviceType.desktop:
-            return (16 * scaleFactor);
-        }
-      case FontSizeType.caption:
-        switch (deviceType) {
-          case DeviceType.mobile:
-            return (12 * scaleFactor);
-          case DeviceType.tablet:
-            return (13 * scaleFactor);
-          case DeviceType.largeTablet:
-            return (14 * scaleFactor);
-          case DeviceType.iPadPro13:
-            return (16 * scaleFactor);
-          case DeviceType.desktop:
-            return (14 * scaleFactor);
-        }
-      case FontSizeType.overline:
-        switch (deviceType) {
-          case DeviceType.mobile:
-            return (10 * scaleFactor);
-          case DeviceType.tablet:
-            return (11 * scaleFactor);
-          case DeviceType.largeTablet:
-            return (12 * scaleFactor);
-          case DeviceType.iPadPro13:
-            return (14 * scaleFactor);
-          case DeviceType.desktop:
-            return (12 * scaleFactor);
-        }
-      case FontSizeType.button:
-        switch (deviceType) {
-          case DeviceType.mobile:
-            return (14 * scaleFactor);
-          case DeviceType.tablet:
-            return (15 * scaleFactor);
-          case DeviceType.largeTablet:
-            return (16 * scaleFactor);
-          case DeviceType.iPadPro13:
-            return (18 * scaleFactor);
-          case DeviceType.desktop:
-            return (16 * scaleFactor);
-        }
-    }
+  /// Rôles typographiques stables : le système applique lui-même TextScaler.
+  static TextStyle _typeStyle(BuildContext context, FontSizeType type) {
+    final text = Theme.of(context).textTheme;
+    return switch (type) {
+      FontSizeType.h1 => text.displayLarge!,
+      FontSizeType.h2 => text.displayMedium!,
+      FontSizeType.h3 => text.headlineSmall!,
+      FontSizeType.h4 => text.titleLarge!,
+      FontSizeType.h5 => text.titleMedium!,
+      FontSizeType.h6 => text.titleSmall!,
+      FontSizeType.subtitle1 => text.titleSmall!,
+      FontSizeType.subtitle2 => text.labelLarge!,
+      FontSizeType.body1 => text.bodyLarge!,
+      FontSizeType.body2 => text.bodyMedium!,
+      FontSizeType.caption => text.bodySmall!,
+      FontSizeType.overline => text.labelSmall!,
+      FontSizeType.button => text.labelLarge!,
+    };
   }
 
-  // ================================
-  // STYLES DE TEXTE AUTOMATIQUES
-  // ================================
+  static double getFontSize(BuildContext context, FontSizeType type) =>
+      _typeStyle(context, type).fontSize!;
 
-  /// Génère un TextStyle basé sur le thème actuel et le type de device
   static TextStyle getTextStyle(
     BuildContext context,
     FontSizeType type, {
@@ -298,149 +121,35 @@ class AppThemeSystem {
     Color? color,
     double? height,
     String? fontFamily,
-  }) {
-    final theme = Theme.of(context);
-    final isDark = enableDynamicTheming && theme.brightness == Brightness.dark;
-    final fontSize = getFontSize(context, type);
-
-    // Couleur automatique basée sur le thème
-    Color textColor = color ?? (isDark ? whiteColor : blackColor);
-
-    return TextStyle(
-      fontSize: fontSize,
-      fontWeight: fontWeight ?? FontWeight.normal,
-      color: textColor,
-      height: height,
-      fontFamily: fontFamily,
-    );
-  }
+  }) => _typeStyle(context, type).copyWith(
+    fontWeight: fontWeight,
+    color: color ?? AppDesign.textPrimary(context),
+    height: height,
+    fontFamily: fontFamily,
+  );
 
   // ================================
   // ESPACEMENTS RESPONSIFS
   // ================================
 
-  /// Espacement horizontal responsive
-  static double getHorizontalPadding(BuildContext context) {
-    final deviceType = getDeviceType(context);
-    final screenWidth = MediaQuery.of(context).size.width;
-    double scaleFactor;
+  /// Gouttières stables par classe de largeur, sur la grille de quatre points.
+  static double getHorizontalPadding(BuildContext context) =>
+      switch (getDeviceType(context)) {
+        DeviceType.mobile => AppDesign.space4,
+        DeviceType.tablet => AppDesign.space6,
+        DeviceType.largeTablet => AppDesign.space8,
+        DeviceType.iPadPro13 => AppDesign.space10,
+        DeviceType.desktop => AppDesign.space8,
+      };
 
-    if (deviceType == DeviceType.iPadPro13) {
-      scaleFactor = (screenWidth / 1366).clamp(
-        1.1,
-        1.4,
-      ); // Facteur plus généreux pour iPad Pro 13"
-    } else if (deviceType == DeviceType.largeTablet) {
-      scaleFactor = (screenWidth / 1024).clamp(1.0, 1.25);
-    } else if (deviceType == DeviceType.tablet) {
-      scaleFactor = (screenWidth / 768).clamp(0.95, 1.2);
-    } else {
-      scaleFactor = (screenWidth / 375).clamp(0.9, 1.3);
-    }
+  static double getVerticalPadding(BuildContext context) =>
+      isTabletOrLarger(context) ? AppDesign.space6 : AppDesign.space4;
 
-    switch (deviceType) {
-      case DeviceType.mobile:
-        return (16 * scaleFactor);
-      case DeviceType.tablet:
-        return (24 * scaleFactor);
-      case DeviceType.largeTablet:
-        return (32 * scaleFactor);
-      case DeviceType.iPadPro13:
-        return (40 * scaleFactor);
-      case DeviceType.desktop:
-        return (32 * scaleFactor);
-    }
-  }
+  static double getSectionSpacing(BuildContext context) =>
+      isTabletOrLarger(context) ? AppDesign.space8 : AppDesign.space6;
 
-  /// Espacement vertical responsive
-  static double getVerticalPadding(BuildContext context) {
-    final deviceType = getDeviceType(context);
-    final screenHeight = MediaQuery.of(context).size.height;
-    double scaleFactor;
-
-    if (deviceType == DeviceType.iPadPro13) {
-      scaleFactor = (screenHeight / 1024).clamp(1.1, 1.4);
-    } else if (deviceType == DeviceType.largeTablet) {
-      scaleFactor = (screenHeight / 1024).clamp(1.0, 1.25);
-    } else if (deviceType == DeviceType.tablet) {
-      scaleFactor = (screenHeight / 800).clamp(0.95, 1.2);
-    } else {
-      scaleFactor = (screenHeight / 800).clamp(0.8, 1.2);
-    }
-
-    switch (deviceType) {
-      case DeviceType.mobile:
-        return (16 * scaleFactor);
-      case DeviceType.tablet:
-        return (20 * scaleFactor);
-      case DeviceType.largeTablet:
-        return (24 * scaleFactor);
-      case DeviceType.iPadPro13:
-        return (28 * scaleFactor);
-      case DeviceType.desktop:
-        return (24 * scaleFactor);
-    }
-  }
-
-  /// Espacement entre sections
-  static double getSectionSpacing(BuildContext context) {
-    final deviceType = getDeviceType(context);
-    final screenHeight = MediaQuery.of(context).size.height;
-    double scaleFactor;
-
-    if (deviceType == DeviceType.iPadPro13) {
-      scaleFactor = (screenHeight / 1024).clamp(1.1, 1.4);
-    } else if (deviceType == DeviceType.largeTablet) {
-      scaleFactor = (screenHeight / 1024).clamp(1.0, 1.25);
-    } else if (deviceType == DeviceType.tablet) {
-      scaleFactor = (screenHeight / 800).clamp(0.95, 1.2);
-    } else {
-      scaleFactor = (screenHeight / 800).clamp(0.8, 1.2);
-    }
-
-    switch (deviceType) {
-      case DeviceType.mobile:
-        return (24 * scaleFactor);
-      case DeviceType.tablet:
-        return (32 * scaleFactor);
-      case DeviceType.largeTablet:
-        return (40 * scaleFactor);
-      case DeviceType.iPadPro13:
-        return (48 * scaleFactor);
-      case DeviceType.desktop:
-        return (40 * scaleFactor);
-    }
-  }
-
-  /// Espacement entre éléments
-  static double getElementSpacing(BuildContext context) {
-    final deviceType = getDeviceType(context);
-    final screenHeight = MediaQuery.of(context).size.height;
-    double scaleFactor;
-
-    if (deviceType == DeviceType.iPadPro13) {
-      scaleFactor = (screenHeight / 1024).clamp(1.1, 1.4);
-    } else if (deviceType == DeviceType.largeTablet) {
-      scaleFactor = (screenHeight / 1024).clamp(1.0, 1.25);
-    } else if (deviceType == DeviceType.tablet) {
-      scaleFactor = (screenHeight / 800).clamp(0.95, 1.2);
-    } else {
-      scaleFactor = (screenHeight / 800).clamp(0.8, 1.2);
-    }
-
-    switch (deviceType) {
-      case DeviceType.mobile:
-        return (12 * scaleFactor);
-      case DeviceType.tablet:
-        return (16 * scaleFactor);
-      case DeviceType.largeTablet:
-        return (20 * scaleFactor);
-      case DeviceType.iPadPro13:
-        return (24 * scaleFactor);
-      case DeviceType.desktop:
-        return (20 * scaleFactor);
-    }
-  }
+  static double getElementSpacing(BuildContext context) =>
+      isTabletOrLarger(context) ? AppDesign.space4 : AppDesign.space3;
 
   // ================================
   // COULEURS AUTOMATIQUES PAR THÈME
@@ -473,7 +182,7 @@ class AppThemeSystem {
 
   /// Vérifie si le mode sombre est activé (méthode statique pour éviter les conflits d'extensions)
   static bool isDarkMode(BuildContext context) {
-    return enableDynamicTheming && Theme.of(context).brightness == Brightness.dark;
+    return Theme.of(context).brightness == Brightness.dark;
   }
 
   /// Couleur de fond pour les champs de saisie (TextField, TextFormField)
@@ -484,35 +193,8 @@ class AppThemeSystem {
   // CONFIGURATIONS DE WIDGETS
   // ================================
 
-  /// Hauteur de bouton responsive
-  static double getButtonHeight(BuildContext context) {
-    final deviceType = getDeviceType(context);
-    final screenHeight = MediaQuery.of(context).size.height;
-    double scaleFactor;
-
-    if (deviceType == DeviceType.iPadPro13) {
-      scaleFactor = (screenHeight / 1024).clamp(1.0, 1.2);
-    } else if (deviceType == DeviceType.largeTablet) {
-      scaleFactor = (screenHeight / 1024).clamp(0.9, 1.1);
-    } else if (deviceType == DeviceType.tablet) {
-      scaleFactor = (screenHeight / 800).clamp(0.85, 1.05);
-    } else {
-      scaleFactor = (screenHeight / 800).clamp(0.8, 1.2);
-    }
-
-    switch (deviceType) {
-      case DeviceType.mobile:
-        return (48 * scaleFactor);
-      case DeviceType.tablet:
-        return (44 * scaleFactor).clamp(40, 50);
-      case DeviceType.largeTablet:
-        return (48 * scaleFactor).clamp(44, 54);
-      case DeviceType.iPadPro13:
-        return (52 * scaleFactor).clamp(48, 58);
-      case DeviceType.desktop:
-        return (56 * scaleFactor);
-    }
-  }
+  /// Hauteur minimale commune, indépendante de la hauteur de la fenêtre.
+  static double getButtonHeight(BuildContext context) => AppDesign.minTapTarget;
 
   /// Padding du bottom sheet en tenant compte de la barre de navigation native
   /// Utilise viewPadding.bottom pour les barres système + viewInsets.bottom pour le clavier
@@ -597,66 +279,14 @@ class AppThemeSystem {
     return result.clamp(2.0, maxValue < 2.0 ? baseSpacing : maxValue);
   }
 
-  /// Border radius responsive
-  static double getBorderRadius(BuildContext context, BorderRadiusType type) {
-    final deviceType = getDeviceType(context);
-    final screenWidth = MediaQuery.of(context).size.width;
-    double scaleFactor;
-
-    if (deviceType == DeviceType.iPadPro13) {
-      scaleFactor = (screenWidth / 1366).clamp(1.1, 1.4);
-    } else if (deviceType == DeviceType.largeTablet) {
-      scaleFactor = (screenWidth / 1024).clamp(1.0, 1.3);
-    } else if (deviceType == DeviceType.tablet) {
-      scaleFactor = (screenWidth / 768).clamp(0.95, 1.25);
-    } else {
-      scaleFactor = (screenWidth / 375).clamp(0.9, 1.3);
-    }
-
-    switch (type) {
-      case BorderRadiusType.small:
-        switch (deviceType) {
-          case DeviceType.mobile:
-            return (4 * scaleFactor);
-          case DeviceType.tablet:
-            return (6 * scaleFactor);
-          case DeviceType.largeTablet:
-            return (7 * scaleFactor);
-          case DeviceType.iPadPro13:
-            return (8 * scaleFactor);
-          case DeviceType.desktop:
-            return (8 * scaleFactor);
-        }
-      case BorderRadiusType.medium:
-        switch (deviceType) {
-          case DeviceType.mobile:
-            return (8 * scaleFactor);
-          case DeviceType.tablet:
-            return (10 * scaleFactor);
-          case DeviceType.largeTablet:
-            return (11 * scaleFactor);
-          case DeviceType.iPadPro13:
-            return (14 * scaleFactor);
-          case DeviceType.desktop:
-            return (12 * scaleFactor);
-        }
-      case BorderRadiusType.large:
-        switch (deviceType) {
-          case DeviceType.mobile:
-            return (16 * scaleFactor);
-          case DeviceType.tablet:
-            return (18 * scaleFactor);
-          case DeviceType.largeTablet:
-            return (19 * scaleFactor);
-          case DeviceType.iPadPro13:
-            return (22 * scaleFactor);
-          case DeviceType.desktop:
-            return (20 * scaleFactor);
-        }
-      case BorderRadiusType.circular:
-        return (50 * scaleFactor);
-    }
-  }
+  /// Adaptateur historique vers les rayons du design system.
+  static double getBorderRadius(BuildContext context, BorderRadiusType type) =>
+      switch (type) {
+        BorderRadiusType.small => AppDesign.radiusSm,
+        BorderRadiusType.medium => AppDesign.radiusMd,
+        BorderRadiusType.large => AppDesign.radiusLg,
+        BorderRadiusType.circular => AppDesign.radiusPill,
+      };
 
   /// Élévation d'ombre responsive
   static double getElevation(BuildContext context, ElevationType type) {
@@ -722,16 +352,18 @@ class AppThemeSystem {
 
     final canvas = isDark ? AppDesign.neutralDark900 : AppDesign.neutral50;
     final surface = isDark ? AppDesign.neutralDark800 : AppDesign.neutral0;
-    final surfaceMuted = isDark ? AppDesign.neutralDark700 : AppDesign.neutral100;
+    final surfaceMuted = isDark
+        ? AppDesign.neutralDark700
+        : AppDesign.neutral100;
     final border = isDark ? AppDesign.neutralDark600 : AppDesign.neutral200;
-    final borderStrong =
-        isDark ? const Color(0xFF3D3D39) : AppDesign.neutral300;
-    final textPrimary =
-        isDark ? const Color(0xFFF5F5F3) : AppDesign.neutral900;
-    final textSecondary =
-        isDark ? const Color(0xFFB0B0AA) : AppDesign.neutral600;
-    final textTertiary =
-        isDark ? const Color(0xFF85857F) : AppDesign.neutral500;
+    final borderStrong = isDark
+        ? const Color(0xFF3D3D39)
+        : AppDesign.neutral300;
+    final textPrimary = isDark ? const Color(0xFFF5F5F3) : AppDesign.neutral900;
+    final textSecondary = isDark
+        ? const Color(0xFFB0B0AA)
+        : AppDesign.neutral600;
+    final textTertiary = isDark ? AppDesign.neutral400 : AppDesign.neutral600;
 
     final radiusSm = BorderRadius.circular(AppDesign.radiusSm);
 
@@ -752,13 +384,13 @@ class AppThemeSystem {
       colorScheme: ColorScheme(
         brightness: brightness,
         primary: AppDesign.accent,
-        onPrimary: Colors.white,
+        onPrimary: AppDesign.onAccent,
         primaryContainer: AppDesign.accentSubtle,
         onPrimaryContainer: AppDesign.accentText,
         secondary: isDark ? const Color(0xFFD8D8D3) : AppDesign.neutral800,
         onSecondary: isDark ? AppDesign.neutral900 : Colors.white,
         tertiary: AppDesign.accent,
-        onTertiary: Colors.white,
+        onTertiary: AppDesign.onAccent,
         surface: surface,
         onSurface: textPrimary,
         surfaceContainerLowest: canvas,
@@ -801,20 +433,18 @@ class AppThemeSystem {
         ),
       ),
 
-      dividerTheme: DividerThemeData(
-        color: border,
-        thickness: 1,
-        space: 1,
-      ),
+      dividerTheme: DividerThemeData(color: border, thickness: 1, space: 1),
 
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
           backgroundColor: AppDesign.accent,
-          foregroundColor: Colors.white,
-          disabledBackgroundColor: isDark ? AppDesign.neutralDark600 : AppDesign.neutral200,
+          foregroundColor: AppDesign.onAccent,
+          disabledBackgroundColor: isDark
+              ? AppDesign.neutralDark600
+              : AppDesign.neutral200,
           disabledForegroundColor: textTertiary,
           elevation: 0,
-          minimumSize: const Size(double.infinity, AppDesign.minTapTarget),
+          minimumSize: const Size(0, AppDesign.minTapTarget),
           textStyle: const TextStyle(
             fontSize: 15,
             fontWeight: FontWeight.w600,
@@ -850,7 +480,7 @@ class AppThemeSystem {
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
           backgroundColor: AppDesign.accent,
-          foregroundColor: Colors.white,
+          foregroundColor: AppDesign.onAccent,
           minimumSize: const Size(0, AppDesign.minTapTarget),
           shape: RoundedRectangleBorder(borderRadius: radiusSm),
         ),
@@ -938,12 +568,12 @@ class AppThemeSystem {
       ),
 
       snackBarTheme: SnackBarThemeData(
-        backgroundColor: isDark ? AppDesign.neutral100 : AppDesign.neutral900,
+        backgroundColor: AppDesign.accent,
         contentTextStyle: TextStyle(
-          color: isDark ? AppDesign.neutral900 : Colors.white,
+          color: AppDesign.onAccent,
           fontSize: 14,
         ),
-        actionTextColor: AppDesign.accent,
+        actionTextColor: AppDesign.onAccent,
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: radiusSm),
       ),
@@ -1019,17 +649,15 @@ class AppThemeSystem {
         color: AppDesign.accent,
       ),
 
-      // Le libellé et l'icône d'un bouton flottant sont explicitement blancs :
-      // hérités du thème, ils prenaient la couleur d'accent et devenaient
-      // illisibles sur le fond orange du bouton.
+      // Texte et icônes contrastés sur le fond orange de marque.
       floatingActionButtonTheme: const FloatingActionButtonThemeData(
         backgroundColor: AppDesign.accent,
-        foregroundColor: Colors.white,
+        foregroundColor: AppDesign.onAccent,
         elevation: 2,
         extendedTextStyle: TextStyle(
           fontSize: 15,
           fontWeight: FontWeight.w600,
-          color: Colors.white,
+          color: AppDesign.onAccent,
         ),
       ),
 
@@ -1046,12 +674,81 @@ class AppThemeSystem {
       ),
 
       textTheme: TextTheme(
-        bodyLarge: TextStyle(color: textPrimary),
-        bodyMedium: TextStyle(color: textPrimary),
-        bodySmall: TextStyle(color: textSecondary),
-        titleLarge: TextStyle(color: textPrimary, fontWeight: FontWeight.w600),
-        titleMedium: TextStyle(color: textPrimary, fontWeight: FontWeight.w600),
-        labelLarge: TextStyle(color: textPrimary),
+        displayLarge: TextStyle(
+          fontSize: 32,
+          fontWeight: FontWeight.w700,
+          color: textPrimary,
+          height: 1.2,
+        ),
+        displayMedium: TextStyle(
+          fontSize: 28,
+          fontWeight: FontWeight.w700,
+          color: textPrimary,
+          height: 1.2,
+        ),
+        displaySmall: TextStyle(
+          fontSize: 24,
+          fontWeight: FontWeight.w700,
+          color: textPrimary,
+          height: 1.25,
+        ),
+        headlineLarge: TextStyle(
+          fontSize: 28,
+          fontWeight: FontWeight.w700,
+          color: textPrimary,
+          height: 1.25,
+        ),
+        headlineMedium: TextStyle(
+          fontSize: 24,
+          fontWeight: FontWeight.w700,
+          color: textPrimary,
+          height: 1.25,
+        ),
+        headlineSmall: TextStyle(
+          fontSize: 24,
+          fontWeight: FontWeight.w700,
+          color: textPrimary,
+          height: 1.25,
+        ),
+        titleLarge: TextStyle(
+          fontSize: 20,
+          fontWeight: FontWeight.w600,
+          color: textPrimary,
+          height: 1.3,
+        ),
+        titleMedium: TextStyle(
+          fontSize: 18,
+          fontWeight: FontWeight.w600,
+          color: textPrimary,
+          height: 1.3,
+        ),
+        titleSmall: TextStyle(
+          fontSize: 16,
+          fontWeight: FontWeight.w600,
+          color: textPrimary,
+          height: 1.4,
+        ),
+        bodyLarge: TextStyle(fontSize: 16, color: textPrimary, height: 1.5),
+        bodyMedium: TextStyle(fontSize: 14, color: textPrimary, height: 1.5),
+        bodySmall: TextStyle(fontSize: 12, color: textSecondary, height: 1.4),
+        labelLarge: TextStyle(
+          fontSize: 15,
+          fontWeight: FontWeight.w600,
+          color: textPrimary,
+          height: 1.3,
+        ),
+        labelMedium: TextStyle(
+          fontSize: 13,
+          fontWeight: FontWeight.w500,
+          color: textSecondary,
+          height: 1.3,
+        ),
+        labelSmall: TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w500,
+          color: textSecondary,
+          height: 1.3,
+        ),
       ),
     );
   }
@@ -1099,7 +796,9 @@ extension AppThemeExtensions on BuildContext {
   ColorScheme get colors => Theme.of(this).colorScheme;
 
   /// Vérifie si le thème est sombre
-  bool get isDarkMode => AppThemeSystem.enableDynamicTheming && Theme.of(this).brightness == Brightness.dark;
+  bool get isDarkMode =>
+      AppThemeSystem.enableDynamicTheming &&
+      Theme.of(this).brightness == Brightness.dark;
 
   /// Type d'appareil
   DeviceType get deviceType => AppThemeSystem.getDeviceType(this);
@@ -1209,10 +908,12 @@ class AppDialogs {
     VoidCallback? onLoginPressed,
   }) {
     final defaultTitle = title ?? 'core.login_required.title'.tr;
-    final defaultMessage = message ??
+    final defaultMessage =
+        message ??
         (featureName != null
-            ? 'core.login_required.dialog_feature'
-                .trParams({'feature': featureName})
+            ? 'core.login_required.dialog_feature'.trParams({
+                'feature': featureName,
+              })
             : 'core.login_required.dialog_generic'.tr);
 
     Get.dialog(
@@ -1293,7 +994,8 @@ class AppDialogs {
                     child: SizedBox(
                       height: AppThemeSystem.getButtonHeight(context),
                       child: ElevatedButton(
-                        onPressed: onLoginPressed ??
+                        onPressed:
+                            onLoginPressed ??
                             () {
                               Get.back();
                               Get.toNamed('/login');
@@ -1302,8 +1004,9 @@ class AppDialogs {
                           backgroundColor: AppThemeSystem.primaryColor,
                           foregroundColor: Colors.white,
                           elevation: 2,
-                          shadowColor:
-                              AppThemeSystem.primaryColor.withValues(alpha: 0.4),
+                          shadowColor: AppThemeSystem.primaryColor.withValues(
+                            alpha: 0.4,
+                          ),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(
                               AppThemeSystem.getBorderRadius(
@@ -1347,27 +1050,27 @@ class AppDialogs {
     String? featureName,
     VoidCallback? onLoginPressed,
   }) {
-    final defaultMessage = message ??
+    final defaultMessage =
+        message ??
         (featureName != null
-            ? 'core.login_required.snackbar_feature'
-                .trParams({'feature': featureName})
+            ? 'core.login_required.snackbar_feature'.trParams({
+                'feature': featureName,
+              })
             : 'core.login_required.snackbar_generic'.tr);
 
-    Get.snackbar(
+    AppFeedback.show(
       'core.login_required.title'.tr,
       defaultMessage,
       snackPosition: SnackPosition.BOTTOM,
       backgroundColor: AppThemeSystem.primaryColor,
       colorText: Colors.white,
-      icon: const Icon(
-        Icons.lock_person_rounded,
-        color: Colors.white,
-      ),
+      icon: const Icon(Icons.lock_person_rounded, color: Colors.white),
       duration: const Duration(seconds: 4),
       margin: const EdgeInsets.all(16),
       borderRadius: 12,
       mainButton: TextButton(
-        onPressed: onLoginPressed ??
+        onPressed:
+            onLoginPressed ??
             () {
               Get.back();
               Get.toNamed('/login');

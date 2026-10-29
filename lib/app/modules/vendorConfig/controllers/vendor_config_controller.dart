@@ -1,3 +1,4 @@
+import 'package:asso/app/core/utils/app_feedback.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:image_picker/image_picker.dart';
@@ -17,6 +18,7 @@ import '../../../core/utils/app_theme_system.dart';
 import '../../product/views/map_selection_view.dart';
 import '../../profile/controllers/profile_controller.dart';
 import '../../../core/utils/app_navigation.dart';
+import '../../legal/legal_consent.dart';
 
 class VendorConfigController extends GetxController {
   // State management
@@ -198,9 +200,6 @@ class VendorConfigController extends GetxController {
       print('✅ VENDOR CONFIG: Delivery partners loaded successfully');
       print('  └─ Total: ${loadedPartners.length}');
       for (var partner in loadedPartners) {
-        print(
-          '  └─ ${partner.name} - ${partner.zone.name} (${partner.zone.latitude}, ${partner.zone.longitude})',
-        );
       }
 
       isLoadingDeliveryPartners.value = false;
@@ -269,7 +268,7 @@ class VendorConfigController extends GetxController {
 
       if (permission == LocationPermission.deniedForever) {
         // Permission refusée de façon permanente
-        Get.snackbar(
+        AppFeedback.show(
           'vendor_config.permission_required_title'.tr,
           'vendor_config.permission_required_message'.tr,
           snackPosition: SnackPosition.BOTTOM,
@@ -332,7 +331,7 @@ class VendorConfigController extends GetxController {
   /// Valide l'étape 1
   bool validateStep1() {
     if (firstNameController.text.trim().isEmpty) {
-      Get.snackbar(
+      AppFeedback.show(
         'vendor_config.validation.required_title'.tr,
         'vendor_config.validation.first_name'.tr,
         snackPosition: SnackPosition.BOTTOM,
@@ -341,7 +340,7 @@ class VendorConfigController extends GetxController {
     }
 
     if (lastNameController.text.trim().isEmpty) {
-      Get.snackbar(
+      AppFeedback.show(
         'vendor_config.validation.required_title'.tr,
         'vendor_config.validation.last_name'.tr,
         snackPosition: SnackPosition.BOTTOM,
@@ -350,7 +349,7 @@ class VendorConfigController extends GetxController {
     }
 
     if (selectedGender.value.isEmpty) {
-      Get.snackbar(
+      AppFeedback.show(
         'vendor_config.validation.required_title'.tr,
         'vendor_config.validation.gender'.tr,
         snackPosition: SnackPosition.BOTTOM,
@@ -359,7 +358,7 @@ class VendorConfigController extends GetxController {
     }
 
     if (profileImage.value == null) {
-      Get.snackbar(
+      AppFeedback.show(
         'vendor_config.validation.photo_required_title'.tr,
         'vendor_config.validation.photo_required'.tr,
         snackPosition: SnackPosition.BOTTOM,
@@ -373,7 +372,7 @@ class VendorConfigController extends GetxController {
   /// Valide l'étape 2
   bool validateStep2() {
     if (shopNameController.text.trim().isEmpty) {
-      Get.snackbar(
+      AppFeedback.show(
         'vendor_config.validation.required_title'.tr,
         'vendor_config.validation.shop_name'.tr,
         snackPosition: SnackPosition.BOTTOM,
@@ -382,7 +381,7 @@ class VendorConfigController extends GetxController {
     }
 
     if (shopDescriptionController.text.trim().isEmpty) {
-      Get.snackbar(
+      AppFeedback.show(
         'vendor_config.validation.required_title'.tr,
         'vendor_config.validation.shop_description'.tr,
         snackPosition: SnackPosition.BOTTOM,
@@ -391,7 +390,7 @@ class VendorConfigController extends GetxController {
     }
 
     if (shopLogo.value == null) {
-      Get.snackbar(
+      AppFeedback.show(
         'vendor_config.validation.logo_required_title'.tr,
         'vendor_config.validation.logo_required'.tr,
         snackPosition: SnackPosition.BOTTOM,
@@ -400,7 +399,7 @@ class VendorConfigController extends GetxController {
     }
 
     if (shopLocation.value.isEmpty) {
-      Get.snackbar(
+      AppFeedback.show(
         'vendor_config.validation.location_required_title'.tr,
         'vendor_config.validation.location_required'.tr,
         snackPosition: SnackPosition.BOTTOM,
@@ -413,7 +412,7 @@ class VendorConfigController extends GetxController {
     // This prevents the bug where isDeliveryAvailable might be reset to false in error cases.
 
     if (selectedCategories.isEmpty) {
-      Get.snackbar(
+      AppFeedback.show(
         'vendor_config.validation.category_required_title'.tr,
         'vendor_config.validation.category_required'.tr,
         snackPosition: SnackPosition.BOTTOM,
@@ -434,6 +433,8 @@ class VendorConfigController extends GetxController {
       }
     } else if (currentStep.value == 1) {
       if (validateStep2()) {
+        // Charte vendeur : acceptation obligatoire avant la création du compte.
+        if (!await LegalConsent.ensure(LegalStep.vendor)) return;
         // Soumettre la configuration
         await submitVendorConfig();
         // Si la soumission réussit, passer au step 3
@@ -508,8 +509,6 @@ class VendorConfigController extends GetxController {
     print('========================================');
     print('🚚 VENDOR CONFIG: Checking delivery availability');
     print('========================================');
-    print('  └─ Latitude: $latitude');
-    print('  └─ Longitude: $longitude');
 
     isCheckingDeliveryAvailability.value = true;
     deliveryAvailabilityMessage.value = '';
@@ -523,7 +522,6 @@ class VendorConfigController extends GetxController {
       print('📥 VENDOR CONFIG: Delivery availability response received');
       print('  └─ Success: ${response.success}');
       print('  └─ Status Code: ${response.statusCode}');
-      print('  └─ Message: ${response.message}');
 
       if (response.success && response.data != null) {
         final available = response.data!['available'] as bool? ?? false;
@@ -535,7 +533,6 @@ class VendorConfigController extends GetxController {
         print('');
         print('🔔 DELIVERY AVAILABILITY RESULT:');
         print('  ├─ Available: $available');
-        print('  ├─ Message: $message');
         print(
           '  └─ isDeliveryAvailable.value is now: ${isDeliveryAvailable.value}',
         );
@@ -556,7 +553,6 @@ class VendorConfigController extends GetxController {
         deliveryAvailabilityMessage.value = response.message;
 
         print('⚠️ VENDOR CONFIG: API returned error');
-        print('  └─ Message: ${response.message}');
       }
     } catch (e, stackTrace) {
       print('💥 VENDOR CONFIG: Exception caught during delivery check!');
@@ -714,8 +710,6 @@ class VendorConfigController extends GetxController {
 
         print('');
         print('🎯 USER SELECTED POSITION:');
-        print('  ├─ Latitude: $latitude');
-        print('  ├─ Longitude: $longitude');
         print('  └─ Address: $address');
         print('');
         print('🔍 Now checking delivery availability for this position...');
@@ -745,7 +739,7 @@ class VendorConfigController extends GetxController {
               address == 'vendor_config.map.loading_address'.tr ||
               address.trim().isEmpty) {
             print('⚠️ WARNING: Invalid address detected: "$address"');
-            Get.snackbar(
+            AppFeedback.show(
               'vendor_config.invalid_address_title'.tr,
               'vendor_config.invalid_address_message'.tr,
               snackPosition: SnackPosition.BOTTOM,
@@ -772,7 +766,7 @@ class VendorConfigController extends GetxController {
         AppNavigation.pop();
       }
 
-      Get.snackbar(
+      AppFeedback.show(
         'vendor_config.error'.tr,
         'vendor_config.map_open_error'.tr,
         snackPosition: SnackPosition.BOTTOM,
@@ -968,14 +962,10 @@ class VendorConfigController extends GetxController {
       print('📥 VENDOR CONFIG: API Response received');
       print('  └─ Success: ${response.success}');
       print('  └─ Status Code: ${response.statusCode}');
-      print('  └─ Message: ${response.message}');
 
       if (response.success) {
         print('✅ VENDOR CONFIG: Success!');
         if (response.data != null) {
-          print('  └─ Shop ID: ${response.data!['shop']?['id']}');
-          print('  └─ Shop Name: ${response.data!['shop']?['name']}');
-          print('  └─ User Role: ${response.data!['user']?['role']}');
 
           // IMPORTANT: Update user in storage with new role
           if (response.data!['user'] != null) {
@@ -998,7 +988,7 @@ class VendorConfigController extends GetxController {
                   companyName: userData['company_name'],
                   avatar: userData['avatar'],
                 );
-                StorageService.saveUser(updatedUser);
+                await StorageService.saveUser(updatedUser);
                 print('  └─ User updated in storage');
                 print('  └─ Role: ${updatedUser.role}');
                 print('  └─ Roles: ${updatedUser.roles}');
@@ -1022,7 +1012,7 @@ class VendorConfigController extends GetxController {
           }
         }
 
-        Get.snackbar(
+        AppFeedback.show(
           'vendor_config.success'.tr,
           'vendor_config.now_vendor'.tr,
           snackPosition: SnackPosition.BOTTOM,
@@ -1035,9 +1025,8 @@ class VendorConfigController extends GetxController {
         print('========================================');
       } else {
         print('❌ VENDOR CONFIG: Failed');
-        print('  └─ Error Message: ${response.message}');
 
-        Get.snackbar(
+        AppFeedback.show(
           'vendor_config.error'.tr,
           response.message,
           snackPosition: SnackPosition.BOTTOM,
@@ -1055,7 +1044,7 @@ class VendorConfigController extends GetxController {
       print('  └─ Stack Trace:');
       print(stackTrace.toString().split('\n').take(5).join('\n'));
 
-      Get.snackbar(
+      AppFeedback.show(
         'vendor_config.error'.tr,
         'vendor_config.error_occurred'.trParams({'error': '$e'}),
         snackPosition: SnackPosition.BOTTOM,

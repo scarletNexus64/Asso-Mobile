@@ -1,3 +1,5 @@
+import 'package:asso/app/modules/payment/widgets/payment_preparation.dart';
+import 'package:asso/app/core/utils/app_feedback.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -34,6 +36,7 @@ import '../../wallet/views/payment_webview.dart';
 import '../../../data/services/stripe_native_service.dart';
 import '../../../data/providers/currency_service.dart';
 import '../widgets/wholesale_delivery.dart';
+import '../../legal/legal_consent.dart';
 
 /// Fiche produit GROS + tunnel de commande. La page ne montre que le
 /// produit : galerie, prix, options et descriptions. « Commander » ouvre une
@@ -341,7 +344,7 @@ class _WholesaleProductViewState extends State<WholesaleProductView> {
     final id = _focusedVariantId ?? _lines.lastOrNull?.$1;
     if (id == null) {
       // Un palier s'applique à une combinaison : il en faut une d'abord.
-      Get.snackbar(
+      AppFeedback.show(
         'import.wholesale.choose_title'.tr,
         'import.wholesale.choose_message'.tr,
         snackPosition: SnackPosition.BOTTOM,
@@ -353,7 +356,7 @@ class _WholesaleProductViewState extends State<WholesaleProductView> {
         ? tier.minQuantity - (_quantity - current)
         : tier.minQuantity;
     if (next < 1) {
-      Get.snackbar(
+      AppFeedback.show(
         'import.wholesale.quantities_exceeded_title'.tr,
         'import.wholesale.quantities_exceeded_message'.trParams({
           'count': '${_quantity - current}',
@@ -1671,13 +1674,16 @@ class _WholesaleProductViewState extends State<WholesaleProductView> {
     // un devis aurait changé entre-temps.
     final missing = _missingStep, shipping = _shipping;
     if (missing != null || shipping == null) {
-      Get.snackbar(
+      AppFeedback.show(
         'import.wholesale.error'.tr,
         missing ?? 'import.wholesale.choose_tier_and_shipping'.tr,
         snackPosition: SnackPosition.BOTTOM,
       );
       return;
     }
+
+    // Conditions générales d'achat : acceptation obligatoire avant tout achat.
+    if (!await LegalConsent.ensure(LegalStep.purchase) || !mounted) return;
 
     // Montant pivot : le sélecteur l'affiche converti et le serveur le
     // reconvertit pour chaque moyen de paiement.
@@ -1723,7 +1729,7 @@ class _WholesaleProductViewState extends State<WholesaleProductView> {
     } else if (method.code == 'stripe') {
       await _createCard(items, shipping.id, weight, cbm);
     } else {
-      Get.snackbar(
+      AppFeedback.show(
         'import.wholesale.unavailable'.tr,
         'import.wholesale.method_unavailable'.tr,
         snackPosition: SnackPosition.BOTTOM,
@@ -1742,19 +1748,22 @@ class _WholesaleProductViewState extends State<WholesaleProductView> {
   }) async {
     setState(() => _submitting = true);
     try {
-      final res = await ImportService.createOrder(
-        items: items,
-        shippingOptionId: shippingId,
-        shippingWeightKg: weight,
-        shippingCbm: cbm,
-        paymentMode: mode,
-        provider: provider,
-        phoneNumber: phone,
-        delivery: _delivery.orderFields(),
-        notes: _variantNote(),
+      final res = await PaymentPreparation.run(
+        method: mode,
+        action: () => ImportService.createOrder(
+          items: items,
+          shippingOptionId: shippingId,
+          shippingWeightKg: weight,
+          shippingCbm: cbm,
+          paymentMode: mode,
+          provider: provider,
+          phoneNumber: phone,
+          delivery: _delivery.orderFields(),
+          notes: _variantNote(),
+        ),
       );
       if (!res.success) {
-        Get.snackbar(
+        AppFeedback.show(
           'import.wholesale.error'.tr,
           res.message.isNotEmpty
               ? res.message
@@ -1781,7 +1790,7 @@ class _WholesaleProductViewState extends State<WholesaleProductView> {
         if (outcome.status == 'failed') return;
         AppNavigation.pop(); // fermer la fiche
         if (outcome.status == 'paid') {
-          Get.snackbar(
+          AppFeedback.show(
             'import.wholesale.payment_confirmed_title'.tr,
             'import.wholesale.payment_confirmed_message'.tr,
             backgroundColor: AppDesign.success,
@@ -1791,7 +1800,7 @@ class _WholesaleProductViewState extends State<WholesaleProductView> {
           );
         } else {
           _pollOrder(orderId);
-          Get.snackbar(
+          AppFeedback.show(
             'import.wholesale.created_title'.tr,
             'import.wholesale.created_kpay_message'.tr,
             backgroundColor: AppDesign.accent,
@@ -1808,7 +1817,7 @@ class _WholesaleProductViewState extends State<WholesaleProductView> {
       AppNavigation.pop(); // fermer la fiche : la commande est passée
 
       if (mode == 'wallet') {
-        Get.snackbar(
+        AppFeedback.show(
           'import.wholesale.paid_title'.tr,
           'import.wholesale.paid_wallet_message'.tr,
           backgroundColor: AppDesign.success,
@@ -1821,7 +1830,7 @@ class _WholesaleProductViewState extends State<WholesaleProductView> {
 
       // paypal/stripe : ouvrir le checkout (WebView mobile, navigateur sinon), puis polling.
       if (approvalUrl == null || approvalUrl.isEmpty) {
-        Get.snackbar(
+        AppFeedback.show(
           'import.wholesale.error'.tr,
           'import.wholesale.payment_link_unavailable'.tr,
           snackPosition: SnackPosition.BOTTOM,
@@ -1843,7 +1852,7 @@ class _WholesaleProductViewState extends State<WholesaleProductView> {
         );
       }
       _pollOrder(orderId);
-      Get.snackbar(
+      AppFeedback.show(
         'import.wholesale.payment_pending_title'.tr,
         'import.wholesale.payment_pending_message'.tr,
         backgroundColor: AppDesign.success,
@@ -1852,7 +1861,7 @@ class _WholesaleProductViewState extends State<WholesaleProductView> {
         snackPosition: SnackPosition.BOTTOM,
       );
     } catch (_) {
-      Get.snackbar(
+      AppFeedback.show(
         'import.wholesale.error'.tr,
         'import.wholesale.generic_error'.tr,
         snackPosition: SnackPosition.BOTTOM,
@@ -1870,7 +1879,7 @@ class _WholesaleProductViewState extends State<WholesaleProductView> {
     double? cbm,
   ) async {
     if (!StripeNativeService.isSupported) {
-      Get.snackbar(
+      AppFeedback.show(
         'import.wholesale.unavailable'.tr,
         'import.wholesale.card_mobile_only'.tr,
         snackPosition: SnackPosition.BOTTOM,
@@ -1879,17 +1888,20 @@ class _WholesaleProductViewState extends State<WholesaleProductView> {
     }
     setState(() => _submitting = true);
     try {
-      final res = await ImportService.createOrder(
-        items: items,
-        shippingOptionId: shippingId,
-        shippingWeightKg: weight,
-        shippingCbm: cbm,
-        paymentMode: 'stripe_direct',
-        delivery: _delivery.orderFields(),
-        notes: _variantNote(),
+      final res = await PaymentPreparation.run(
+        method: 'stripe_direct',
+        action: () => ImportService.createOrder(
+          items: items,
+          shippingOptionId: shippingId,
+          shippingWeightKg: weight,
+          shippingCbm: cbm,
+          paymentMode: 'stripe_direct',
+          delivery: _delivery.orderFields(),
+          notes: _variantNote(),
+        ),
       );
       if (!res.success) {
-        Get.snackbar(
+        AppFeedback.show(
           'import.wholesale.error'.tr,
           res.message.isNotEmpty
               ? res.message
@@ -1906,7 +1918,7 @@ class _WholesaleProductViewState extends State<WholesaleProductView> {
           clientSecret.isEmpty ||
           publishableKey == null ||
           publishableKey.isEmpty) {
-        Get.snackbar(
+        AppFeedback.show(
           'import.wholesale.error'.tr,
           'import.wholesale.card_data_unavailable'.tr,
           snackPosition: SnackPosition.BOTTOM,
@@ -1920,7 +1932,7 @@ class _WholesaleProductViewState extends State<WholesaleProductView> {
       );
       if (!ok) {
         await OrderService.abandonUnpaidOrder(orderId);
-        Get.snackbar(
+        AppFeedback.show(
           'import.wholesale.payment_cancelled_title'.tr,
           'import.wholesale.payment_cancelled_message'.tr,
           snackPosition: SnackPosition.BOTTOM,
@@ -1932,7 +1944,7 @@ class _WholesaleProductViewState extends State<WholesaleProductView> {
       // encore affiché et laisserait la fiche ouverte.
       AppNavigation.pop(); // fermer la fiche : la commande est passée
       _pollOrder(orderId);
-      Get.snackbar(
+      AppFeedback.show(
         'import.wholesale.payment_pending_title'.tr,
         'import.wholesale.payment_pending_message'.tr,
         backgroundColor: AppDesign.success,
@@ -1941,9 +1953,9 @@ class _WholesaleProductViewState extends State<WholesaleProductView> {
         snackPosition: SnackPosition.BOTTOM,
       );
     } catch (e) {
-      Get.snackbar(
+      AppFeedback.show(
         'import.wholesale.error'.tr,
-        e.toString().replaceAll('Exception: ', ''),
+        AppFeedback.errorMessage(e),
         snackPosition: SnackPosition.BOTTOM,
       );
     } finally {
@@ -1970,7 +1982,7 @@ class _WholesaleProductViewState extends State<WholesaleProductView> {
         final res = await OrderService.orderPaymentStatus(orderId);
         final status = res.data?['data']?['payment_status'];
         if (status == 'paid') {
-          Get.snackbar(
+          AppFeedback.show(
             'import.wholesale.payment_confirmed_title'.tr,
             'import.wholesale.payment_confirmed_message'.tr,
             backgroundColor: AppDesign.success,
@@ -1980,10 +1992,12 @@ class _WholesaleProductViewState extends State<WholesaleProductView> {
           );
           return;
         } else if (status == 'failed') {
-          Get.snackbar(
+          AppFeedback.show(
             'import.wholesale.payment_failed_title'.tr,
             switch (res.data?['data']?['payment_failure']?.toString()) {
-              final String failure => MobileMoneyWaiting.failureMessage(failure),
+              final String failure => MobileMoneyWaiting.failureMessage(
+                failure,
+              ),
               _ => 'import.wholesale.payment_failed_message'.tr,
             },
             backgroundColor: AppDesign.danger,
@@ -2018,7 +2032,7 @@ class _WholesaleProductViewState extends State<WholesaleProductView> {
       final supportUserId = await appConfig.ensureSupportUserId();
 
       if (supportUserId == null) {
-        Get.snackbar(
+        AppFeedback.show(
           'import.wholesale.support_unavailable_title'.tr,
           'import.wholesale.support_unavailable_message'.tr,
           snackPosition: SnackPosition.BOTTOM,
@@ -2031,7 +2045,7 @@ class _WholesaleProductViewState extends State<WholesaleProductView> {
         userId: supportUserId,
       );
       if (!response.success || response.data == null) {
-        Get.snackbar(
+        AppFeedback.show(
           'import.wholesale.error'.tr,
           'import.wholesale.support_start_failed'.tr,
           snackPosition: SnackPosition.BOTTOM,
@@ -2042,7 +2056,7 @@ class _WholesaleProductViewState extends State<WholesaleProductView> {
       final conversationData = response.data!['conversation'];
       final conversationId = conversationData?['id'];
       if (conversationId == null) {
-        Get.snackbar(
+        AppFeedback.show(
           'import.wholesale.error'.tr,
           'import.wholesale.conversation_unavailable'.tr,
           snackPosition: SnackPosition.BOTTOM,
@@ -2068,9 +2082,9 @@ class _WholesaleProductViewState extends State<WholesaleProductView> {
         },
       );
     } catch (e) {
-      Get.snackbar(
+      AppFeedback.show(
         'import.wholesale.error'.tr,
-        'import.wholesale.error_with_details'.trParams({'error': '$e'}),
+        'import.wholesale.error_with_details'.trParams({'error': AppFeedback.errorMessage(e)}),
         snackPosition: SnackPosition.BOTTOM,
       );
     } finally {

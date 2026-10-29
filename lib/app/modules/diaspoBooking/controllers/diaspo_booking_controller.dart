@@ -1,3 +1,5 @@
+import 'package:asso/app/modules/payment/widgets/payment_preparation.dart';
+import 'package:asso/app/core/utils/app_feedback.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../../data/models/diaspo_offer.dart';
@@ -11,6 +13,7 @@ import '../../payment/widgets/mobile_money_waiting.dart';
 import '../../payment/widgets/payment_method_selector.dart';
 import '../../../data/services/stripe_native_service.dart';
 import '../../../core/utils/app_design.dart';
+import '../../../core/utils/session_scope.dart';
 import '../../../core/utils/app_navigation.dart';
 import '../../../routes/app_pages.dart';
 import '../../diaspoList/controllers/diaspo_list_controller.dart';
@@ -34,12 +37,14 @@ class DiaspoBookingController extends GetxController {
   final totalPrice = 0.0.obs;
 
   /// Nature + valeur déclarée du colis → supplément d'assurance (revenu ASSO).
-  late final ParcelInsuranceForm insurance =
-      ParcelInsuranceForm(currency: () => currency);
+  late final ParcelInsuranceForm insurance = ParcelInsuranceForm(
+    currency: () => currency,
+  );
 
   /// Total payé : transport + assurance. À lire dans un Obx.
   double get grandTotal => double.parse(
-      (totalPrice.value + insurance.insuranceAmount.value).toStringAsFixed(2));
+    (totalPrice.value + insurance.insuranceAmount.value).toStringAsFixed(2),
+  );
 
   double get remainingKg => offer.value?.remainingKg ?? 0;
   double get pricePerKg => offer.value?.pricePerKg ?? 0;
@@ -58,11 +63,10 @@ class DiaspoBookingController extends GetxController {
 
     // Listen to kg changes
     kgController.addListener(() {
-      final value = double.tryParse(kgController.text) ?? 0;
-      if (value > 0 && value <= remainingKg) {
-        kgBooked.value = value;
-        _calculatePrices();
-      }
+      final value =
+          double.tryParse(kgController.text.replaceAll(',', '.')) ?? 0;
+      kgBooked.value = value.isFinite && value > 0 ? value : 0;
+      _calculatePrices();
     });
   }
 
@@ -78,7 +82,7 @@ class DiaspoBookingController extends GetxController {
     if (args != null && args['offer'] != null) {
       offer.value = args['offer'] as DiaspoOffer;
     } else {
-      Get.snackbar(
+      AppFeedback.show(
         'diaspo_booking.error'.tr,
         'diaspo_booking.offer_not_found'.tr,
       );
@@ -89,7 +93,9 @@ class DiaspoBookingController extends GetxController {
   }
 
   void _calculatePrices() {
-    totalPrice.value = double.parse((kgBooked.value * pricePerKg).toStringAsFixed(2));
+    totalPrice.value = double.parse(
+      (kgBooked.value * pricePerKg).toStringAsFixed(2),
+    );
   }
 
   void incrementKg() {
@@ -115,7 +121,7 @@ class DiaspoBookingController extends GetxController {
 
     // Validation
     if (kgBooked.value < minKg) {
-      Get.snackbar(
+      AppFeedback.show(
         'diaspo_booking.error'.tr,
         'diaspo_booking.min_kg'.trParams({'kg': minKg.toStringAsFixed(1)}),
       );
@@ -123,7 +129,7 @@ class DiaspoBookingController extends GetxController {
     }
 
     if (kgBooked.value > remainingKg) {
-      Get.snackbar(
+      AppFeedback.show(
         'diaspo_booking.error'.tr,
         'diaspo_booking.only_kg_available'.trParams({
           'kg': remainingKg.toStringAsFixed(1),
@@ -133,10 +139,20 @@ class DiaspoBookingController extends GetxController {
     }
 
     if (!insurance.isComplete) {
-      Get.snackbar('diaspo_booking.error'.tr, 'parcel_insurance.required'.tr);
+      AppFeedback.show(
+        'diaspo_booking.error'.tr,
+        'parcel_insurance.required'.tr,
+      );
       return;
     }
     if (insurance.isQuoting.value) return;
+    if (!insurance.quoteAvailable.value) {
+      AppFeedback.show(
+        'diaspo_booking.error'.tr,
+        'parcel_insurance.quote_unavailable'.tr,
+      );
+      return;
+    }
 
     // 1) Choix du moyen de paiement (tous affichés, grisés si trop faible,
     //    jamais masqués selon le pays, sans solde wallet).
@@ -174,13 +190,16 @@ class DiaspoBookingController extends GetxController {
   Future<void> _processWalletBooking() async {
     isSubmitting.value = true;
     try {
-      final result = await _diaspoService.bookOffer(
-        offerId: offer.value!.id,
-        kgBooked: kgBooked.value,
-        parcelNatureId: insurance.selectedNature.value?.id,
-        declaredValue: insurance.declaredValue.value,
-        declaredValueCurrency: insurance.valueCurrency,
-        paymentMethod: 'wallet',
+      final result = await PaymentPreparation.run(
+        method: 'wallet',
+        action: () => _diaspoService.bookOffer(
+          offerId: offer.value!.id,
+          kgBooked: kgBooked.value,
+          parcelNatureId: insurance.selectedNature.value?.id,
+          declaredValue: insurance.declaredValue.value,
+          declaredValueCurrency: insurance.valueCurrency,
+          paymentMethod: 'wallet',
+        ),
       );
       isSubmitting.value = false;
       _showSuccessDialog(result['booking'] as DiaspoBooking);
@@ -193,19 +212,24 @@ class DiaspoBookingController extends GetxController {
   /// Réservation payée par CARTE (Payment Sheet Stripe native).
   Future<void> _processCardBooking() async {
     if (!StripeNativeService.isSupported) {
-      Get.snackbar('diaspo_booking.unavailable'.tr,
-          'diaspo_booking.card_mobile_only'.tr);
+      AppFeedback.show(
+        'diaspo_booking.unavailable'.tr,
+        'diaspo_booking.card_mobile_only'.tr,
+      );
       return;
     }
     isSubmitting.value = true;
     try {
-      final result = await _diaspoService.bookOffer(
-        offerId: offer.value!.id,
-        kgBooked: kgBooked.value,
-        parcelNatureId: insurance.selectedNature.value?.id,
-        declaredValue: insurance.declaredValue.value,
-        declaredValueCurrency: insurance.valueCurrency,
-        paymentMethod: 'stripe',
+      final result = await PaymentPreparation.run(
+        method: 'stripe',
+        action: () => _diaspoService.bookOffer(
+          offerId: offer.value!.id,
+          kgBooked: kgBooked.value,
+          parcelNatureId: insurance.selectedNature.value?.id,
+          declaredValue: insurance.declaredValue.value,
+          declaredValueCurrency: insurance.valueCurrency,
+          paymentMethod: 'stripe',
+        ),
       );
       final booking = result['booking'] as DiaspoBooking;
       final payment = result['payment'] as Map<String, dynamic>;
@@ -214,8 +238,10 @@ class DiaspoBookingController extends GetxController {
 
       isSubmitting.value = false;
 
-      if (clientSecret == null || clientSecret.isEmpty ||
-          publishableKey == null || publishableKey.isEmpty) {
+      if (clientSecret == null ||
+          clientSecret.isEmpty ||
+          publishableKey == null ||
+          publishableKey.isEmpty) {
         _showError('diaspo_booking.card_data_unavailable'.tr);
         return;
       }
@@ -225,10 +251,13 @@ class DiaspoBookingController extends GetxController {
         clientSecret: clientSecret,
       );
       if (!ok) {
-        Get.snackbar('diaspo_booking.payment_cancelled_title'.tr,
-            'diaspo_booking.payment_cancelled_message'.tr,
-            backgroundColor: AppDesign.accent, colorText: Colors.white,
-            duration: const Duration(seconds: 4));
+        AppFeedback.show(
+          'diaspo_booking.payment_cancelled_title'.tr,
+          'diaspo_booking.payment_cancelled_message'.tr,
+          backgroundColor: AppDesign.accent,
+          colorText: Colors.white,
+          duration: const Duration(seconds: 4),
+        );
         return;
       }
 
@@ -244,15 +273,18 @@ class DiaspoBookingController extends GetxController {
   Future<void> _processKpayBooking(String provider, String phone) async {
     isSubmitting.value = true;
     try {
-      final result = await _diaspoService.bookOffer(
-        offerId: offer.value!.id,
-        kgBooked: kgBooked.value,
-        parcelNatureId: insurance.selectedNature.value?.id,
-        declaredValue: insurance.declaredValue.value,
-        declaredValueCurrency: insurance.valueCurrency,
-        paymentMethod: 'kpay',
-        provider: provider,
-        phoneNumber: phone,
+      final result = await PaymentPreparation.run(
+        method: 'kpay',
+        action: () => _diaspoService.bookOffer(
+          offerId: offer.value!.id,
+          kgBooked: kgBooked.value,
+          parcelNatureId: insurance.selectedNature.value?.id,
+          declaredValue: insurance.declaredValue.value,
+          declaredValueCurrency: insurance.valueCurrency,
+          paymentMethod: 'kpay',
+          provider: provider,
+          phoneNumber: phone,
+        ),
       );
       final booking = result['booking'] as DiaspoBooking;
 
@@ -274,10 +306,11 @@ class DiaspoBookingController extends GetxController {
         case 'failed':
           break; // motif déjà expliqué
         default:
-          Get.snackbar(
+          AppFeedback.show(
             'diaspo_booking.payment_pending_title'.tr,
             'diaspo_booking.payment_pending_ussd'.tr,
-            backgroundColor: AppDesign.accent, colorText: Colors.white,
+            backgroundColor: AppDesign.accent,
+            colorText: Colors.white,
             duration: const Duration(seconds: 5),
           );
           _pollBookingPayment(booking);
@@ -292,13 +325,16 @@ class DiaspoBookingController extends GetxController {
   Future<void> _processRedirectBooking(PaymentMethodOption method) async {
     isSubmitting.value = true;
     try {
-      final result = await _diaspoService.bookOffer(
-        offerId: offer.value!.id,
-        kgBooked: kgBooked.value,
-        parcelNatureId: insurance.selectedNature.value?.id,
-        declaredValue: insurance.declaredValue.value,
-        declaredValueCurrency: insurance.valueCurrency,
-        paymentMethod: method.code,
+      final result = await PaymentPreparation.run(
+        method: method.code,
+        action: () => _diaspoService.bookOffer(
+          offerId: offer.value!.id,
+          kgBooked: kgBooked.value,
+          parcelNatureId: insurance.selectedNature.value?.id,
+          declaredValue: insurance.declaredValue.value,
+          declaredValueCurrency: insurance.valueCurrency,
+          paymentMethod: method.code,
+        ),
       );
       final booking = result['booking'] as DiaspoBooking;
       final payment = result['payment'] as Map<String, dynamic>;
@@ -314,11 +350,13 @@ class DiaspoBookingController extends GetxController {
       // Ouvre la page de paiement hébergée ; la confirmation réelle se fait
       // côté serveur (webhook), suivie par le polling. Le succès (+ code) n'est
       // affiché qu'une fois le statut « payé » confirmé (voir _pollBookingPayment).
-      await Get.to(() => PaymentWebView(
-            paymentUrl: approvalUrl,
-            paymentMethod: method.code,
-            paymentId: booking.id,
-          ));
+      await Get.to(
+        () => PaymentWebView(
+          paymentUrl: approvalUrl,
+          paymentMethod: method.code,
+          paymentId: booking.id,
+        ),
+      );
 
       _pollBookingPayment(booking);
     } catch (e) {
@@ -329,7 +367,7 @@ class DiaspoBookingController extends GetxController {
 
   void _showError(Object e) {
     if (e is! String) debugPrint('[DiaspoBooking] Payment error: $e');
-    Get.snackbar(
+    AppFeedback.show(
       'diaspo_booking.error'.tr,
       e is String ? e : 'payment.mobile_money.failed_generic'.tr,
       backgroundColor: AppDesign.danger,
@@ -340,25 +378,37 @@ class DiaspoBookingController extends GetxController {
   /// Suit le paiement d'une réservation (polling 5 s). Le succès (dialog + code de
   /// confirmation) n'est affiché QU'AU statut « payé » — jamais à la simple création.
   void _pollBookingPayment(DiaspoBooking booking) async {
+    // Le suivi survit à la fermeture de l'écran (la confirmation reste
+    // affichée), mais pas à une déconnexion ou un changement de compte.
+    final session = SessionScope.current;
     for (int i = 0; i < 120; i++) {
       await Future.delayed(const Duration(seconds: 5));
+      if (!SessionScope.isCurrent(session)) return;
       final status = await _diaspoService.bookingPaymentStatus(booking.id);
       if (status == 'paid') {
-        _showSuccessDialog(booking); // réservation réellement confirmée → on révèle le code
+        _showSuccessDialog(
+          booking,
+        ); // réservation réellement confirmée → on révèle le code
         return;
       } else if (status == 'failed') {
-        Get.snackbar('diaspo_booking.payment_failed_title'.tr,
-            'diaspo_booking.payment_failed_message'.tr,
-            backgroundColor: AppDesign.danger, colorText: Colors.white,
-            duration: const Duration(seconds: 5));
+        AppFeedback.show(
+          'diaspo_booking.payment_failed_title'.tr,
+          'diaspo_booking.payment_failed_message'.tr,
+          backgroundColor: AppDesign.danger,
+          colorText: Colors.white,
+          duration: const Duration(seconds: 5),
+        );
         return;
       }
     }
     // Délai dépassé sans confirmation : on reste prudent, pas de « confirmée ».
-    Get.snackbar('diaspo_booking.payment_pending_title'.tr,
-        'diaspo_booking.payment_pending_timeout'.tr,
-        backgroundColor: AppDesign.accent, colorText: Colors.white,
-        duration: const Duration(seconds: 5));
+    AppFeedback.show(
+      'diaspo_booking.payment_pending_title'.tr,
+      'diaspo_booking.payment_pending_timeout'.tr,
+      backgroundColor: AppDesign.accent,
+      colorText: Colors.white,
+      duration: const Duration(seconds: 5),
+    );
   }
 
   /// Referme la confirmation et revient à la liste des offres.
@@ -426,10 +476,7 @@ class DiaspoBookingController extends GetxController {
                   children: [
                     Text(
                       'diaspo_booking.success.code_label'.tr,
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: Colors.grey,
-                      ),
+                      style: const TextStyle(fontSize: 12, color: Colors.grey),
                     ),
                     const SizedBox(height: 8),
                     Text(
@@ -444,10 +491,7 @@ class DiaspoBookingController extends GetxController {
                     Text(
                       'diaspo_booking.success.code_hint'.tr,
                       textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        fontSize: 11,
-                        color: Colors.grey,
-                      ),
+                      style: const TextStyle(fontSize: 11, color: Colors.grey),
                     ),
                   ],
                 ),
