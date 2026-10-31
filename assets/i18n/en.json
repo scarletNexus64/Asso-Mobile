@@ -2005,7 +2005,8 @@
       "delivery_mode": "Courier mode",
       "vendor_mode": "Vendor mode",
       "settings": "settings",
-      "landlord_mode": "the landlord space"
+      "landlord_mode": "the landlord space",
+      "sales_program": "the sales program"
     },
     "favorite": {
       "added": "Added to favorites",

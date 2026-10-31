@@ -718,15 +718,13 @@ class HomeView extends GetView<HomeController> {
                   title: 'home.drawer.invite_friend'.tr,
                   onTap: () {
                     Get.back();
-                    AppFeedback.show(
-                      'home.drawer.share_title'.tr,
-                      'home.drawer.share_message'.tr,
-                      snackPosition: SnackPosition.BOTTOM,
-                      duration: const Duration(seconds: 3),
-                      backgroundColor: AppThemeSystem.primaryColor,
-                      colorText: Colors.white,
-                      margin: const EdgeInsets.all(16),
-                      borderRadius: 12,
+                    // Le code promo à partager est celui du programme commercial :
+                    // la page affiche le code si l'utilisateur est déjà commercial,
+                    // sinon les modalités pour l'obtenir.
+                    AuthGuard.navigateIfAuthenticated(
+                      context,
+                      Routes.SALES_PROGRAM,
+                      featureName: 'home.feature.sales_program'.tr,
                     );
                   },
                 ),

@@ -2005,7 +2005,8 @@
       "delivery_mode": "le mode livreur",
       "vendor_mode": "le mode vendeur",
       "settings": "les paramètres",
-      "landlord_mode": "l'espace bailleur"
+      "landlord_mode": "l'espace bailleur",
+      "sales_program": "le programme commercial"
     },
     "favorite": {
       "added": "Ajouté aux favoris",
