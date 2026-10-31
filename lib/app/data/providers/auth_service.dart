@@ -32,7 +32,13 @@ class AuthService {
   }) async {
     final response = await ApiProvider.post(
       AppConstants.sendOtpUrl,
-      body: {'phone': phone, 'country_code': countryCode},
+      body: {
+        'phone': phone,
+        'country_code': countryCode,
+        // Pays choisi à l'accueil : pays du compte s'il est créé ici.
+        if (StorageService.getCountry() != null)
+          'country': StorageService.getCountry(),
+      },
     );
 
     return response;
@@ -112,6 +118,8 @@ class AuthService {
         'password_confirmation': passwordConfirmation,
         if (firstName != null) 'first_name': firstName,
         if (lastName != null) 'last_name': lastName,
+        if (StorageService.getCountry() != null)
+          'country': StorageService.getCountry(),
       },
     );
 

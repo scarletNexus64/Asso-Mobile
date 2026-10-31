@@ -94,9 +94,34 @@ class WalletController extends GetxController {
   final kpayConfigured = true.obs;
   final stripeConfigured = true.obs;
 
+  /// Clés Stripe présentes mais solde EUR de la plateforme insuffisant pour verser.
+  final stripePayoutSupported = true.obs;
+
   // Coordonnées de retrait Mobile Money enregistrées (null = aucune).
   final payoutAccount = Rxn<Map<String, dynamic>>();
   final isSavingPayoutAccount = false.obs;
+
+  // Compte bancaire de retrait : 'stripe' (virement automatique), 'manual' (IBAN
+  // d'une banque que Stripe ne prend pas en charge, viré par ASSO) ou null.
+  final bankAccountType = RxnString();
+  final manualBankAccount = Rxn<Map<String, dynamic>>();
+  // Méthode conseillée tant qu'aucun IBAN automatique n'est prêt (Mobile Money).
+  final recommendedPayoutMethod = RxnString();
+  // Délai moyen annoncé d'une demande de retrait traitée à la main (heures).
+  final manualDelayHours = 48.obs;
+  // Minimum d'un virement bancaire manuel (FCFA).
+  final minManualBankAmount = 5000.0.obs;
+  // Frais par méthode : {'mobile_money': {'percent':..,'fixed':..}, 'bank_transfer': {...}}.
+  final withdrawalFees = <String, Map<String, double>>{}.obs;
+  // Part du solde XAF encaissée par carte / par Mobile Money.
+  final cardFunds = 0.0.obs;
+  final mobileFunds = 0.0.obs;
+
+  // Devis du virement IBAN : frais et mode (automatique / demande ≈ 48 h).
+  final stripeQuoteFee = 0.0.obs;
+  final stripeQuoteManualNotice = RxnString();
+
+  bool get hasBankAccount => bankAccountType.value != null;
 
   // Pagination des transactions
   final currentPage = 1.obs;
@@ -511,7 +536,6 @@ class WalletController extends GetxController {
               };
             })
             .toList();
-
       } else {
         lockedBookings.value = [];
       }
@@ -890,16 +914,203 @@ class WalletController extends GetxController {
           stripeIbanLast4.value = stripe['iban_last4']?.toString();
         }
 
+        _parsePayoutMethods(result);
+
         // Configuration par rail (grise un moyen non configuré côté plateforme).
         final methods = result['methods'];
         if (methods is Map) {
           final k = methods['kpay'];
           if (k is Map) kpayConfigured.value = k['configured'] == true;
           final s = methods['stripe'];
-          if (s is Map) stripeConfigured.value = s['configured'] == true;
+          if (s is Map) {
+            stripeConfigured.value = s['configured'] == true;
+            stripePayoutSupported.value = s['payout_supported'] != false;
+          }
         }
       }
     } catch (e) {}
+  }
+
+  /// Comptes de retrait, frais et origine des fonds (backend récent ; absents sinon).
+  void _parsePayoutMethods(Map<String, dynamic> result) {
+    final hours = result['manual_delay_hours'];
+    if (hours != null) manualDelayHours.value = _parseBalance(hours).round();
+    final minBank = result['min_manual_bank_amount'];
+    if (minBank != null) minManualBankAmount.value = _parseBalance(minBank);
+
+    final fees = result['fees'];
+    if (fees is Map) {
+      final parsed = <String, Map<String, double>>{};
+      fees.forEach((method, value) {
+        if (value is Map) {
+          parsed[method.toString()] = {
+            'percent': _parseBalance(value['percent']),
+            'fixed': _parseBalance(value['fixed']),
+          };
+        }
+      });
+      withdrawalFees.value = parsed;
+    }
+
+    final funds = result['funds'];
+    if (funds is List) {
+      final xaf = funds.whereType<Map>().where((f) => f['currency'] == 'XAF');
+      cardFunds.value = xaf.isEmpty ? 0.0 : _parseBalance(xaf.first['card']);
+      mobileFunds.value = xaf.isEmpty
+          ? 0.0
+          : _parseBalance(xaf.first['mobile_money']);
+    }
+
+    final methods = result['payout_methods'];
+    if (methods is Map) {
+      final bank = methods['bank_transfer'];
+      if (bank is Map) {
+        bankAccountType.value = bank['type']?.toString();
+        final manual = bank['manual_account'];
+        manualBankAccount.value = manual is Map
+            ? Map<String, dynamic>.from(manual)
+            : null;
+      }
+      recommendedPayoutMethod.value = methods['recommended']?.toString();
+    } else {
+      // Ancien backend : seul l'IBAN Stripe existe.
+      bankAccountType.value = stripeWithdrawEligible.value ? 'stripe' : null;
+    }
+  }
+
+  /// Frais estimés d'un retrait (le montant exact est confirmé par le serveur).
+  double estimateWithdrawalFee(String method, double amount) {
+    final fee = withdrawalFees[method];
+    if (fee == null || amount <= 0) return 0;
+    final value = amount * (fee['percent'] ?? 0) / 100 + (fee['fixed'] ?? 0);
+    return value.ceilToDouble().clamp(0, amount).toDouble();
+  }
+
+  // ================================
+  // IBAN ET RETRAITS PAR MÉTHODE
+  // ================================
+
+  /// Vérifie un IBAN. Renvoie le bloc `data` du serveur, ou null si injoignable.
+  Future<Map<String, dynamic>?> checkIban(String iban) async {
+    try {
+      final res = await wallet_api.WalletService.checkIban(iban);
+      final data = res.data?['data'];
+      if (data is Map) return Map<String, dynamic>.from(data);
+      return res.message.isNotEmpty
+          ? {'valid': false, 'message': res.message, 'next_step': 'fix'}
+          : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Enregistre l'IBAN viré à la main. Renvoie le message d'erreur, ou null.
+  Future<String?> saveBankAccount({
+    required String iban,
+    required String accountHolder,
+    String? bic,
+    String? bankName,
+  }) async {
+    try {
+      final res = await wallet_api.WalletService.saveBankAccount(
+        iban: iban,
+        accountHolder: accountHolder,
+        bic: bic,
+        bankName: bankName,
+      );
+      if (!res.success) {
+        return res.message.isNotEmpty
+            ? res.message
+            : 'wallet.errors.save_account_failed'.tr;
+      }
+      final data = res.data?['data'];
+      manualBankAccount.value = data is Map
+          ? Map<String, dynamic>.from(data)
+          : null;
+      await loadWithdrawalBalances();
+      return null;
+    } catch (_) {
+      return 'wallet.errors.generic'.tr;
+    }
+  }
+
+  Future<bool> deleteBankAccount() async {
+    try {
+      final res = await wallet_api.WalletService.deleteBankAccount();
+      if (res.success) {
+        manualBankAccount.value = null;
+        await loadWithdrawalBalances();
+      }
+      return res.success;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Aperçu serveur d'un retrait (frais, net, automatique ou demande ≈ 48 h).
+  Future<Map<String, dynamic>?> previewWithdrawal({
+    required String method,
+    required double amount,
+    String? currency,
+    String? provider,
+  }) async {
+    if (amount <= 0) return null;
+    try {
+      final res = await wallet_api.WalletService.previewWithdrawal(
+        method: method,
+        amount: amount,
+        currency: currency,
+        provider: provider,
+      );
+      final data = res.data?['data'];
+      return res.success && data is Map
+          ? Map<String, dynamic>.from(data)
+          : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Virement vers l'IBAN manuel (ou Stripe) : la réponse dit si c'est une demande.
+  Future<Map<String, dynamic>> withdrawToBank({
+    required double amount,
+    String? currency,
+    String? notes,
+  }) async {
+    isProcessingPayment.value = true;
+    try {
+      final res = await wallet_api.WalletService.withdrawBank(
+        amount: amount,
+        currency: currency,
+        notes: notes,
+      );
+      if (res.success) {
+        await Future.wait([loadWallet(), loadWithdrawalBalances()]);
+      }
+      return {
+        'success': res.success,
+        'message': res.message,
+        'data': res.data?['data'],
+      };
+    } catch (_) {
+      return {
+        'success': false,
+        'message': 'wallet.errors.transfer_init_error'.tr,
+      };
+    } finally {
+      isProcessingPayment.value = false;
+    }
+  }
+
+  /// Annule une demande de retrait encore en attente (le montant est recrédité).
+  Future<Map<String, dynamic>> cancelWithdrawal(int withdrawalId) async {
+    try {
+      final res = await wallet_api.WalletService.cancelWithdrawal(withdrawalId);
+      if (res.success) await refresh();
+      return {'success': res.success, 'message': res.message};
+    } catch (_) {
+      return {'success': false, 'message': 'wallet.errors.generic'.tr};
+    }
   }
 
   /// Parse balance value safely (handles both string and numeric types)
@@ -972,6 +1183,8 @@ class WalletController extends GetxController {
     if (amount <= 0) {
       stripeQuoteAmount.value = 0;
       stripeQuoteMessage.value = null;
+      stripeQuoteFee.value = 0;
+      stripeQuoteManualNotice.value = null;
       return;
     }
 
@@ -985,6 +1198,10 @@ class WalletController extends GetxController {
       if (res['success'] == true) {
         stripeQuoteAmount.value = _parseBalance(res['payout_amount']);
         stripeQuoteMessage.value = res['message']?.toString();
+        stripeQuoteFee.value = _parseBalance(res['fee']);
+        stripeQuoteManualNotice.value = res['processing_mode'] == 'manual'
+            ? res['reason_message']?.toString()
+            : null;
         final rate = _parseBalance(res['rate']);
         if (rate > 0) stripeSourceRate.value = rate;
       } else {

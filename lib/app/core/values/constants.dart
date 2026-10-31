@@ -130,7 +130,8 @@ class AppConstants {
 
   // Stripe Connect (compte de virement IBAN vendeur)
   static const String stripeConnectUrl = '/v1/stripe/connect';
-  static const String stripeConnectSubmitUrl = '/v1/stripe/connect/submit';
+  static const String stripeConnectOnboardingUrl = '/v1/stripe/connect/onboarding';
+  static const String stripeConnectAccountSessionUrl = '/v1/stripe/connect/account-session';
   static const String stripeConnectStatusUrl = '/v1/stripe/connect/status';
 
   // Delivery management

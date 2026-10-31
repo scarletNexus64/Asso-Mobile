@@ -89,12 +89,14 @@ class WalletModel {
 class WalletTransactionModel {
   final int id;
   final int userId;
-  final String type; // credit, debit, refund, bonus, adjustment, lock, unlock, escrow_release
+  final String
+  type; // credit, debit, refund, bonus, adjustment, lock, unlock, escrow_release
   final double amount;
   final String? paymentProvider; // kpay, paypal
   final String status; // pending, completed, failed
   final String description;
-  final String? referenceType; // order, subscription, withdrawal, recharge, diaspo_booking
+  final String?
+  referenceType; // order, subscription, withdrawal, recharge, diaspo_booking
   final int? referenceId;
   final Map<String, dynamic>? metadata;
   final DateTime createdAt;
@@ -158,14 +160,20 @@ class WalletTransactionModel {
   bool get isCredit => type == 'credit' || type == 'refund' || type == 'bonus';
 
   /// Check if transaction is escrow-related
-  bool get isEscrow => type == 'lock' || type == 'unlock' || type == 'escrow_release';
+  bool get isEscrow =>
+      type == 'lock' || type == 'unlock' || type == 'escrow_release';
 
-  /// Get formatted amount with sign
+  /// Retrait vers Mobile Money ou IBAN.
+  bool get isWithdrawal =>
+      type == 'debit' && referenceType == 'platform_withdrawal';
+
+  /// Montant signé : « + » pour l'argent reçu, « - » pour l'argent sorti.
+  /// Blocages et déblocages ne font que changer l'état d'un montant déjà
+  /// compté (la vente) : pas de signe pour ne pas le faire passer pour une perte.
   String get formattedAmount {
-    final sign = isCredit ? '+' : '-';
-    final absAmount = amount.abs();
-
-    return '$sign ${CurrencyService.formatFromPivot(absAmount)}';
+    final absAmount = CurrencyService.formatFromPivot(amount.abs());
+    if (isEscrow) return absAmount;
+    return '${isCredit ? '+' : '-'} $absAmount';
   }
 
   /// Commission versée à un commercial pour le premier abonnement d'un vendeur.
@@ -175,13 +183,15 @@ class WalletTransactionModel {
   bool get isSale => type == 'credit' && metadata?['direct_settlement'] == true;
 
   /// Part vendeur bloquée jusqu'à la confirmation du client (ou 48 h).
-  bool get isVendorFundsHold => type == 'lock' && metadata?['vendor_funds'] == true;
+  bool get isVendorFundsHold =>
+      type == 'lock' && metadata?['vendor_funds'] == true;
 
   /// Get type label in French
   String get typeLabel {
     if (isSalesCommission) return 'data.wallet.type.sales_commission'.tr;
     if (isSale) return 'data.wallet.type.sale'.tr;
     if (isVendorFundsHold) return 'data.wallet.type.sale_held'.tr;
+    if (isWithdrawal) return 'data.wallet.type.withdrawal'.tr;
     switch (type) {
       case 'credit':
         return 'data.wallet.type.credit'.tr;

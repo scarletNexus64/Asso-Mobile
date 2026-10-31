@@ -231,11 +231,15 @@ class FirebaseMessagingService extends GetxService with WidgetsBindingObserver {
     }
     if (defaultTargetPlatform == TargetPlatform.iOS ||
         defaultTargetPlatform == TargetPlatform.macOS) {
-      // One foreground presentation path: our local notification, not a second native banner.
+      // Sur iOS, c'est iOS qui affiche le push quand l'app est ouverte.
+      // firebase_messaging reste le délégué des notifications et répond
+      // avec ces options pour toutes les notifications, y compris les
+      // notifications locales : à false, plus rien ne s'affichait.
+      // Le son reste piloté par le payload APNs (absent pour les annonces).
       await _firebaseMessaging.setForegroundNotificationPresentationOptions(
-        alert: false,
-        badge: false,
-        sound: false,
+        alert: true,
+        badge: true,
+        sound: true,
       );
     }
 
@@ -455,6 +459,11 @@ class FirebaseMessagingService extends GetxService with WidgetsBindingObserver {
         // Aucune navigation ici : elle n'a lieu qu'au tap sur la notification
         // (voir _onNotificationTapped). Naviguer à la réception envoyait tout
         // utilisateur actif sur la fiche de chaque produit publié.
+        //
+        // Sur iOS, iOS l'affiche déjà (voir les options de présentation) :
+        // pas de notification locale en double. Le tap passe alors par
+        // onMessageOpenedApp.
+        if (!kIsWeb && (Platform.isIOS || Platform.isMacOS)) return;
         unawaited(_showLocalNotification(message));
       }),
     );
@@ -640,6 +649,13 @@ class FirebaseMessagingService extends GetxService with WidgetsBindingObserver {
       case 'wallet_withdrawal_success':
       case 'wallet_withdrawal_failed':
         Get.toNamed(Routes.WALLET_HISTORY);
+        break;
+
+      // Compte de virement (IBAN) validé, refusé ou à compléter.
+      case 'stripe_account_approved':
+      case 'stripe_account_rejected':
+      case 'stripe_account_requirements':
+        Get.toNamed(Routes.STRIPE_CONNECT);
         break;
 
       // Commande avec acompte : solde débloqué, payé, échoué ou commande clôturée.

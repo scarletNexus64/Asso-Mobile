@@ -11,6 +11,11 @@ import '../../../data/models/real_estate_models.dart';
 import '../../../data/providers/currency_service.dart';
 import '../controllers/immo_home_controller.dart';
 
+/// Obx seulement si [watch] : un Obx qui ne lit aucun prix (donc aucune
+/// devise observable) lève « improper use of GetX ».
+Widget immoCurrencyObx(bool watch, Widget Function() builder) =>
+    watch ? Obx(builder) : builder();
+
 /// Montant FCFA affiché dans la devise de l'utilisateur.
 String immoPrice(num amount) =>
     CurrencyService.formatFromPivot(amount.toDouble());
@@ -499,7 +504,7 @@ class ImmoLandPriceText extends StatelessWidget {
         .copyWith(decoration: TextDecoration.lineThrough);
     final align = end ? CrossAxisAlignment.end : CrossAxisAlignment.start;
 
-    return Obx(() {
+    return immoCurrencyObx(price.perM2 != null || price.total != null, () {
       final perM2 = price.perM2;
       final total = price.total;
       final String headline;

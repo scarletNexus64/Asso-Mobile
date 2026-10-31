@@ -1,53 +1,40 @@
 import '../../core/values/constants.dart';
 import 'api_provider.dart';
 
-/// Appels API pour l'onboarding Stripe Connect côté vendeur (compte de virement IBAN).
+/// Appels API du compte de virement vendeur (IBAN via Stripe Connect).
+///
+/// L'identité et l'IBAN ne transitent jamais par l'application : la
+/// réglementation impose qu'ils soient collectés par Stripe : soit dans le
+/// composant d'inscription intégré (SDK natif), soit sur sa page hébergée.
 class StripeConnectService {
-  /// Statut du compte de virement du vendeur connecté.
+  /// Statut du compte de virement du vendeur connecté (relu chez Stripe).
   /// GET /v1/stripe/connect/status
   static Future<ApiResponse> getStatus() async {
     return await ApiProvider.get(AppConstants.stripeConnectStatusUrl);
   }
 
-  /// Désynchronise l'IBAN enregistré (refusé pendant un virement en cours).
+  /// Session de l'inscription intégrée à l'app (client secret + clé publique).
+  /// Le pays n'est utile qu'à la création du compte.
+  /// POST /v1/stripe/connect/account-session
+  static Future<ApiResponse> accountSession({String? country}) async {
+    return await ApiProvider.post(AppConstants.stripeConnectAccountSessionUrl, body: {
+      if (country != null && country.isNotEmpty) 'country': country,
+    });
+  }
+
+  /// Lien vers la page d'inscription hébergée par Stripe (secours). Le pays n'est utile qu'à la
+  /// création du compte (il est ensuite figé).
+  /// POST /v1/stripe/connect/onboarding
+  static Future<ApiResponse> onboardingLink({String? country}) async {
+    return await ApiProvider.post(AppConstants.stripeConnectOnboardingUrl, body: {
+      if (country != null && country.isNotEmpty) 'country': country,
+    });
+  }
+
+  /// Désynchronise l'IBAN : le compte Stripe est fermé (refusé pendant un
+  /// virement en cours ou s'il reste des fonds).
   /// DELETE /v1/stripe/connect
   static Future<ApiResponse> unlink() async {
     return await ApiProvider.delete(AppConstants.stripeConnectUrl);
-  }
-
-  /// Soumet (ou met à jour) les informations bancaires du vendeur.
-  /// POST /v1/stripe/connect/submit
-  ///
-  /// Les informations d'identité (naissance, téléphone, adresse) sont EXIGÉES par
-  /// le partenaire bancaire : sans elles le compte est créé mais reste bloqué, et
-  /// tout virement est refusé. Elles ne sont pas conservées par l'application.
-  static Future<ApiResponse> submit({
-    required String country,
-    required String iban,
-    required String accountHolderName,
-    required String birthDate, // AAAA-MM-JJ
-    required String phone,
-    required String addressLine1,
-    required String addressCity,
-    required String addressPostalCode,
-    String? addressLine2,
-    String? addressState,
-    String? firstName,
-    String? lastName,
-  }) async {
-    return await ApiProvider.post(AppConstants.stripeConnectSubmitUrl, body: {
-      'country': country,
-      'iban': iban,
-      'account_holder_name': accountHolderName,
-      'birth_date': birthDate,
-      'phone': phone,
-      'address_line1': addressLine1,
-      'address_city': addressCity,
-      'address_postal_code': addressPostalCode,
-      if (addressLine2 != null && addressLine2.isNotEmpty) 'address_line2': addressLine2,
-      if (addressState != null && addressState.isNotEmpty) 'address_state': addressState,
-      if (firstName != null && firstName.isNotEmpty) 'first_name': firstName,
-      if (lastName != null && lastName.isNotEmpty) 'last_name': lastName,
-    });
   }
 }

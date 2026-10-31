@@ -196,7 +196,9 @@ class WalletHistoryView extends GetView<WalletController> {
     }
 
     final isCredit = transaction.isCredit;
-    final amountColor = isCredit
+    final amountColor = transaction.isEscrow
+        ? AppThemeSystem.getPrimaryTextColor(context)
+        : isCredit
         ? AppThemeSystem.successColor
         : AppThemeSystem.errorColor;
 
@@ -261,16 +263,23 @@ class WalletHistoryView extends GetView<WalletController> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          transaction.typeLabel,
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            color: AppThemeSystem.getPrimaryTextColor(context),
+                        Expanded(
+                          child: Text(
+                            transaction.typeLabel,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: AppThemeSystem.getPrimaryTextColor(
+                                context,
+                              ),
+                            ),
                           ),
                         ),
+                        const SizedBox(width: 8),
                         Text(
                           transaction.formattedAmount,
                           style: TextStyle(
@@ -295,27 +304,34 @@ class WalletHistoryView extends GetView<WalletController> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Row(
-                          children: [
-                            Icon(
-                              Icons.access_time_rounded,
-                              size: 14,
-                              color: AppThemeSystem.getSecondaryTextColor(
-                                context,
-                              ),
-                            ),
-                            const SizedBox(width: 4),
-                            Text(
-                              _formatDate(transaction.createdAt),
-                              style: TextStyle(
-                                fontSize: 12,
+                        Flexible(
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.access_time_rounded,
+                                size: 14,
                                 color: AppThemeSystem.getSecondaryTextColor(
                                   context,
                                 ),
                               ),
-                            ),
-                          ],
+                              const SizedBox(width: 4),
+                              Flexible(
+                                child: Text(
+                                  _formatDate(transaction.createdAt),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: AppThemeSystem.getSecondaryTextColor(
+                                      context,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
+                        const SizedBox(width: 8),
                         Container(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 10,

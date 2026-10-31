@@ -65,10 +65,13 @@ class _PayoutAccountSheetState extends State<PayoutAccountSheet> {
     if (!mounted) return;
 
     if (error != null) {
-      AppFeedback.show('wallet.payout_sheet.error'.tr, error,
-          snackPosition: SnackPosition.BOTTOM,
-          backgroundColor: AppThemeSystem.errorColor,
-          colorText: Colors.white);
+      AppFeedback.show(
+        'wallet.payout_sheet.error'.tr,
+        error,
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: AppThemeSystem.errorColor,
+        colorText: Colors.white,
+      );
       return;
     }
 
@@ -87,9 +90,11 @@ class _PayoutAccountSheetState extends State<PayoutAccountSheet> {
     if (!mounted) return;
     Get.back(result: ok);
     if (ok) {
-      AppFeedback.show('wallet.payout_sheet.deleted_title'.tr,
-          'wallet.payout_sheet.deleted_message'.tr,
-          snackPosition: SnackPosition.BOTTOM);
+      AppFeedback.show(
+        'wallet.payout_sheet.deleted_title'.tr,
+        'wallet.payout_sheet.deleted_message'.tr,
+        snackPosition: SnackPosition.BOTTOM,
+      );
     }
   }
 
@@ -114,16 +119,23 @@ class _PayoutAccountSheetState extends State<PayoutAccountSheet> {
                 ? const SizedBox(
                     width: 18,
                     height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
                   )
                 : const Icon(Icons.check_rounded),
-            label: Text(existing == null
-                ? 'wallet.payout_sheet.save'.tr
-                : 'wallet.payout_sheet.update'.tr),
+            label: Text(
+              existing == null
+                  ? 'wallet.payout_sheet.save'.tr
+                  : 'wallet.payout_sheet.update'.tr,
+            ),
             style: ElevatedButton.styleFrom(
               backgroundColor: AppThemeSystem.primaryColor,
               foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+              ),
             ),
           ),
         );
@@ -132,47 +144,53 @@ class _PayoutAccountSheetState extends State<PayoutAccountSheet> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-        KpayPhoneSelector(
-          initialProviderCode: existing?['provider']?.toString(),
-          initialPhone: existing?['phone_number']?.toString(),
-          onChanged: ({
-            required String? providerCode,
-            required String? phoneNumber,
-            required String currency,
-            required bool isValid,
-          }) {
-            setState(() {
-              _provider = providerCode;
-              _phone = phoneNumber;
-              _valid = isValid;
-            });
-          },
-        ),
-        const SizedBox(height: 16),
-        TextField(
-          controller: _holderController,
-          textCapitalization: TextCapitalization.words,
-          decoration: InputDecoration(
-            labelText: 'wallet.payout_sheet.holder_label'.tr,
-            helperText: 'wallet.payout_sheet.holder_helper'.tr,
-            prefixIcon: const Icon(Icons.person_outline_rounded),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+          KpayPhoneSelector(
+            initialProviderCode: existing?['provider']?.toString(),
+            initialPhone: existing?['phone_number']?.toString(),
+            onChanged:
+                ({
+                  required String? providerCode,
+                  required String? phoneNumber,
+                  required String currency,
+                  required bool isValid,
+                }) {
+                  setState(() {
+                    _provider = providerCode;
+                    _phone = phoneNumber;
+                    _valid = isValid;
+                  });
+                },
           ),
-        ),
-        if (existing != null) ...[
           const SizedBox(height: 16),
-          SizedBox(
-            width: double.infinity,
-            child: TextButton.icon(
-              onPressed: _delete,
-              icon: Icon(Icons.delete_outline_rounded, color: AppThemeSystem.errorColor),
-              label: Text(
-                'wallet.payout_sheet.delete'.tr,
-                style: TextStyle(color: AppThemeSystem.errorColor),
+          TextField(
+            controller: _holderController,
+            textCapitalization: TextCapitalization.words,
+            decoration: InputDecoration(
+              labelText: 'wallet.payout_sheet.holder_label'.tr,
+              helperText: 'wallet.payout_sheet.holder_helper'.tr,
+              prefixIcon: const Icon(Icons.person_outline_rounded),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
               ),
             ),
           ),
-        ],
+          if (existing != null) ...[
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: TextButton.icon(
+                onPressed: _delete,
+                icon: Icon(
+                  Icons.delete_outline_rounded,
+                  color: AppThemeSystem.errorColor,
+                ),
+                label: Text(
+                  'wallet.payout_sheet.delete'.tr,
+                  style: TextStyle(color: AppThemeSystem.errorColor),
+                ),
+              ),
+            ),
+          ],
         ],
       ),
     );

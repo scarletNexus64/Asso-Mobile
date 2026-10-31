@@ -21,18 +21,30 @@ Future<void> showImmoQuoteSheet(
   BuildContext context, {
   required RealEstateListing listing,
   RealEstateUnit? unit,
+  ImmoLotChoice choice = ImmoLotChoice.single,
   ValueChanged<int?>? onContinue,
 }) {
   return AppSheet.show(
-    _QuoteSheet(listing: listing, unit: unit, onContinue: onContinue),
+    _QuoteSheet(
+      listing: listing,
+      unit: unit,
+      choice: choice,
+      onContinue: onContinue,
+    ),
   );
 }
 
 class _QuoteSheet extends StatefulWidget {
-  const _QuoteSheet({required this.listing, this.unit, this.onContinue});
+  const _QuoteSheet({
+    required this.listing,
+    this.unit,
+    this.choice = ImmoLotChoice.single,
+    this.onContinue,
+  });
 
   final RealEstateListing listing;
   final RealEstateUnit? unit;
+  final ImmoLotChoice choice;
   final ValueChanged<int?>? onContinue;
 
   @override
@@ -58,6 +70,8 @@ class _QuoteSheetState extends State<_QuoteSheet> {
       widget.listing.id,
       unitId: widget.unit?.id,
       advanceMonths: widget.listing.isLand ? null : _months,
+      quantity: widget.choice.quantity,
+      whole: widget.choice.whole,
     );
     if (!mounted || request != _quoteRequest) return;
     setState(() {
@@ -75,9 +89,9 @@ class _QuoteSheetState extends State<_QuoteSheet> {
       title: listing.isLand
           ? 'immo.quote.title_land'.tr
           : 'immo.quote.title'.tr,
-      subtitle: widget.unit == null
+      subtitle: widget.unit == null && !widget.choice.whole
           ? listing.title
-          : '${listing.title} · ${widget.unit!.label}',
+          : '${listing.title} · ${widget.choice.label(widget.unit, lots: q?.quantity)}',
       footer: AppButton(
         label: 'immo.quote.continue'.tr,
         onPressed: _loading || q == null || widget.onContinue == null
@@ -99,7 +113,8 @@ class _QuoteSheetState extends State<_QuoteSheet> {
               actionLabel: 'immo.home.retry'.tr,
               onAction: _load,
             )
-          : Obx(
+          : immoCurrencyObx(
+              !listing.isLand,
               () => Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -119,10 +134,11 @@ class _QuoteSheetState extends State<_QuoteSheet> {
                   if (listing.isLand)
                     ImmoLotPaymentDetails(
                       payment: immoLotPayment(q, widget.unit),
-                      pricePerM2: ImmoLandPrice.of(
-                        listing,
-                        unit: widget.unit,
-                      ).perM2,
+                      // Prix au m² d'un seul lot : sans objet pour tout le terrain.
+                      pricePerM2: widget.choice.whole
+                          ? null
+                          : ImmoLandPrice.of(listing, unit: widget.unit).perM2,
+                      lotCount: q.quantity,
                     )
                   else ...[
                     _row(

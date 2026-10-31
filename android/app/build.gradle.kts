@@ -83,4 +83,6 @@ flutter {
 dependencies {
     // Core library desugaring for Java 8+ support
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
+    // Inscription vendeur Stripe Connect intégrée (même version que stripe-android de flutter_stripe).
+    implementation("com.stripe:connect:23.1.0")
 }

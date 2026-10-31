@@ -58,6 +58,12 @@ class ProfileView extends GetView<ProfileController> {
                   onTap: controller.goToWallet,
                 ),
                 _MenuItem(
+                  icon: Icons.credit_card_rounded,
+                  title: 'profile.menu.payment_methods'.tr,
+                  subtitle: 'profile.menu.payment_methods_subtitle'.tr,
+                  onTap: controller.goToPaymentMethods,
+                ),
+                _MenuItem(
                   icon: Icons.favorite_outline_rounded,
                   title: 'profile.menu.favorites'.tr,
                   subtitle: 'profile.menu.favorites_subtitle'.tr,

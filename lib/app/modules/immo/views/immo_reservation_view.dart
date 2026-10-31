@@ -17,6 +17,7 @@ import '../../../data/models/real_estate_models.dart';
 import '../../../data/providers/real_estate_service.dart';
 import '../immo_nav.dart';
 import '../widgets/immo_dispute_sheet.dart';
+import '../widgets/immo_lot_payment.dart';
 import '../widgets/immo_widgets.dart';
 
 /// Suivi d'une réservation : coordonnées débloquées, compte à rebours de la
@@ -382,7 +383,7 @@ class _ImmoReservationViewState extends State<ImmoReservationView> {
                     _row(
                       context,
                       r.isLand
-                          ? 'immo.quote.lot_price'.tr
+                          ? immoLotPriceLabel(r.quantity)
                           : 'immo.quote.monthly_rent'.tr,
                       immoPrice(r.unitPrice),
                     ),

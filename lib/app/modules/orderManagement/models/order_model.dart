@@ -55,6 +55,9 @@ class OrderModel {
   /// Vente déjà créditée sur le Wallet du vendeur.
   final bool settled;
 
+  /// Remise au transporteur préparée par ASSO (agence, suivi automatique).
+  final CarrierHandoverInfo? carrierHandover;
+
   /// Commande expédiée par un transporteur (SOLEX, DHL…) et non par un livreur.
   bool get isCarrier => delivery?.isCarrier == true;
 
@@ -104,6 +107,7 @@ class OrderModel {
     this.delivery,
     this.deposit,
     this.settled = false,
+    this.carrierHandover,
   });
 
   /// Nombre total d'articles
@@ -214,6 +218,53 @@ class OrderModel {
       delivery: delivery,
       deposit: deposit,
       settled: settled,
+      carrierHandover: carrierHandover,
+    );
+  }
+}
+
+/// Remise au transporteur : agence de départ et numéro de suivi fixés par ASSO.
+class CarrierHandoverInfo {
+  final String? agencyName;
+  final String? agencyAddress;
+  final String? agencyCity;
+  final String? agencyPhone;
+
+  /// Le transporteur vient chercher le colis à la boutique.
+  final bool collectedAtShop;
+
+  /// DHL, FedEx… : le numéro du bordereau du transporteur reste à saisir.
+  final bool requiresTrackingNumber;
+
+  const CarrierHandoverInfo({
+    this.agencyName,
+    this.agencyAddress,
+    this.agencyCity,
+    this.agencyPhone,
+    this.collectedAtShop = false,
+    this.requiresTrackingNumber = false,
+  });
+
+  bool get hasAgency => (agencyName ?? '').isNotEmpty;
+
+  static CarrierHandoverInfo? fromMap(dynamic raw) {
+    if (raw is! Map) return null;
+    final agency = raw['agency'] is Map ? raw['agency'] as Map : const {};
+    String? text(dynamic v) {
+      final s = v?.toString().trim();
+      return (s == null || s.isEmpty) ? null : s;
+    }
+
+    return CarrierHandoverInfo(
+      agencyName: text(agency['name']),
+      agencyAddress: text(agency['address']),
+      agencyCity: text(agency['city']),
+      // « À confirmer » n'est pas un numéro : on ne l'affiche pas.
+      agencyPhone: RegExp(r'\d{6}').hasMatch(text(agency['phone']) ?? '')
+          ? text(agency['phone'])
+          : null,
+      collectedAtShop: raw['collected_at_shop'] == true,
+      requiresTrackingNumber: raw['requires_tracking_number'] == true,
     );
   }
 }

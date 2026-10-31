@@ -5,8 +5,8 @@ import '../controllers/stripe_connect_controller.dart';
 import '../../../core/utils/app_design.dart';
 import '../../../core/widgets/app_ui.dart';
 
-/// Écran vendeur : saisir son IBAN pour être payé par virement, et suivre le
-/// statut de validation par ASSO.
+/// Écran vendeur : configurer son compte de virement (IBAN) sur la page
+/// sécurisée de Stripe, et suivre le statut de validation par ASSO.
 class StripeConnectView extends GetView<StripeConnectController> {
   const StripeConnectView({super.key});
 
@@ -24,36 +24,34 @@ class StripeConnectView extends GetView<StripeConnectController> {
         return RefreshIndicator(
           onRefresh: controller.loadStatus,
           child: ListView(
-            // Formulaire IBAN : faire défiler referme le clavier qui cachait
-            // le bouton d'enregistrement.
-            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
             padding: const EdgeInsets.all(16),
             children: [
               _intro(context),
               const SizedBox(height: 16),
-              // La bannière n'est utile qu'au-dessus du formulaire (cas rejeté).
-              // Les états « validé » et « en attente » ont leur propre carte plein écran.
               if (controller.isRejected) ...[
                 _statusBanner(context),
                 const SizedBox(height: 16),
               ],
-              // Statut inconnu : ne PAS afficher le formulaire, qui laisserait
+              // Statut inconnu : ne PAS proposer l'inscription, qui laisserait
               // croire qu'aucun IBAN n'est enregistré.
               if (controller.loadError.value != null && controller.status.value == null)
                 _loadErrorCard(context)
-              else if (controller.isApproved)
-                _approvedCard(context)
-              else if (controller.isPending) ...[
-                // Dossier en cours d'examen : plus aucune saisie possible. Si le
-                // partenaire réclame des précisions, le bandeau l'annonce et la
-                // correction passe par le support (qui rouvre le formulaire).
+              else if (controller.isApproved) ...[
+                if (controller.needsMoreInfo) ...[
+                  _moreInfoBanner(context),
+                  const SizedBox(height: 16),
+                ],
+                _approvedCard(context),
+              ] else if (controller.isPending) ...[
+                // Dossier en cours d'examen. Si Stripe réclame des précisions, le
+                // vendeur les fournit lui-même sur la page Stripe.
                 if (controller.needsMoreInfo) ...[
                   _moreInfoBanner(context),
                   const SizedBox(height: 16),
                 ],
                 _pendingCard(context),
               ] else
-                _form(context),
+                _setupCard(context),
             ],
           ),
         );
@@ -117,6 +115,10 @@ class StripeConnectView extends GetView<StripeConnectController> {
                   'stripe_connect.view.more_info_contact'.tr,
                   style: const TextStyle(fontSize: 12.5, color: Colors.black54, height: 1.3),
                 ),
+                const SizedBox(height: 10),
+                _openStripeButton('stripe_connect.hosted.complete'.tr, outlined: true),
+                _hostedFallbackButton(),
+                _formErrorBox(),
               ],
             ),
           ),
@@ -300,7 +302,11 @@ class StripeConnectView extends GetView<StripeConnectController> {
             ),
           ],
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 12),
+        _openStripeButton('stripe_connect.hosted.change_iban'.tr, outlined: true, onPressed: controller.checkIban),
+        _hostedFallbackButton(),
+        _formErrorBox(),
+        const SizedBox(height: 4),
         _unlinkButton(),
       ],
     );
@@ -394,7 +400,11 @@ class StripeConnectView extends GetView<StripeConnectController> {
             ),
           ),
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 10),
+        _openStripeButton('stripe_connect.hosted.change_iban'.tr, outlined: true, onPressed: controller.checkIban),
+        _hostedFallbackButton(),
+        _formErrorBox(),
+        const SizedBox(height: 4),
         _unlinkButton(),
         const SizedBox(height: 12),
         Row(
@@ -474,200 +484,276 @@ class StripeConnectView extends GetView<StripeConnectController> {
     );
   }
 
-  Widget _form(BuildContext context) {
-    return Obx(() => Form(
-      key: controller.formKey,
-      // Après un premier envoi, chaque champ se revérifie pendant la saisie.
-      autovalidateMode: controller.submitAttempted.value
-          ? AutovalidateMode.onUserInteraction
-          : AutovalidateMode.disabled,
-      child: Column(
+  /// Inscription à faire (ou à reprendre / corriger) sur la page Stripe.
+  Widget _setupCard(BuildContext context) {
+    final unfinished = controller.registrationUnfinished;
+    final rejected = controller.isRejected;
+
+    return Obx(() => Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (controller.awaitingStripe.value) ...[
+              _waitingBanner(),
+              const SizedBox(height: 16),
+            ],
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(
+                          unfinished ? Icons.pending_actions_rounded : Icons.lock_outline_rounded,
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            unfinished
+                                ? 'stripe_connect.hosted.resume_title'.tr
+                                : 'stripe_connect.hosted.setup_title'.tr,
+                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15.5),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      unfinished
+                          ? 'stripe_connect.hosted.resume_message'.tr
+                          : 'stripe_connect.hosted.setup_message'.tr,
+                      style: const TextStyle(fontSize: 13.5, height: 1.4, color: Colors.black87),
+                    ),
+                    const SizedBox(height: 16),
+                    // Pas encore de compte : l'IBAN est d'abord vérifié par ASSO (banque
+                    // couverte par Stripe ?) ; le pays du compte en découle.
+                    if (!controller.hasAccount.value && controller.verifiedCountry.value == null)
+                      _openStripeButton(
+                        'stripe_connect.hosted.add_iban'.tr,
+                        onPressed: controller.checkIban,
+                        icon: Icons.add_card_rounded,
+                      )
+                    else ...[
+                      if (!controller.hasAccount.value) ...[
+                        _verifiedIbanNotice(context),
+                        const SizedBox(height: 12),
+                      ],
+                      _formErrorBox(),
+                      _openStripeButton(
+                        rejected
+                            ? 'stripe_connect.hosted.fix'.tr
+                            : unfinished
+                                ? 'stripe_connect.hosted.resume'.tr
+                                : 'stripe_connect.hosted.start'.tr,
+                      ),
+                      _hostedFallbackButton(),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+            if (controller.hasAccount.value) ...[
+              const SizedBox(height: 8),
+              _unlinkButton(),
+            ],
+          ],
+        ));
+  }
+
+  /// Page Stripe ouverte : on rappelle de la terminer, le statut suit tout seul.
+  Widget _waitingBanner() {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppDesign.accent.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppDesign.accent.withValues(alpha: 0.4)),
+      ),
+      child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (controller.isRejected)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: Text(
-                'stripe_connect.view.fix_and_resend'.tr,
-                style: const TextStyle(fontWeight: FontWeight.w600),
-              ),
+          const Padding(
+            padding: EdgeInsets.only(top: 2),
+            child: SizedBox(
+              width: 18,
+              height: 18,
+              child: CircularProgressIndicator(strokeWidth: 2, color: AppDesign.accent),
             ),
-          TextFormField(
-            controller: controller.holderController,
-            onChanged: (_) => controller.clearFieldError('account_holder_name'),
-            textCapitalization: TextCapitalization.words,
-            decoration: InputDecoration(
-              labelText: 'stripe_connect.view.holder_label'.tr,
-              hintText: 'stripe_connect.view.holder_hint'.tr,
-              border: const OutlineInputBorder(),
-              errorMaxLines: 3,
-            ),
-            validator: controller.validateHolder,
           ),
-          const SizedBox(height: 14),
-          TextFormField(
-            controller: controller.ibanController,
-            onChanged: (_) => controller.clearFieldError('iban'),
-            textCapitalization: TextCapitalization.characters,
-            decoration: const InputDecoration(
-              labelText: 'IBAN',
-              hintText: 'FR76 3000 6000 0112 3456 7890 189',
-              border: OutlineInputBorder(),
-              errorMaxLines: 3,
-            ),
-            validator: controller.validateIban,
-          ),
-          const SizedBox(height: 14),
-          TextFormField(
-            controller: controller.countryController,
-            onChanged: (_) => controller.clearFieldError('country'),
-            textCapitalization: TextCapitalization.characters,
-            maxLength: 2,
-            decoration: InputDecoration(
-              labelText: 'stripe_connect.view.country_label'.tr,
-              hintText: 'FR',
-              border: const OutlineInputBorder(),
-              errorMaxLines: 3,
-            ),
-            validator: controller.validateCountry,
-          ),
-          const SizedBox(height: 22),
-          Text(
-            'stripe_connect.view.identity_title'.tr,
-            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'stripe_connect.view.identity_subtitle'.tr,
-            style: const TextStyle(fontSize: 12.5, color: Colors.black54, height: 1.35),
-          ),
-          const SizedBox(height: 14),
-          // La date n'est pas saisie au clavier : sélecteur borné à 18 ans.
-          Obx(() => InkWell(
-                onTap: () => controller.pickBirthDate(context),
-                borderRadius: BorderRadius.circular(4),
-                child: InputDecorator(
-                  decoration: InputDecoration(
-                    labelText: 'stripe_connect.birth_date'.tr,
-                    border: const OutlineInputBorder(),
-                    suffixIcon: const Icon(Icons.calendar_today, size: 18),
-                    errorText: controller.birthDateError,
-                    errorMaxLines: 3,
-                  ),
-                  child: Text(
-                    controller.birthDateLabel.isEmpty
-                        ? 'stripe_connect.view.date_placeholder'.tr
-                        : controller.birthDateLabel,
-                    style: TextStyle(
-                      color: controller.birthDateLabel.isEmpty
-                          ? Colors.black45
-                          : Colors.black87,
-                    ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'stripe_connect.hosted.waiting_title'.tr,
+                  style: const TextStyle(fontWeight: FontWeight.bold, color: AppDesign.accent),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'stripe_connect.hosted.waiting_message'.tr,
+                  style: const TextStyle(fontSize: 13, height: 1.3),
+                ),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: TextButton.icon(
+                    onPressed: controller.checkStatusNow,
+                    icon: const Icon(Icons.refresh_rounded, size: 18),
+                    label: Text('stripe_connect.hosted.check_status'.tr),
+                    style: TextButton.styleFrom(padding: EdgeInsets.zero),
                   ),
                 ),
-              )),
-          const SizedBox(height: 14),
-          TextFormField(
-            controller: controller.phoneController,
-            onChanged: (_) => controller.clearFieldError('phone'),
-            keyboardType: TextInputType.phone,
-            decoration: InputDecoration(
-              labelText: 'stripe_connect.view.phone_label'.tr,
-              hintText: '+33 6 12 34 56 78',
-              border: const OutlineInputBorder(),
-              errorMaxLines: 3,
+              ],
             ),
-            validator: controller.validatePhone,
-          ),
-          const SizedBox(height: 14),
-          TextFormField(
-            controller: controller.addressLine1Controller,
-            onChanged: (_) => controller.clearFieldError('address_line1'),
-            textCapitalization: TextCapitalization.words,
-            decoration: InputDecoration(
-              labelText: 'stripe_connect.view.address_label'.tr,
-              hintText: 'stripe_connect.view.address_hint'.tr,
-              border: const OutlineInputBorder(),
-              errorMaxLines: 3,
-            ),
-            validator: controller.validateAddressLine,
-          ),
-          const SizedBox(height: 14),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                flex: 2,
-                child: TextFormField(
-                  controller: controller.addressCityController,
-                  onChanged: (_) => controller.clearFieldError('address_city'),
-                  textCapitalization: TextCapitalization.words,
-                  decoration: InputDecoration(
-                    labelText: 'stripe_connect.view.city_label'.tr,
-                    border: const OutlineInputBorder(),
-                    errorMaxLines: 3,
-                  ),
-                  validator: controller.validateCity,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: TextFormField(
-                  controller: controller.addressPostalController,
-                  onChanged: (_) => controller.clearFieldError('address_postal_code'),
-                  decoration: InputDecoration(
-                    labelText: 'stripe_connect.view.postal_label'.tr,
-                    border: const OutlineInputBorder(),
-                    errorMaxLines: 3,
-                  ),
-                  validator: controller.validatePostalCode,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 18),
-          if (controller.formError.value != null)
-            Container(
-              width: double.infinity,
-              margin: const EdgeInsets.only(bottom: 12),
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: AppDesign.danger.withValues(alpha: 0.08),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: AppDesign.danger.withValues(alpha: 0.4)),
-              ),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Icon(Icons.error_outline, color: AppDesign.danger, size: 20),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      controller.formError.value!,
-                      style: const TextStyle(color: AppDesign.danger, fontWeight: FontWeight.w600),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          SizedBox(
-            width: double.infinity,
-            child: Obx(() => ElevatedButton(
-                  onPressed: controller.isSubmitting.value ? null : controller.submit,
-                  style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                  ),
-                  child: controller.isSubmitting.value
-                      ? const SizedBox(
-                          height: 20,
-                          width: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                        )
-                      : Text(controller.isRejected ? 'stripe_connect.view.resend_iban'.tr : 'stripe_connect.view.save_iban'.tr),
-                )),
           ),
         ],
       ),
-    ));
+    );
+  }
+
+  /// Bouton qui ouvre la page sécurisée de Stripe.
+  Widget _openStripeButton(
+    String label, {
+    bool outlined = false,
+    VoidCallback? onPressed,
+    IconData icon = Icons.account_balance_rounded,
+  }) {
+    final action = onPressed ?? controller.openStripe;
+    return Obx(() {
+      final busy = controller.isOpening.value;
+      final child = busy
+          ? Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: outlined ? AppDesign.accent : Colors.white,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Text('stripe_connect.hosted.opening'.tr),
+              ],
+            )
+          : Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon, size: 18),
+                const SizedBox(width: 8),
+                Flexible(child: Text(label, textAlign: TextAlign.center)),
+              ],
+            );
+
+      return SizedBox(
+        width: double.infinity,
+        child: outlined
+            ? OutlinedButton(
+                onPressed: busy ? null : action,
+                style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 12)),
+                child: child,
+              )
+            : ElevatedButton(
+                onPressed: busy ? null : action,
+                style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 14)),
+                child: child,
+              ),
+      );
+    });
+  }
+
+  /// IBAN vérifié par ASSO, en attente de l'inscription Stripe.
+  Widget _verifiedIbanNotice(BuildContext context) {
+    final last4 = controller.verifiedLast4.value;
+    final country = controller.verifiedCountry.value ?? '';
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 10, 4, 10),
+      decoration: BoxDecoration(
+        color: AppDesign.success.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppDesign.success.withValues(alpha: 0.35)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.verified_rounded, color: AppDesign.success, size: 20),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  last4 != null
+                      ? 'stripe_connect.hosted.iban_verified'.trParams({'last4': last4, 'country': country})
+                      : 'stripe_connect.hosted.iban_verified_country'.trParams({'country': country}),
+                  style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13.5),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'stripe_connect.hosted.iban_verified_hint'.tr,
+                  style: const TextStyle(fontSize: 12, color: Colors.black54, height: 1.3),
+                ),
+              ],
+            ),
+          ),
+          TextButton(
+            onPressed: controller.checkIban,
+            child: Text('stripe_connect.hosted.change'.tr),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Secours : la page sécurisée hébergée par Stripe, si le formulaire intégré
+  /// n'a pas pu se charger sur l'appareil.
+  Widget _hostedFallbackButton() {
+    return Obx(() {
+      if (!controller.showHostedFallback.value) return const SizedBox.shrink();
+      return Padding(
+        padding: const EdgeInsets.only(top: 8),
+        child: SizedBox(
+          width: double.infinity,
+          child: TextButton.icon(
+            onPressed: controller.isOpening.value ? null : controller.openHostedPage,
+            icon: const Icon(Icons.open_in_new_rounded, size: 18),
+            label: Text('stripe_connect.hosted.open_secure_page'.tr),
+          ),
+        ),
+      );
+    });
+  }
+
+  /// Erreur du dernier essai (lien Stripe indisponible, réseau…).
+  Widget _formErrorBox() {
+    return Obx(() {
+      final error = controller.formError.value;
+      if (error == null) return const SizedBox.shrink();
+      return Container(
+        width: double.infinity,
+        margin: const EdgeInsets.only(top: 4, bottom: 12),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: AppDesign.danger.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: AppDesign.danger.withValues(alpha: 0.4)),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Icon(Icons.error_outline, color: AppDesign.danger, size: 20),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                error,
+                style: const TextStyle(color: AppDesign.danger, fontWeight: FontWeight.w600),
+              ),
+            ),
+          ],
+        ),
+      );
+    });
   }
 }

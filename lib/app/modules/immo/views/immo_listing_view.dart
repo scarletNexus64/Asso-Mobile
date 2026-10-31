@@ -16,6 +16,7 @@ import '../immo_nav.dart';
 import '../controllers/immo_home_controller.dart';
 import '../widgets/immo_lot_payment.dart';
 import '../widgets/immo_quote_sheet.dart';
+import '../widgets/immo_sheets.dart';
 import '../widgets/immo_widgets.dart';
 import 'immo_reserve_view.dart';
 import 'immo_room_tour_view.dart';
@@ -37,6 +38,10 @@ class _ImmoListingViewState extends State<ImmoListingView> {
   RealEstateListing? _listing;
   bool _loading = true;
   int? _unitId;
+
+  /// Terrain vendu au morceau : nombre de morceaux du lot choisi, ou tout le terrain.
+  int _quantity = 1;
+  bool _whole = false;
   bool _descriptionExpanded = false;
 
   @override
@@ -58,11 +63,23 @@ class _ImmoListingViewState extends State<ImmoListingView> {
       _unitId = available.isNotEmpty
           ? available.first.id
           : (units.isNotEmpty ? units.first.id : null);
+      _quantity = 1;
+      _whole = false;
     });
   }
 
   RealEstateUnit? get _unit =>
       _listing?.units.firstWhereOrNull((u) => u.id == _unitId);
+
+  ImmoLotChoice get _choice => _listing?.isLand ?? false
+      ? ImmoLotChoice(quantity: _quantity, whole: _whole)
+      : ImmoLotChoice.single;
+
+  void _selectUnit(RealEstateUnit unit) => setState(() {
+    if (_unitId != unit.id) _quantity = 1;
+    _unitId = unit.id;
+    _whole = false;
+  });
 
   void _openTour({int roomIndex = 0}) {
     final listing = _listing!;
@@ -106,7 +123,11 @@ class _ImmoListingViewState extends State<ImmoListingView> {
   }
 
   /// Récapitulatif des montants, puis parcours de réservation (compte requis).
-  void _reserve(RealEstateListing listing, RealEstateUnit? unit) {
+  void _reserve(
+    RealEstateListing listing,
+    RealEstateUnit? unit, [
+    ImmoLotChoice choice = ImmoLotChoice.single,
+  ]) {
     if (listing.isSale) {
       ImmoActions.contactAsso(context, listing);
       return;
@@ -127,12 +148,14 @@ class _ImmoListingViewState extends State<ImmoListingView> {
         context,
         listing: listing,
         unit: unit,
+        choice: choice,
         onContinue: (advanceMonths) => ImmoNav.push(
           ImmoNav.reserve,
           arguments: ImmoReserveArgs(
             listing: listing,
             unit: unit,
             advanceMonths: advanceMonths,
+            choice: choice,
           ),
         ),
       ),
@@ -169,8 +192,9 @@ class _ImmoListingViewState extends State<ImmoListingView> {
       bottomNavigationBar: _BottomBar(
         listing: listing,
         unit: _unit,
+        choice: _choice,
         onContact: () => ImmoActions.contactAsso(context, listing),
-        onReserve: () => _reserve(listing, _unit),
+        onReserve: () => _reserve(listing, _unit, _choice),
       ),
       body: RefreshIndicator(
         onRefresh: _load,
@@ -357,25 +381,59 @@ class _ImmoListingViewState extends State<ImmoListingView> {
                       ),
                     ],
                     const SizedBox(height: AppDesign.space3),
-                    for (final unit in listing.units) ...[
-                      _UnitCard(
-                        listing: listing,
-                        unit: unit,
-                        selected: unit.id == _unitId,
-                        onSelect: unit.isAvailable
-                            ? () => setState(() => _unitId = unit.id)
-                            : null,
-                        onReserve: unit.isAvailable && !listing.isOwnListing
-                            ? () {
-                                setState(() => _unitId = unit.id);
-                                _reserve(listing, unit);
-                              }
-                            : null,
-                        onContact: () =>
-                            ImmoActions.contactAsso(context, listing),
+                    if (listing.subdivision?.canBuyWhole ?? false) ...[
+                      Wrap(
+                        spacing: AppDesign.space2,
+                        children: [
+                          ImmoFilterChip(
+                            label: 'immo.lots.mode_single'.tr,
+                            selected: !_whole,
+                            trailing: null,
+                            onTap: () => setState(() => _whole = false),
+                          ),
+                          ImmoFilterChip(
+                            label: 'immo.lots.mode_whole'.tr,
+                            selected: _whole,
+                            trailing: null,
+                            onTap: () => setState(() => _whole = true),
+                          ),
+                        ],
                       ),
                       const SizedBox(height: AppDesign.space3),
                     ],
+                    if (_whole && listing.subdivision?.wholePayment != null)
+                      _WholeLandCard(
+                        subdivision: listing.subdivision!,
+                        onReserve: listing.isOwnListing
+                            ? null
+                            : () => _reserve(listing, null, _choice),
+                        onContact: () =>
+                            ImmoActions.contactAsso(context, listing),
+                      )
+                    else
+                      for (final unit in listing.units) ...[
+                        _UnitCard(
+                          listing: listing,
+                          unit: unit,
+                          selected: unit.id == _unitId,
+                          quantity: unit.id == _unitId ? _quantity : 1,
+                          onQuantity: listing.isLand && unit.unitsAvailable > 1
+                              ? (v) => setState(() => _quantity = v)
+                              : null,
+                          onSelect: unit.isAvailable
+                              ? () => _selectUnit(unit)
+                              : null,
+                          onReserve: unit.isAvailable && !listing.isOwnListing
+                              ? () {
+                                  _selectUnit(unit);
+                                  _reserve(listing, unit, _choice);
+                                }
+                              : null,
+                          onContact: () =>
+                              ImmoActions.contactAsso(context, listing),
+                        ),
+                        const SizedBox(height: AppDesign.space3),
+                      ],
                   ],
                   const SizedBox(height: AppDesign.space4),
                   if (!listing.isSale) _Protection(listing: listing),
@@ -984,11 +1042,17 @@ class _UnitCard extends StatelessWidget {
     required this.onSelect,
     required this.onReserve,
     required this.onContact,
+    this.quantity = 1,
+    this.onQuantity,
   });
 
   final RealEstateListing listing;
   final RealEstateUnit unit;
   final bool selected;
+
+  /// Terrain : nombre de morceaux de ce lot (compteur si [onQuantity]).
+  final int quantity;
+  final ValueChanged<int>? onQuantity;
   final VoidCallback? onSelect;
   final VoidCallback? onReserve;
   final VoidCallback onContact;
@@ -1194,6 +1258,17 @@ class _UnitCard extends StatelessWidget {
               ],
             ),
           ],
+          if (listing.isLand && selected && !sold && onQuantity != null) ...[
+            const SizedBox(height: AppDesign.space3),
+            ImmoMonthsStepper(
+              label: 'immo.lots.quantity'.tr,
+              unitLabel: 'immo.lots.quantity_unit'.tr,
+              value: quantity,
+              min: 1,
+              max: unit.unitsAvailable,
+              onChanged: onQuantity!,
+            ),
+          ],
           if (listing.isLand && selected && !sold && unit.payment != null) ...[
             const SizedBox(height: AppDesign.space3),
             Container(
@@ -1209,8 +1284,9 @@ class _UnitCard extends StatelessWidget {
                 border: Border.all(color: context.ds.border),
               ),
               child: ImmoLotPaymentDetails(
-                payment: unit.payment!,
-                showLotPrice: false,
+                payment: immoLotPaymentTimes(unit.payment!, quantity),
+                showLotPrice: quantity > 1,
+                lotCount: quantity,
               ),
             ),
           ],
@@ -1245,6 +1321,89 @@ class _UnitCard extends StatelessWidget {
 
     // Morceau vendu : grisé, non sélectionnable.
     return sold ? Opacity(opacity: 0.5, child: card) : card;
+  }
+}
+
+/// « Tout le terrain » : tous les morceaux encore en vente, en un seul paiement.
+class _WholeLandCard extends StatelessWidget {
+  const _WholeLandCard({
+    required this.subdivision,
+    required this.onReserve,
+    required this.onContact,
+  });
+
+  final RealEstateSubdivision subdivision;
+  final VoidCallback? onReserve;
+  final VoidCallback onContact;
+
+  @override
+  Widget build(BuildContext context) {
+    final count = subdivision.lotsAvailable;
+
+    return AppCard(
+      color: AppDesign.accentSubtle,
+      padding: const EdgeInsets.all(AppDesign.space4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const AppSelectionDot(isSelected: true),
+              const SizedBox(width: AppDesign.space3),
+              Expanded(
+                child: Text(
+                  'immo.lots.whole_label'.trParams({'count': '$count'}),
+                  style: context.textStyle(
+                    FontSizeType.subtitle1,
+                    fontWeight: FontWeight.w800,
+                    color: context.ds.textPrimary,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppDesign.space3),
+          Container(
+            padding: const EdgeInsets.fromLTRB(
+              AppDesign.space3,
+              AppDesign.space3,
+              AppDesign.space3,
+              AppDesign.space1,
+            ),
+            decoration: BoxDecoration(
+              color: context.ds.surface,
+              borderRadius: BorderRadius.circular(AppDesign.radiusSm),
+              border: Border.all(color: context.ds.border),
+            ),
+            child: ImmoLotPaymentDetails(
+              payment: subdivision.wholePayment!,
+              lotCount: count,
+            ),
+          ),
+          const SizedBox(height: AppDesign.space3),
+          Row(
+            children: [
+              Expanded(
+                child: AppButton(
+                  label: 'immo.detail.contact_short'.tr,
+                  variant: AppButtonVariant.secondary,
+                  size: AppButtonSize.small,
+                  onPressed: onContact,
+                ),
+              ),
+              const SizedBox(width: AppDesign.space3),
+              Expanded(
+                child: AppButton(
+                  label: 'immo.detail.pay_deposit'.tr,
+                  size: AppButtonSize.small,
+                  onPressed: onReserve,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
   }
 }
 
@@ -1534,16 +1693,58 @@ class _BottomBar extends StatelessWidget {
     required this.unit,
     required this.onContact,
     required this.onReserve,
+    this.choice = ImmoLotChoice.single,
   });
 
   final RealEstateListing listing;
   final RealEstateUnit? unit;
+  final ImmoLotChoice choice;
   final VoidCallback onContact;
   final VoidCallback onReserve;
 
+  /// Plusieurs morceaux : « Parcelle × 3 » puis le prix total.
+  Widget? _selectionPrice(BuildContext context) {
+    final sub = listing.subdivision;
+    final total = choice.whole
+        ? sub?.wholePayment?.lotPrice
+        : (unit == null ? null : unit!.price * choice.quantity);
+    if (!choice.isMultiple || total == null) return null;
+
+    return Obx(
+      () => Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            choice.label(unit, lots: sub?.lotsAvailable),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: context.textStyle(
+              FontSizeType.caption,
+              color: context.ds.textSecondary,
+            ),
+          ),
+          Text(
+            immoPrice(total),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: context.textStyle(
+              FontSizeType.subtitle1,
+              fontWeight: FontWeight.w800,
+              color: context.ds.textPrimary,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final available = unit?.isAvailable ?? listing.unitsAvailable > 0;
+    final available = choice.whole
+        ? (listing.subdivision?.canBuyWhole ?? false)
+        : unit?.isAvailable ?? listing.unitsAvailable > 0;
+    final selectionPrice = _selectionPrice(context);
 
     return Container(
       padding: EdgeInsets.fromLTRB(
@@ -1559,7 +1760,9 @@ class _BottomBar extends StatelessWidget {
       child: Row(
         children: [
           Expanded(
-            child: listing.isLand
+            child: selectionPrice != null
+                ? selectionPrice
+                : listing.isLand
                 ? ImmoLandPriceText(
                     price: ImmoLandPrice.of(listing, unit: unit),
                     lotSurface: unit == null && listing.subdivision != null

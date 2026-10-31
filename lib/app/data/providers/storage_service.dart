@@ -11,6 +11,7 @@ import 'package:get_storage/get_storage.dart';
 import '../../core/values/constants.dart';
 import '../models/user_model.dart';
 import 'cache_manager.dart';
+import '../services/country_sync.dart';
 
 /// Service for managing local storage (tokens, user data, preferences)
 class StorageService {
@@ -261,7 +262,10 @@ class StorageService {
     _user = user;
     userRevision.value++;
     disableGuestMode();
-    return _persistSession();
+    // Compte créé en mode vitrine : il reprend le pays choisi à l'accueil.
+    return _persistSession().then((_) {
+      CountrySync.push();
+    });
   }
 
   static Future<void> clearAuthSession() {

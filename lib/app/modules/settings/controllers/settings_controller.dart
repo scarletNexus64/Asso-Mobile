@@ -1,3 +1,4 @@
+import '../../../data/services/country_sync.dart';
 import 'package:asso/app/core/utils/app_feedback.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
@@ -2120,6 +2121,8 @@ class SettingsController extends GetxController {
         isoCode: countryData['isoCode'] as String? ?? '',
         country: country,
       );
+      // Choix volontaire : devient le pays du compte.
+      CountrySync.push(explicit: true);
 
       // Update local state
       selectedCountry.value = country;

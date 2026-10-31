@@ -762,6 +762,7 @@ class ImmoMonthsStepper extends StatelessWidget {
     required this.onChanged,
     this.min = 1,
     this.max = 60,
+    this.unitLabel,
   });
 
   final String label;
@@ -769,6 +770,9 @@ class ImmoMonthsStepper extends StatelessWidget {
   final ValueChanged<int> onChanged;
   final int min;
   final int max;
+
+  /// Unité affichée après la valeur (« mois » par défaut).
+  final String? unitLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -799,7 +803,7 @@ class ImmoMonthsStepper extends StatelessWidget {
             ),
           ),
           Text(
-            'immo.criteria.months_unit'.tr,
+            unitLabel ?? 'immo.criteria.months_unit'.tr,
             style: context.textStyle(
               FontSizeType.body2,
               color: context.ds.textSecondary,

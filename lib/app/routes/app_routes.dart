@@ -28,6 +28,7 @@ abstract class Routes {
   static const WALLET = _Paths.WALLET;
   static const VENDOR_CONFIG = _Paths.VENDOR_CONFIG;
   static const STRIPE_CONNECT = _Paths.STRIPE_CONNECT;
+  static const PAYMENT_METHODS = _Paths.PAYMENT_METHODS;
   static const ORDER_MANAGEMENT = _Paths.ORDER_MANAGEMENT;
   static const STORE_MANAGEMENT = _Paths.STORE_MANAGEMENT;
   static const SHIP_CONFIG = _Paths.SHIP_CONFIG;
@@ -47,6 +48,7 @@ abstract class Routes {
   static const PRODUCT_MANAGEMENT = _Paths.PRODUCT_MANAGEMENT;
   static const ADD_PRODUCT = _Paths.ADD_PRODUCT;
   static const WALLET_HISTORY = _Paths.WALLET_HISTORY;
+  static const WALLET_WITHDRAW = _Paths.WALLET_WITHDRAW;
   static const INVENTORY_LIST = _Paths.INVENTORY_LIST;
   static const INVOICES = _Paths.INVOICES;
   static const VENDOR_DETAILS = _Paths.VENDOR_DETAILS;
@@ -91,6 +93,7 @@ abstract class _Paths {
   static const WALLET = '/wallet';
   static const VENDOR_CONFIG = '/vendor-config';
   static const STRIPE_CONNECT = '/stripe-connect';
+  static const PAYMENT_METHODS = '/payment-methods';
   static const ORDER_MANAGEMENT = '/order-management';
   static const STORE_MANAGEMENT = '/store-management';
   static const SHIP_CONFIG = '/ship-config';
@@ -110,6 +113,7 @@ abstract class _Paths {
   static const PRODUCT_MANAGEMENT = '/product-management';
   static const ADD_PRODUCT = '/add-product';
   static const WALLET_HISTORY = '/wallet/history';
+  static const WALLET_WITHDRAW = '/wallet/withdraw';
   static const INVENTORY_LIST = '/inventory-list';
   static const INVOICES = '/invoices';
   static const VENDOR_DETAILS = '/vendor-details';

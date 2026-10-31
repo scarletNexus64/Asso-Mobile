@@ -1,19 +1,35 @@
+import 'dart:async';
+
 import 'package:asso/app/core/utils/app_feedback.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:url_launcher/url_launcher.dart';
 
+import '../../../data/providers/api_provider.dart';
 import '../../../data/providers/stripe_connect_service.dart';
+import '../../../data/services/stripe_connect_onboarding_bridge.dart';
 import '../../../core/utils/app_design.dart';
+import '../../../routes/app_pages.dart';
+import '../../wallet/controllers/wallet_controller.dart';
+import '../../wallet/widgets/iban_setup_sheet.dart';
 
-/// Onboarding Stripe Connect côté vendeur : saisie de l'IBAN + suivi du statut
-/// de validation (null → pending → approved / rejected).
-class StripeConnectController extends GetxController {
+/// Compte de virement du vendeur (IBAN) via Stripe Connect.
+///
+/// L'identité et l'IBAN sont collectés par Stripe (obligation réglementaire en
+/// France), dans le composant d'inscription INTÉGRÉ à l'app (SDK natif, aux
+/// couleurs d'ASSO). Si l'écran natif ne peut pas s'ouvrir, la page hébergée par
+/// Stripe s'ouvre en secours dans le navigateur intégré, et le statut est relu au
+/// retour au premier plan et régulièrement tant que l'inscription est en cours.
+///
+/// Statut ASSO : null (inscription à faire) → pending (inscription terminée, en
+/// revue) → approved / rejected.
+class StripeConnectController extends GetxController with WidgetsBindingObserver {
   final isLoading = true.obs;
-  final isSubmitting = false.obs;
+  final isOpening = false.obs;
   final isUnlinking = false.obs;
 
   /// Statut non chargé (réseau, session expirée, serveur). Sans cela, un échec
-  /// silencieux affichait le formulaire vierge : le vendeur croyait son IBAN perdu.
+  /// silencieux affichait l'écran d'inscription : le vendeur croyait son IBAN perdu.
   final loadError = RxnString();
 
   // Statut renvoyé par le serveur.
@@ -24,141 +40,140 @@ class StripeConnectController extends GetxController {
   final holderName = RxnString();
   final hasAccount = false.obs;
 
-  // État de vérification chez le partenaire bancaire (bloc `stripe` du statut) :
-  // un compte peut être validé par ASSO tout en restant bloqué côté partenaire.
+  // État chez Stripe (bloc `stripe` du statut) : un compte peut être validé par
+  // ASSO tout en restant bloqué côté Stripe.
   final partnerReady = true.obs;
+  final detailsSubmitted = false.obs;
   final partnerVerification = RxnString();
   final partnerRequirements = <String>[].obs;
 
-  // Formulaire.
-  final formKey = GlobalKey<FormState>();
+  /// La page Stripe a été ouverte : on attend que le vendeur la termine.
+  final awaitingStripe = false.obs;
+
+  /// Le formulaire intégré n'a pas pu se charger : proposer la page hébergée.
+  final showHostedFallback = false.obs;
+
+  /// Pays du compte bancaire (utile seulement à la création du compte Stripe).
   final countryController = TextEditingController(text: 'FR');
-  final ibanController = TextEditingController();
-  final holderController = TextEditingController();
+  final countryError = RxnString();
 
-  // Identité exigée par le partenaire bancaire (non conservée par l'application).
-  final phoneController = TextEditingController();
-  final addressLine1Controller = TextEditingController();
-  final addressCityController = TextEditingController();
-  final addressPostalController = TextEditingController();
-  final birthDate = Rxn<DateTime>();
-
-  /// Erreurs renvoyées par le serveur (saisie refusée ou refus de la banque),
-  /// affichées sous le champ concerné. Clé = nom du champ de l'API.
-  final fieldErrors = <String, String>{}.obs;
-
-  /// Message général affiché au-dessus du bouton après un envoi refusé.
+  /// Message affiché au-dessus du bouton après un échec.
   final formError = RxnString();
 
-  /// Après un premier envoi, chaque champ se revérifie pendant la saisie.
-  final submitAttempted = false.obs;
+  /// IBAN vérifié par ASSO avant l'inscription Stripe (pays couvert par Stripe).
+  /// Le pays du compte en découle ; les 4 derniers chiffres servent à vérifier
+  /// que le vendeur a saisi le même IBAN dans le formulaire Stripe.
+  final verifiedCountry = RxnString();
+  final verifiedLast4 = RxnString();
 
-  /// L'utilisateur corrige un champ : son erreur serveur disparaît.
-  void clearFieldError(String field) {
-    fieldErrors.remove(field);
-    formError.value = null;
-    if (submitAttempted.value) formKey.currentState?.validate();
-  }
+  Timer? _pollTimer;
+  DateTime? _pollUntil;
 
   bool get isApproved => status.value == 'approved';
   bool get isPending => status.value == 'pending';
   bool get isRejected => status.value == 'rejected';
 
-  /// Un compte validé est verrouillé (on ne change pas l'IBAN librement).
-  bool get canEdit => !isApproved;
+  /// Inscription commencée chez Stripe mais pas terminée.
+  bool get registrationUnfinished =>
+      hasAccount.value && status.value == null && !detailsSubmitted.value;
 
-  /// Le partenaire bancaire réclame des informations complémentaires.
-  ///
-  /// Sans ce cas, un compte « en vérification » bloqué chez Stripe était une
-  /// impasse : le vendeur n'avait plus de formulaire, et l'admin ne pouvait pas
-  /// valider un compte que Stripe refuse. On lui rend la main pour renvoyer son
-  /// dossier immédiatement.
+  /// Stripe réclame des informations complémentaires : le vendeur les fournit
+  /// lui-même sur la page Stripe (bouton « Compléter sur Stripe »).
   bool get needsMoreInfo =>
-      isPending && !partnerReady.value && partnerRequirements.isNotEmpty;
+      (isPending || isApproved) && !partnerReady.value && partnerRequirements.isNotEmpty;
 
   @override
   void onInit() {
     super.onInit();
-    loadStatus();
+    WidgetsBinding.instance.addObserver(this);
+
+    // Arrivée depuis la vérification d'IBAN (portefeuille) : on enchaîne sur Stripe.
+    final args = Get.arguments;
+    final autostart = args is Map && args['autostart'] == true;
+    if (args is Map) _applyVerified(args['country']?.toString(), args['last4']?.toString());
+
+    loadStatus().then((_) {
+      if (autostart && !isApproved && !isPending) openStripe();
+    });
+  }
+
+  /// Ouvre l'inscription Stripe après vérification de l'IBAN, depuis n'importe quel
+  /// écran : sur place si l'écran IBAN (ou Moyens de paiement) est ouvert, sinon en
+  /// ouvrant l'écran IBAN.
+  static void startVerified({String? country, String? last4}) {
+    if (Get.isRegistered<StripeConnectController>()) {
+      Get.find<StripeConnectController>()
+        .._applyVerified(country, last4)
+        ..openStripe();
+      return;
+    }
+    Get.toNamed(Routes.STRIPE_CONNECT, arguments: {
+      'country': country,
+      'last4': last4,
+      'autostart': true,
+    });
+  }
+
+  void _applyVerified(String? country, String? last4) {
+    if (country != null && RegExp(r'^[A-Z]{2}$').hasMatch(country)) {
+      verifiedCountry.value = country;
+      countryController.text = country;
+    }
+    if (last4 != null && last4.isNotEmpty) verifiedLast4.value = last4;
+  }
+
+  /// Ajouter / changer d'IBAN : vérification par ASSO d'abord (format, banque
+  /// couverte par Stripe), puis Stripe ou IBAN manuel selon le résultat.
+  Future<void> checkIban() async {
+    if (!Get.isRegistered<WalletController>()) {
+      Get.lazyPut<WalletController>(() => WalletController());
+    }
+    await IbanSetupSheet.show();
   }
 
   @override
   void onClose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _stopPolling();
     countryController.dispose();
-    ibanController.dispose();
-    holderController.dispose();
-    phoneController.dispose();
-    addressLine1Controller.dispose();
-    addressCityController.dispose();
-    addressPostalController.dispose();
     super.onClose();
   }
 
-  /// Date de naissance formatée pour l'API (AAAA-MM-JJ).
-  String get birthDateIso {
-    final d = birthDate.value;
-    if (d == null) return '';
-    return '${d.year.toString().padLeft(4, '0')}-'
-        '${d.month.toString().padLeft(2, '0')}-'
-        '${d.day.toString().padLeft(2, '0')}';
-  }
-
-  /// Date de naissance affichée dans le formulaire (JJ/MM/AAAA).
-  String get birthDateLabel {
-    final d = birthDate.value;
-    if (d == null) return '';
-    return '${d.day.toString().padLeft(2, '0')}/'
-        '${d.month.toString().padLeft(2, '0')}/${d.year}';
-  }
-
-  /// Sélecteur de date borné à la majorité (18 ans), refusée par le partenaire.
-  Future<void> pickBirthDate(BuildContext context) async {
-    final now = DateTime.now();
-    final majority = DateTime(now.year - 18, now.month, now.day);
-
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: birthDate.value ?? DateTime(now.year - 30, 1, 1),
-      // 1900 : une borne à 100 ans rendait inaccessibles les dates de vérification
-      // utilisées en environnement de test (01/01/1901).
-      firstDate: DateTime(1900),
-      lastDate: majority,
-      helpText: 'stripe_connect.birth_date'.tr,
-    );
-
-    if (picked != null) {
-      birthDate.value = picked;
-      clearFieldError('birth_date');
+  /// Retour dans l'app (Safari fermé, app rouverte) : on relit le statut.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && awaitingStripe.value) {
+      loadStatus(silent: true);
     }
   }
 
-  Future<void> loadStatus() async {
+  Future<void> loadStatus({bool silent = false}) async {
     try {
-      isLoading.value = true;
-      loadError.value = null;
+      if (!silent) isLoading.value = true;
       final res = await StripeConnectService.getStatus();
       if (res.success && res.data != null) {
+        loadError.value = null;
         _applyStatus(res.data!);
-      } else {
+      } else if (!silent) {
         loadError.value = res.message.isNotEmpty
             ? res.message
             : 'stripe_connect.errors.status_load_failed'.tr;
       }
     } catch (_) {
-      loadError.value = 'stripe_connect.errors.server_unreachable'.tr;
+      if (!silent) loadError.value = 'stripe_connect.errors.server_unreachable'.tr;
     } finally {
-      isLoading.value = false;
+      if (!silent) isLoading.value = false;
     }
   }
 
   /// Applique le statut renvoyé par le serveur.
   ///
   /// ⚠️ `ApiResponse.data` porte le corps COMPLET (`{success, message, data}`) et
-  /// non le sous-objet `data` : sans ce déballage, `status` restait null et l'écran
-  /// réaffichait le formulaire alors que l'IBAN était bien enregistré.
+  /// non le sous-objet `data` : on le déballe.
   void _applyStatus(Map<String, dynamic> body) {
     final raw = body['data'];
     final data = raw is Map<String, dynamic> ? raw : body;
+    final wasWaiting = awaitingStripe.value;
 
     status.value = data['status'] as String?;
     rejectionReason.value = data['rejection_reason'] as String?;
@@ -167,27 +182,249 @@ class StripeConnectController extends GetxController {
     holderName.value = data['account_holder_name'] as String?;
     hasAccount.value = data['has_account'] == true;
 
-    if ((holderName.value ?? '').isNotEmpty && holderController.text.isEmpty) {
-      holderController.text = holderName.value!;
-    }
     if ((bankCountry.value ?? '').isNotEmpty) {
       countryController.text = bankCountry.value!;
     }
 
-    // Bloc optionnel : absent si le partenaire n'est pas configuré côté serveur.
+    // Bloc absent si Stripe n'est pas configuré ou sans compte.
     final partner = data['stripe'];
     if (partner is Map) {
       partnerReady.value = partner['ready'] == true;
+      detailsSubmitted.value = partner['details_submitted'] == true;
       partnerVerification.value = partner['verification']?.toString();
       partnerRequirements.value = (partner['requirements_due'] as List?)
               ?.map((e) => e.toString())
               .toList() ??
           <String>[];
+    } else {
+      partnerReady.value = true;
+      detailsSubmitted.value = false;
+      partnerVerification.value = null;
+      partnerRequirements.clear();
+    }
+
+    // Inscription terminée pendant que la page Stripe était ouverte.
+    final finished = isPending || isApproved || detailsSubmitted.value;
+    if (wasWaiting && finished) {
+      _finishWaiting();
     }
   }
 
-  /// Désynchronise l'IBAN après confirmation : plus de virement vers ce
-  /// compte, le formulaire est rouvert pour en enregistrer un autre.
+  /// Pays saisi, validé (seulement avant la création du compte Stripe).
+  /// Renvoie false si la saisie est invalide (erreur affichée sous le champ).
+  bool _readCountry(void Function(String?) use) {
+    if (hasAccount.value) {
+      use(null);
+      return true;
+    }
+    final country = countryController.text.trim().toUpperCase();
+    final error = validateCountry(country);
+    if (error != null) {
+      countryError.value = error;
+      return false;
+    }
+    use(country);
+    return true;
+  }
+
+  /// Configure le compte de virement : inscription intégrée à l'app, avec la
+  /// page hébergée par Stripe en secours.
+  Future<void> openStripe() async {
+    if (isOpening.value) return;
+    formError.value = null;
+    countryError.value = null;
+    showHostedFallback.value = false;
+
+    String? country;
+    if (!_readCountry((c) => country = c)) return;
+
+    isOpening.value = true;
+    try {
+      final res = await StripeConnectService.accountSession(country: country);
+      final payload = res.data?['data'];
+      final secret = payload is Map ? payload['client_secret']?.toString() : null;
+      final key = payload is Map ? payload['publishable_key']?.toString() : null;
+
+      if (!res.success || secret == null || secret.isEmpty || key == null || key.isEmpty) {
+        // Serveur pas encore à jour (route absente) : la page hébergée prend le relais.
+        if (res.statusCode == 404) {
+          await _openHosted(country);
+          return;
+        }
+        _showApiError(res, fallbackMessage: 'stripe_connect.hosted.link_missing'.tr);
+        return;
+      }
+
+      final status = payload is Map ? payload['status'] : null;
+      if (status is Map<String, dynamic>) _applyStatus(status);
+
+      final result = await StripeConnectOnboardingBridge.present(
+        publishableKey: key,
+        clientSecret: secret,
+        title: 'stripe_connect.view.title'.tr,
+        primaryColor: AppDesign.accent,
+        refreshSecret: _refreshSessionSecret,
+      );
+
+      if (!result.opened) {
+        // SDK natif absent ou écran impossible à présenter : page hébergée.
+        await _openHosted(null);
+        return;
+      }
+
+      await loadStatus(silent: true);
+      final finished = isPending || isApproved || detailsSubmitted.value;
+      if (finished) {
+        _announceReceived();
+        _warnIfOtherIban();
+      } else if (result.loadError != null) {
+        // Le formulaire intégré n'a pas pu se charger : on propose la page sécurisée.
+        formError.value = 'stripe_connect.hosted.embedded_load_failed'.tr;
+        showHostedFallback.value = true;
+      }
+    } catch (_) {
+      formError.value = 'stripe_connect.errors.generic_retry'.tr;
+    } finally {
+      isOpening.value = false;
+    }
+  }
+
+  /// Session expirée pendant l'inscription : nouveau client secret.
+  Future<String?> _refreshSessionSecret() async {
+    final res = await StripeConnectService.accountSession();
+    final payload = res.data?['data'];
+    return res.success && payload is Map ? payload['client_secret']?.toString() : null;
+  }
+
+  /// Ouvre la page d'inscription hébergée par Stripe (bouton de secours).
+  Future<void> openHostedPage() async {
+    if (isOpening.value) return;
+    formError.value = null;
+    countryError.value = null;
+    showHostedFallback.value = false;
+
+    String? country;
+    if (!_readCountry((c) => country = c)) return;
+
+    isOpening.value = true;
+    try {
+      await _openHosted(country);
+    } catch (_) {
+      formError.value = 'stripe_connect.errors.generic_retry'.tr;
+    } finally {
+      isOpening.value = false;
+    }
+  }
+
+  Future<void> _openHosted(String? country) async {
+    final res = await StripeConnectService.onboardingLink(country: country ?? _pendingCountry());
+    final payload = res.data?['data'];
+    final url = payload is Map ? payload['url']?.toString() : null;
+
+    if (!res.success || url == null || url.isEmpty) {
+      _showApiError(res, fallbackMessage: 'stripe_connect.hosted.link_missing'.tr);
+      return;
+    }
+
+    final status = payload is Map ? payload['status'] : null;
+    if (status is Map<String, dynamic>) _applyStatus(status);
+
+    final opened = await _launch(Uri.parse(url));
+    if (!opened) {
+      formError.value = 'stripe_connect.hosted.open_failed'.tr;
+      return;
+    }
+    _startWaiting();
+  }
+
+  /// Pays à transmettre si le compte n'existe pas encore.
+  String? _pendingCountry() =>
+      hasAccount.value ? null : countryController.text.trim().toUpperCase();
+
+  /// Erreur d'API affichée au vendeur (sous le champ pays si elle le concerne).
+  void _showApiError(ApiResponse res, {required String fallbackMessage}) {
+    final errors = res.data?['errors'];
+    if (errors is Map && errors['country'] is List && (errors['country'] as List).isNotEmpty) {
+      countryError.value = '${(errors['country'] as List).first}';
+    }
+    formError.value =
+        res.success ? fallbackMessage : _friendlyError(res.message, statusCode: res.statusCode);
+    // Le compte a pu être créé avant l'échec : on relit le statut.
+    loadStatus(silent: true);
+  }
+
+  /// Navigateur intégré (Safari / Chrome Custom Tabs, recommandé par Stripe :
+  /// une WebView bloque la vérification d'identité), sinon le navigateur.
+  Future<bool> _launch(Uri uri) async {
+    for (final mode in [LaunchMode.inAppBrowserView, LaunchMode.externalApplication]) {
+      try {
+        if (await launchUrl(uri, mode: mode)) return true;
+      } catch (_) {
+        // Mode non pris en charge sur cet appareil : on essaie le suivant.
+      }
+    }
+    return false;
+  }
+
+  void _startWaiting() {
+    awaitingStripe.value = true;
+    _pollUntil = DateTime.now().add(const Duration(minutes: 15));
+    _pollTimer?.cancel();
+    _pollTimer = Timer.periodic(const Duration(seconds: 5), (_) {
+      if (_pollUntil != null && DateTime.now().isAfter(_pollUntil!)) {
+        _stopPolling();
+        return;
+      }
+      loadStatus(silent: true);
+    });
+  }
+
+  void _stopPolling() {
+    _pollTimer?.cancel();
+    _pollTimer = null;
+  }
+
+  void _finishWaiting() {
+    _stopPolling();
+    awaitingStripe.value = false;
+    // Referme la page Stripe si elle est encore ouverte dans l'app.
+    closeInAppWebView().catchError((_) {});
+    _announceReceived();
+  }
+
+  void _announceReceived() {
+    showHostedFallback.value = false;
+    formError.value = null;
+    AppFeedback.show(
+      'stripe_connect.hosted.done_title'.tr,
+      'stripe_connect.hosted.done_message'.tr,
+      snackPosition: SnackPosition.BOTTOM,
+      backgroundColor: AppDesign.success,
+      colorText: Colors.white,
+    );
+  }
+
+  /// L'IBAN saisi chez Stripe n'est pas celui vérifié par ASSO : on le signale
+  /// (sans bloquer : c'est celui enregistré chez Stripe qui sera utilisé).
+  void _warnIfOtherIban() {
+    final checked = verifiedLast4.value;
+    final saved = ibanLast4.value;
+    if (checked == null || saved == null || checked == saved) return;
+    AppFeedback.show(
+      'stripe_connect.hosted.iban_mismatch_title'.tr,
+      'stripe_connect.hosted.iban_mismatch_message'.trParams({'saved': saved, 'checked': checked}),
+      snackPosition: SnackPosition.BOTTOM,
+      backgroundColor: AppDesign.accent,
+      colorText: Colors.white,
+      duration: const Duration(seconds: 6),
+    );
+  }
+
+  /// Le vendeur revient sans avoir terminé : relecture manuelle du statut.
+  Future<void> checkStatusNow() => loadStatus(silent: true);
+
+  /// Désynchronise l'IBAN après confirmation : le compte Stripe est fermé et
+  /// l'écran d'inscription est rouvert pour en configurer un autre.
   Future<void> unlink() async {
     if (isUnlinking.value) return;
     final ok = await Get.dialog<bool>(AlertDialog(
@@ -210,7 +447,9 @@ class StripeConnectController extends GetxController {
       if (res.success && res.data != null) _applyStatus(res.data!);
       AppFeedback.show(
         res.success ? 'stripe_connect.unlink.done_title'.tr : 'stripe_connect.error'.tr,
-        res.message.isNotEmpty ? res.message : 'stripe_connect.errors.generic_retry'.tr,
+        res.success
+            ? (res.message.isNotEmpty ? res.message : 'stripe_connect.unlink.done_title'.tr)
+            : _friendlyError(res.message, statusCode: res.statusCode),
         snackPosition: SnackPosition.BOTTOM,
         backgroundColor: res.success ? AppDesign.success : AppDesign.danger,
         colorText: Colors.white,
@@ -228,74 +467,20 @@ class StripeConnectController extends GetxController {
     }
   }
 
-  Future<void> submit() async {
-    if (isSubmitting.value) return;
-    submitAttempted.value = true;
-    fieldErrors.clear();
-    formError.value = null;
-    final fieldsValid = formKey.currentState?.validate() ?? false;
-    if (!fieldsValid || birthDate.value == null) return;
-
-    isSubmitting.value = true;
-    try {
-      final res = await StripeConnectService.submit(
-        country: countryController.text.trim().toUpperCase(),
-        iban: ibanController.text.replaceAll(' ', '').toUpperCase(),
-        accountHolderName: holderController.text.trim(),
-        birthDate: birthDateIso,
-        phone: phoneController.text.trim(),
-        addressLine1: addressLine1Controller.text.trim(),
-        addressCity: addressCityController.text.trim(),
-        addressPostalCode: addressPostalController.text.trim(),
-      );
-
-      if (res.success) {
-        if (res.data != null) _applyStatus(res.data!);
-        AppFeedback.show(
-          'stripe_connect.submitted_title'.tr,
-          'stripe_connect.submitted_message'.tr,
-          snackPosition: SnackPosition.BOTTOM,
-          backgroundColor: AppDesign.success,
-          colorText: Colors.white,
-        );
-      } else {
-        _applyServerErrors(res.data?['errors']);
-        if (fieldErrors.isEmpty) {
-          formError.value = _friendlyError(
-            res.message,
-            statusCode: res.statusCode,
-          );
-        }
-      }
-    } catch (_) {
-      formError.value = 'stripe_connect.errors.generic_retry'.tr;
-    } finally {
-      // Do not retain the bank identifier in the form after sending it to the API.
-      ibanController.clear();
-      isSubmitting.value = false;
-    }
-  }
-
-  /// Erreurs par champ de la réponse (`errors: {champ: [message]}`) : affichées
-  /// sous chaque champ, le formulaire est revalidé pour les montrer.
-  void _applyServerErrors(dynamic errors) {
-    if (errors is! Map) return;
-    errors.forEach((field, messages) {
-      final message = messages is List && messages.isNotEmpty ? '${messages.first}' : '$messages';
-      if (message.trim().isNotEmpty) fieldErrors['$field'] = message;
-    });
-    formKey.currentState?.validate();
-  }
-
-  /// Nettoie un message d'erreur venant du serveur : si du texte technique brut
-  /// (erreur Stripe, hôte réseau, code errno…) fuit encore, on le remplace par un
-  /// message clair. Filet de sécurité pour les backends pas encore à jour.
+  /// Message d'erreur présentable : les messages du serveur sont traduits et
+  /// choisis ; un texte technique brut (Stripe, réseau…) est remplacé.
   String _friendlyError(String message, {int? statusCode}) {
     final raw = message.trim();
-    if (statusCode == 503 || statusCode == 0) {
-      return 'stripe_connect.errors.service_unavailable'.tr;
+    // Échec réseau côté app (hors ligne, pas d'internet) : ApiProvider fournit
+    // déjà un message traduit.
+    if (statusCode == 0) {
+      return raw.isNotEmpty ? raw : 'stripe_connect.errors.service_unavailable'.tr;
     }
-    if (raw.isEmpty) return 'stripe_connect.errors.save_failed'.tr;
+    if (raw.isEmpty) {
+      return statusCode == 503
+          ? 'stripe_connect.errors.service_unavailable'.tr
+          : 'stripe_connect.errors.generic_retry'.tr;
+    }
 
     final low = raw.toLowerCase();
     const technicalMarkers = [
@@ -310,120 +495,23 @@ class StripeConnectController extends GetxController {
       'ssl',
       'curl',
       'exception',
+      'acct_',
     ];
-    final looksTechnical = technicalMarkers.any(low.contains);
-
-    if (looksTechnical) {
-      if (low.contains('resolve host') ||
-          low.contains('could not connect') ||
-          low.contains('network') ||
-          low.contains('timeout') ||
-          low.contains('connection')) {
-        return 'stripe_connect.errors.service_unavailable'.tr;
-      }
-      if (low.contains('iban') || low.contains('bank') || low.contains('account_number')) {
-        return 'stripe_connect.errors.iban_seems_invalid'.tr;
-      }
-      return 'stripe_connect.errors.save_error_later'.tr;
+    if (technicalMarkers.any(low.contains)) {
+      return 'stripe_connect.errors.service_unavailable'.tr;
     }
 
-    // Backend messages are localized and curated; unexpected messages remain hidden.
-    if (raw == 'payments.stripe_connect.already_validated'.tr ||
-        raw == 'stripe_connect.errors.account_already_validated'.tr) {
-      return 'stripe_connect.errors.account_already_validated'.tr;
+    // 4xx/5xx avec message du serveur : il explique la cause au vendeur.
+    if (statusCode == 422 || statusCode == 503 || statusCode == 502 || statusCode == 409) {
+      return raw;
     }
-    if (raw == 'payments.stripe_connect.error_country_unsupported'.tr) {
-      return 'stripe_connect.validation.country_unsupported'.tr;
-    }
-    if (statusCode == 422) return raw;
-
-    return 'stripe_connect.errors.save_failed'.tr;
+    return 'stripe_connect.errors.generic_retry'.tr;
   }
-
-  // ---- Validateurs ----
-  // Vérifications locales : un message précis par champ, puis l'erreur du
-  // serveur pour ce champ s'il en a renvoyé une.
 
   String? validateCountry(String? v) {
     final country = (v ?? '').trim().toUpperCase();
     if (country.isEmpty) return 'stripe_connect.validation.country_required'.tr;
     if (!RegExp(r'^[A-Z]{2}$').hasMatch(country)) return 'stripe_connect.validation.country_code'.tr;
-    final iban = ibanController.text.replaceAll(' ', '').toUpperCase();
-    if (iban.length >= 2 && RegExp(r'^[A-Z]{2}').hasMatch(iban) && iban.substring(0, 2) != country) {
-      return 'stripe_connect.validation.country_mismatch'.trParams({'iban': iban.substring(0, 2)});
-    }
-    return fieldErrors['country'];
-  }
-
-  String? validateIban(String? v) {
-    final iban = (v ?? '').replaceAll(RegExp(r'\s+'), '').toUpperCase();
-    if (iban.isEmpty) return 'stripe_connect.validation.iban_required'.tr;
-    if (!RegExp(r'^[A-Z]{2}').hasMatch(iban)) return 'stripe_connect.validation.iban_country'.tr;
-    if (!RegExp(r'^[A-Z]{2}[0-9]{2}').hasMatch(iban)) return 'stripe_connect.validation.iban_key'.tr;
-    if (!RegExp(r'^[A-Z0-9]+$').hasMatch(iban)) return 'stripe_connect.validation.iban_characters'.tr;
-    if (iban.length < 15) return 'stripe_connect.validation.iban_too_short'.tr;
-    if (iban.length > 34) return 'stripe_connect.validation.iban_too_long'.tr;
-    if (!_ibanChecksumOk(iban)) return 'stripe_connect.validation.iban_checksum'.tr;
-    return fieldErrors['iban'];
-  }
-
-  /// Clé de contrôle de l'IBAN (modulo 97) : repère une faute de frappe.
-  bool _ibanChecksumOk(String iban) {
-    final rearranged = iban.substring(4) + iban.substring(0, 4);
-    var remainder = 0;
-    for (final unit in rearranged.codeUnits) {
-      final digits = unit >= 65 ? '${unit - 55}' : String.fromCharCode(unit);
-      for (final d in digits.codeUnits) {
-        remainder = (remainder * 10 + (d - 48)) % 97;
-      }
-    }
-    return remainder == 1;
-  }
-
-  String? validateHolder(String? v) {
-    final holder = (v ?? '').trim();
-    if (holder.isEmpty) return 'stripe_connect.validation.holder_required'.tr;
-    if (holder.length > 255) return 'stripe_connect.validation.holder_too_long'.tr;
-    return fieldErrors['account_holder_name'];
-  }
-
-  /// Date de naissance : obligatoire, choisie au calendrier.
-  String? get birthDateError {
-    if (birthDate.value == null && submitAttempted.value) {
-      return 'stripe_connect.birth_date_required_message'.tr;
-    }
-    return fieldErrors['birth_date'];
-  }
-
-  String? validatePhone(String? v) {
-    final phone = (v ?? '').trim();
-    if (phone.isEmpty) return 'stripe_connect.validation.phone_required'.tr;
-    if (!RegExp(r'^\+[1-9][0-9\s().-]*$').hasMatch(phone)) {
-      return 'stripe_connect.validation.phone_international'.tr;
-    }
-    final digits = phone.replaceAll(RegExp(r'[^0-9]'), '');
-    if (digits.length < 8) return 'stripe_connect.validation.phone_incomplete'.tr;
-    if (digits.length > 15) return 'stripe_connect.validation.phone_too_long'.tr;
-    return fieldErrors['phone'];
-  }
-
-  String? validateAddressLine(String? v) {
-    final address = (v ?? '').trim();
-    if (address.isEmpty) return 'stripe_connect.validation.address_required'.tr;
-    if (address.length > 255) return 'stripe_connect.validation.address_too_long'.tr;
-    return fieldErrors['address_line1'];
-  }
-
-  String? validateCity(String? v) {
-    if (v == null || v.trim().isEmpty) return 'stripe_connect.validation.city_required'.tr;
-    if (v.trim().length > 120) return 'stripe_connect.validation.city_too_long'.tr;
-    return fieldErrors['address_city'];
-  }
-
-  String? validatePostalCode(String? v) {
-    final postal = (v ?? '').trim();
-    if (postal.isEmpty) return 'stripe_connect.validation.postal_required'.tr;
-    if (postal.length > 20) return 'stripe_connect.validation.postal_too_long'.tr;
-    return fieldErrors['address_postal_code'];
+    return null;
   }
 }

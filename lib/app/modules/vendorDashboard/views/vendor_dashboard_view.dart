@@ -1006,8 +1006,10 @@ class VendorDashboardView extends GetView<VendorDashboardController> {
                 icon: Icons.account_balance_outlined,
                 title: 'vendor_dashboard.actions.payout_account'.tr,
                 subtitle: 'vendor_dashboard.actions.payout_account_subtitle'.tr,
+                // IBAN et numéro Mobile Money : la même page que Profil →
+                // Moyens de paiement.
                 onTap: controller.onlineOnly(
-                  () => Get.toNamed('/stripe-connect'),
+                  () => Get.toNamed(Routes.PAYMENT_METHODS),
                 ),
                 isLast: true,
               ),

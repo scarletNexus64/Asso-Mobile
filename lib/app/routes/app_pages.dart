@@ -80,7 +80,10 @@ import '../modules/wallet/bindings/wallet_binding.dart';
 import '../modules/wallet/views/wallet_view.dart';
 import '../modules/stripeConnect/bindings/stripe_connect_binding.dart';
 import '../modules/stripeConnect/views/stripe_connect_view.dart';
+import '../modules/paymentMethods/bindings/payment_methods_binding.dart';
+import '../modules/paymentMethods/views/payment_methods_view.dart';
 import '../modules/wallet/views/wallet_history_view.dart';
+import '../modules/wallet/views/withdraw_view.dart';
 import '../modules/welcomer/bindings/welcomer_binding.dart';
 import '../modules/welcomer/views/welcomer_view.dart';
 import '../modules/packageSubscription/bindings/package_subscription_binding.dart';
@@ -238,6 +241,11 @@ class AppPages {
       binding: StripeConnectBinding(),
     ),
     GetPage(
+      name: _Paths.PAYMENT_METHODS,
+      page: () => const PaymentMethodsView(),
+      binding: PaymentMethodsBinding(),
+    ),
+    GetPage(
       name: _Paths.VENDOR_CONFIG,
       page: () => const VendorConfigView(),
       binding: VendorConfigBinding(),
@@ -336,6 +344,11 @@ class AppPages {
     GetPage(
       name: _Paths.WALLET_HISTORY,
       page: () => const WalletHistoryView(),
+      binding: WalletBinding(),
+    ),
+    GetPage(
+      name: _Paths.WALLET_WITHDRAW,
+      page: () => const WithdrawView(),
       binding: WalletBinding(),
     ),
     GetPage(

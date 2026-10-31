@@ -248,6 +248,12 @@ class ProfileController extends GetxController {
   }
 
   /// Wallet ASSO : solde, recharge, paiements, remboursements et retraits (tous profils).
+  void goToPaymentMethods() {
+    if (StorageService.isAuthenticated) {
+      Get.toNamed(Routes.PAYMENT_METHODS);
+    }
+  }
+
   void goToWallet() {
     if (StorageService.isAuthenticated) {
       Get.toNamed(Routes.WALLET);
@@ -255,10 +261,6 @@ class ProfileController extends GetxController {
   }
 
   void goToAddresses() {
-    // TODO
-  }
-
-  void goToPaymentMethods() {
     // TODO
   }
 

@@ -150,16 +150,16 @@ class VendorService {
     });
   }
 
-  /// Remet une commande transporteur au transporteur (SOLEX, DHL…).
+  /// Remet une commande au transporteur (SOLEX, DHL…). L'agence et le numéro de
+  /// suivi sont attribués par le serveur ; [trackingNumber] ne sert qu'aux
+  /// transporteurs à suivi en ligne (DHL, FedEx).
   static Future<ApiResponse> handToCarrier(
     int orderId, {
-    required String trackingNumber,
-    String? location,
+    String? trackingNumber,
     String? note,
   }) async {
     return await ApiProvider.post('${AppConstants.vendorOrdersUrl}/$orderId/hand-to-carrier', body: {
-      'carrier_tracking_number': trackingNumber,
-      if (location != null && location.isNotEmpty) 'location': location,
+      if (trackingNumber != null && trackingNumber.isNotEmpty) 'carrier_tracking_number': trackingNumber,
       if (note != null && note.isNotEmpty) 'note': note,
     });
   }

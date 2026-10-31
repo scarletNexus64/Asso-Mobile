@@ -1,22 +1,19 @@
-import 'package:asso/app/core/utils/app_feedback.dart';
-import 'dart:async';
 import 'package:asso/app/core/utils/auth_guard.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
 import '../controllers/wallet_controller.dart';
+import '../../../routes/app_pages.dart';
 import '../../../core/utils/app_design.dart';
 import '../../../core/utils/app_theme_system.dart';
 import '../../../core/widgets/app_ui.dart';
 import '../../../core/widgets/offline_cache_notice.dart';
-import '../widgets/withdrawal_bottom_sheet.dart';
 import '../widgets/recharge_bottom_sheet.dart';
 import '../widgets/payout_account_sheet.dart';
+import '../widgets/iban_setup_sheet.dart';
 import '../../../core/values/kpay_catalog.dart';
 import '../widgets/quick_confirm_code_dialog.dart';
 import '../widgets/confirm_code_parts.dart';
-import '../../payment/widgets/payment_method_selector.dart';
-import '../../../data/models/payment_method_option.dart';
 import '../../immo/views/immo_reservation_view.dart';
 import '../../immo/widgets/immo_widgets.dart';
 
@@ -604,8 +601,9 @@ class WalletView extends GetView<WalletController> {
               context: context,
               icon: Icons.arrow_circle_up_outlined,
               label: 'wallet.actions.withdraw'.tr,
-              onTap: () =>
-                  controller.onlineOnly(() => _showWithdrawalOptions(context)),
+              onTap: () => controller.onlineOnly(
+                () => Get.toNamed(Routes.WALLET_WITHDRAW),
+              ),
             ),
           ),
           const SizedBox(width: 12),
@@ -1230,15 +1228,28 @@ class WalletView extends GetView<WalletController> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            title,
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                              color: AppThemeSystem.getPrimaryTextColor(
-                                context,
+                          Row(
+                            children: [
+                              Flexible(
+                                child: Text(
+                                  title,
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                    color: AppThemeSystem.getPrimaryTextColor(
+                                      context,
+                                    ),
+                                  ),
+                                ),
                               ),
-                            ),
+                              // Tant qu'aucun IBAN automatique n'est prêt, Mobile
+                              // Money est le moyen conseillé (retrait immédiat).
+                              if (controller.recommendedPayoutMethod.value ==
+                                  'mobile_money') ...[
+                                const SizedBox(width: 6),
+                                const RecommendedBadge(),
+                              ],
+                            ],
                           ),
                           const SizedBox(height: 2),
                           Text(
@@ -1268,9 +1279,119 @@ class WalletView extends GetView<WalletController> {
               ),
             );
           }),
+          const SizedBox(height: 10),
+          _buildBankPayoutCard(context),
         ],
       ),
     );
+  }
+
+  /// Compte bancaire de retrait : IBAN Stripe (automatique), IBAN manuel (≈ 48 h)
+  /// ou rien. Le tap ouvre la vérification d'IBAN ou l'écran Stripe.
+  Widget _buildBankPayoutCard(BuildContext context) {
+    return Obx(() {
+      final type = controller.bankAccountType.value;
+      final stripeStatus = controller.stripeWithdrawStatus.value;
+      final manual = controller.manualBankAccount.value;
+      final hours = controller.manualDelayHours.value;
+
+      final String subtitle;
+      Color accent = AppThemeSystem.bankColor;
+      if (type == 'stripe') {
+        subtitle = 'wallet.payout_methods.bank_stripe_subtitle'.trParams({
+          'last4': controller.stripeIbanLast4.value ?? '••••',
+        });
+      } else if (stripeStatus == 'pending') {
+        subtitle = 'wallet.balances.iban_pending'.tr;
+      } else if (type == 'manual') {
+        subtitle = 'wallet.payout_methods.bank_manual_subtitle'.trParams({
+          'iban': manual?['masked_iban']?.toString() ?? '••••',
+          'hours': '$hours',
+        });
+        accent = AppThemeSystem.warningColor;
+      } else {
+        subtitle = 'wallet.payout_methods.bank_none_subtitle'.tr;
+      }
+      final configured = type != null || stripeStatus == 'pending';
+
+      return InkWell(
+        onTap: () => controller.onlineOnly(() {
+          if (AuthGuard.isGuest) {
+            AppDialogs.showLoginRequiredDialog(
+              context,
+              featureName: 'wallet.iban_link.bank_transfer_feature'.tr,
+            );
+          } else if (type == 'stripe' || stripeStatus == 'pending') {
+            Get.toNamed('/stripe-connect');
+          } else {
+            IbanSetupSheet.show();
+          }
+        }),
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: AppThemeSystem.getSurfaceColor(context),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: configured
+                  ? accent.withValues(alpha: 0.35)
+                  : AppThemeSystem.getBorderColor(context),
+            ),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: accent.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  configured
+                      ? Icons.account_balance_rounded
+                      : Icons.add_rounded,
+                  color: accent,
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'wallet.payout_methods.bank_title'.tr,
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: AppThemeSystem.getPrimaryTextColor(context),
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: AppThemeSystem.getSecondaryTextColor(context),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Text(
+                configured ? 'wallet.payout.edit'.tr : 'wallet.payout.add'.tr,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: AppThemeSystem.primaryColor,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    });
   }
 
   /// Petit lien texte discret sous la carte IBAN — pas de bouton
@@ -1299,8 +1420,11 @@ class WalletView extends GetView<WalletController> {
               context,
               featureName: 'wallet.iban_link.bank_transfer_feature'.tr,
             );
-          } else {
+          } else if (status == 'pending') {
             Get.toNamed('/stripe-connect');
+          } else {
+            // Vérifie d'abord l'IBAN : Stripe n'accepte pas toutes les banques.
+            IbanSetupSheet.show();
           }
         },
         borderRadius: BorderRadius.circular(6),
@@ -1413,390 +1537,6 @@ class WalletView extends GetView<WalletController> {
                 ),
               ),
             ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// Affiche les options de retrait
-  /// Sélecteur de méthode de retrait — réutilise EXACTEMENT le widget de paiement
-  /// (PaymentMethodSelector) avec des options construites depuis les soldes de retrait.
-  /// Les deux rails (KPay / Virement IBAN) sont toujours affichés,
-  /// grisés + non cliquables quand indisponibles (aucun solde, ou IBAN non validé).
-  void _showWithdrawalOptions(BuildContext context) async {
-    // Seul le disponible se retire : les fonds bloqués attendent la
-    // confirmation du client ou l'issue d'une réclamation.
-    final kpayBal = controller.kpayAvailableBalance;
-    final stripeEligible = controller.stripeWithdrawEligible.value;
-    final stripeBal = controller.stripeWithdrawAvailable.value;
-    final stripeLast4 = controller.stripeIbanLast4.value;
-    final stripeCurrency = controller.stripeWithdrawCurrency.value;
-
-    // Un moyen non configuré côté plateforme est grisé (raison affichée au tap),
-    // pour éviter que l'utilisateur tente un retrait qui échouerait par une erreur.
-    final kpayConfigured = controller.kpayConfigured.value;
-    final stripeConfigured = controller.stripeConfigured.value;
-
-    final options = <PaymentMethodOption>[
-      PaymentMethodOption(
-        code: 'kpay',
-        label: 'Mobile Money',
-        subtitle: 'MTN, Orange, Moov, Airtel, M-Pesa…',
-        flow: 'phone',
-        enabled: kpayConfigured,
-        available: kpayConfigured && kpayBal > 0,
-        minCurrency: 'XAF',
-        unavailableReason: (kpayConfigured && kpayBal > 0) ? null : 'disabled',
-        hint: !kpayConfigured
-            ? 'wallet.withdraw_options.temporarily_unavailable'.tr
-            : (kpayBal > 0
-                  ? 'wallet.withdraw_options.amount_available'.trParams({
-                      'amount': controller.formatPrice(kpayBal),
-                    })
-                  : 'wallet.withdraw_options.no_balance'.tr),
-      ),
-      PaymentMethodOption(
-        code: 'stripe',
-        label: 'wallet.balances.bank_transfer_iban'.tr,
-        subtitle: stripeLast4 != null
-            ? 'IBAN ••••$stripeLast4'
-            : 'wallet.balances.to_bank_account'.tr,
-        flow: 'redirect',
-        enabled: stripeConfigured,
-        available: stripeConfigured && stripeEligible && stripeBal > 0,
-        minCurrency: 'EUR',
-        unavailableReason: (stripeConfigured && stripeEligible && stripeBal > 0)
-            ? null
-            : 'disabled',
-        hint: !stripeConfigured
-            ? 'wallet.withdraw_options.temporarily_unavailable'.tr
-            : (!stripeEligible
-                  ? 'wallet.withdraw_options.iban_not_validated'.tr
-                  : (stripeBal > 0
-                        ? 'wallet.withdraw_options.amount_available'.trParams({
-                            'amount':
-                                '${stripeBal.toStringAsFixed(2)} $stripeCurrency',
-                          })
-                        : 'wallet.withdraw_options.no_balance'.tr)),
-      ),
-    ];
-
-    final selected = await PaymentMethodSelector.show(
-      amount: kpayBal,
-      currency: 'FCFA',
-      amountLabel: 'wallet.withdraw_options.available_balance'.tr,
-      title: 'wallet.withdraw_options.title'.tr,
-      options: options,
-    );
-    if (selected == null || !context.mounted) return;
-
-    switch (selected.code) {
-      case 'kpay':
-        final result = await WithdrawalBottomSheet.show(
-          provider: 'kpay',
-          availableBalance: kpayBal,
-        );
-        if (result == true) controller.refresh();
-        break;
-      case 'stripe':
-        _showStripeWithdrawalDialog(context);
-        break;
-    }
-  }
-
-  /// Dialogue de retrait par virement bancaire (Stripe Connect).
-  ///
-  /// Le vendeur saisit un montant dans la devise de SON PORTEFEUILLE (ex. FCFA) ;
-  /// la conversion vers la devise de son compte bancaire (ex. EUR) est calculée par
-  /// le serveur et affichée en direct sous le champ, avant toute validation.
-  void _showStripeWithdrawalDialog(BuildContext context) {
-    final amountController = TextEditingController();
-    final payoutCurrency = controller.stripeWithdrawCurrency.value;
-    final payoutAvailable = controller.stripeWithdrawAvailable.value;
-    final last4 = controller.stripeIbanLast4.value;
-
-    // Devise débitée : celle du portefeuille (repli sur la devise du compte
-    // bancaire si le serveur n'a pas encore renvoyé le détail).
-    final sourceCurrency =
-        controller.stripeSourceCurrency.value ?? payoutCurrency;
-    final available = controller.stripeSourceAvailable.value > 0
-        ? controller.stripeSourceAvailable.value
-        : payoutAvailable;
-    final converts = sourceCurrency != payoutCurrency;
-
-    // Formatage explicite : `formatPrice` reconvertirait le montant dans la devise
-    // d'affichage de l'app, ce qui fausserait un solde déjà exprimé en devise source.
-    String money(double value, String currency) {
-      final decimals = (currency == 'XAF' || currency == 'XOF') ? 0 : 2;
-      return '${value.toStringAsFixed(decimals)} $currency';
-    }
-
-    // Le devis est redemandé au serveur après chaque saisie, pas à chaque frappe.
-    Timer? debounce;
-    controller.stripeQuoteAmount.value = 0;
-    controller.stripeQuoteMessage.value = null;
-    amountController.addListener(() {
-      debounce?.cancel();
-      final amount =
-          double.tryParse(
-            amountController.text
-                .trim()
-                .replaceAll(' ', '')
-                .replaceAll(',', '.'),
-          ) ??
-          0;
-      debounce = Timer(const Duration(milliseconds: 450), () {
-        controller.quoteStripeWithdrawal(amount);
-      });
-    });
-
-    Get.dialog(
-      AlertDialog(
-        // Montant, conversion et frais s'empilent : clavier ouvert, le
-        // contenu défile et le bouton de validation reste visible.
-        scrollable: true,
-        backgroundColor: AppThemeSystem.getSurfaceColor(context),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Row(
-          children: [
-            const Icon(
-              Icons.account_balance_rounded,
-              color: AppThemeSystem.bankColor,
-              size: 22,
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                'wallet.stripe_dialog.title'.tr,
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  color: AppThemeSystem.getPrimaryTextColor(context),
-                ),
-              ),
-            ),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (last4 != null)
-              Text(
-                'wallet.stripe_dialog.to_iban'.trParams({'last4': last4}),
-                style: TextStyle(
-                  color: AppThemeSystem.getSecondaryTextColor(context),
-                ),
-              ),
-            const SizedBox(height: 4),
-            Text(
-              converts
-                  ? 'wallet.stripe_dialog.available_converted'.trParams({
-                      'amount': money(available, sourceCurrency),
-                      'converted': money(payoutAvailable, payoutCurrency),
-                    })
-                  : 'wallet.stripe_dialog.available'.trParams({
-                      'amount': money(available, payoutCurrency),
-                    }),
-              style: TextStyle(
-                color: AppThemeSystem.getSecondaryTextColor(context),
-                fontSize: 13,
-              ),
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: amountController,
-              keyboardType: const TextInputType.numberWithOptions(
-                decimal: true,
-              ),
-              autofocus: true,
-              decoration: InputDecoration(
-                labelText: 'wallet.stripe_dialog.amount_label'.trParams({
-                  'currency': sourceCurrency,
-                }),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                prefixIcon: Icon(
-                  converts
-                      ? Icons.account_balance_wallet_outlined
-                      : Icons.euro_rounded,
-                ),
-              ),
-            ),
-            // Conversion affichée AVANT validation : le vendeur voit exactement
-            // ce qui arrivera sur son compte bancaire.
-            if (converts) ...[
-              const SizedBox(height: 10),
-              Obx(() {
-                if (controller.isQuotingStripe.value) {
-                  return Row(
-                    children: [
-                      const SizedBox(
-                        height: 14,
-                        width: 14,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        'wallet.stripe_dialog.converting'.tr,
-                        style: TextStyle(
-                          fontSize: 12.5,
-                          color: AppThemeSystem.getSecondaryTextColor(context),
-                        ),
-                      ),
-                    ],
-                  );
-                }
-
-                final quote = controller.stripeQuoteAmount.value;
-                final warning = controller.stripeQuoteMessage.value;
-
-                if (quote <= 0 && warning == null) {
-                  return Text(
-                    'wallet.stripe_dialog.enter_amount_hint'.tr,
-                    style: TextStyle(
-                      fontSize: 12.5,
-                      color: AppThemeSystem.getSecondaryTextColor(context),
-                    ),
-                  );
-                }
-
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    if (quote > 0)
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 10,
-                        ),
-                        decoration: BoxDecoration(
-                          color: AppThemeSystem.primaryColor.withValues(
-                            alpha: 0.08,
-                          ),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'wallet.stripe_dialog.you_will_receive'.trParams({
-                                'amount': money(quote, payoutCurrency),
-                              }),
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                color: AppThemeSystem.primaryColor,
-                              ),
-                            ),
-                            if (controller.stripeSourceRate.value > 0)
-                              Text(
-                                '1 $sourceCurrency = '
-                                '${controller.stripeSourceRate.value.toStringAsFixed(6)} $payoutCurrency',
-                                style: TextStyle(
-                                  fontSize: 11.5,
-                                  color: AppThemeSystem.getSecondaryTextColor(
-                                    context,
-                                  ),
-                                ),
-                              ),
-                          ],
-                        ),
-                      ),
-                    if (warning != null) ...[
-                      const SizedBox(height: 6),
-                      Text(
-                        warning,
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: AppThemeSystem.errorColor,
-                        ),
-                      ),
-                    ],
-                  ],
-                );
-              }),
-            ],
-            const SizedBox(height: 8),
-            Text(
-              'wallet.stripe_dialog.delay_info'.tr,
-              style: TextStyle(
-                color: AppThemeSystem.getSecondaryTextColor(context),
-                fontSize: 12,
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Get.back(),
-            child: Text('wallet.stripe_dialog.cancel'.tr),
-          ),
-          Obx(
-            () => ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppThemeSystem.primaryColor,
-                foregroundColor: Colors.white,
-              ),
-              onPressed: controller.isProcessingPayment.value
-                  ? null
-                  : () async {
-                      final amount =
-                          double.tryParse(
-                            amountController.text.trim().replaceAll(',', '.'),
-                          ) ??
-                          0;
-                      if (amount <= 0) {
-                        AppFeedback.show(
-                          'wallet.stripe_dialog.invalid_amount_title'.tr,
-                          'wallet.stripe_dialog.invalid_amount_message'.tr,
-                          snackPosition: SnackPosition.BOTTOM,
-                        );
-                        return;
-                      }
-                      if (amount > available) {
-                        AppFeedback.show(
-                          'wallet.stripe_dialog.insufficient_balance'.tr,
-                          'wallet.stripe_dialog.available'.trParams({
-                            'amount': money(
-                              available,
-                              converts ? sourceCurrency : payoutCurrency,
-                            ),
-                          }),
-                          snackPosition: SnackPosition.BOTTOM,
-                        );
-                        return;
-                      }
-                      debounce?.cancel();
-                      final result = await controller.withdrawStripe(
-                        amount: amount,
-                        currency: sourceCurrency,
-                      );
-                      Get.back();
-                      AppFeedback.show(
-                        result['success'] == true
-                            ? 'wallet.stripe_dialog.transfer_in_progress'.tr
-                            : 'wallet.stripe_dialog.error'.tr,
-                        result['message']?.toString() ?? '',
-                        snackPosition: SnackPosition.BOTTOM,
-                        backgroundColor: result['success'] == true
-                            ? AppThemeSystem.successColor
-                            : AppThemeSystem.errorColor,
-                        colorText: Colors.white,
-                      );
-                    },
-              child: controller.isProcessingPayment.value
-                  ? const SizedBox(
-                      height: 18,
-                      width: 18,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                      ),
-                    )
-                  : Text('wallet.actions.withdraw'.tr),
-            ),
           ),
         ],
       ),

@@ -83,14 +83,18 @@ class _PaymentWebViewState extends State<PaymentWebView> {
       ..addJavaScriptChannel(
         'FlutterPayment',
         onMessageReceived: (JavaScriptMessage message) {
-          print('[PaymentWebView] 📨 JavaScript message received: ${message.message}');
+          print(
+            '[PaymentWebView] 📨 JavaScript message received: ${message.message}',
+          );
           _handleJavaScriptMessage(message.message);
         },
       )
       ..addJavaScriptChannel(
         'PaymentResult',
         onMessageReceived: (JavaScriptMessage message) {
-          print('[PaymentWebView] 📨 PaymentResult message received: ${message.message}');
+          print(
+            '[PaymentWebView] 📨 PaymentResult message received: ${message.message}',
+          );
           _handleJavaScriptMessage(message.message);
         },
       )
@@ -127,7 +131,6 @@ class _PaymentWebViewState extends State<PaymentWebView> {
         return;
       }
 
-
       final success = data['success'] == true;
       final cancelled = data['cancelled'] == true;
       final error = data['error'] == true;
@@ -135,11 +138,13 @@ class _PaymentWebViewState extends State<PaymentWebView> {
       if (success) {
         final amount = data['amount']?.toString() ?? '';
         _handlePaymentSuccess(
-            'wallet.webview.success_credited'.trParams({'amount': '$amount'}));
+          'wallet.webview.success_credited'.trParams({'amount': '$amount'}),
+        );
       } else if (cancelled) {
         _handlePaymentFailure('wallet.webview.cancelled'.tr);
       } else if (error) {
-        final errorMessage = data['message']?.toString() ?? 'wallet.webview.error_occurred'.tr;
+        final errorMessage =
+            data['message']?.toString() ?? 'wallet.webview.error_occurred'.tr;
         _handlePaymentFailure(errorMessage);
       }
     } catch (e) {
@@ -162,27 +167,37 @@ class _PaymentWebViewState extends State<PaymentWebView> {
       // For this use case, we'll use a simple regex approach
       final Map<String, dynamic> result = {};
 
-      final successMatch = RegExp(r'"success"\s*:\s*(true|false)').firstMatch(cleanJson);
+      final successMatch = RegExp(
+        r'"success"\s*:\s*(true|false)',
+      ).firstMatch(cleanJson);
       if (successMatch != null) {
         result['success'] = successMatch.group(1) == 'true';
       }
 
-      final cancelledMatch = RegExp(r'"cancelled"\s*:\s*(true|false)').firstMatch(cleanJson);
+      final cancelledMatch = RegExp(
+        r'"cancelled"\s*:\s*(true|false)',
+      ).firstMatch(cleanJson);
       if (cancelledMatch != null) {
         result['cancelled'] = cancelledMatch.group(1) == 'true';
       }
 
-      final errorMatch = RegExp(r'"error"\s*:\s*(true|false)').firstMatch(cleanJson);
+      final errorMatch = RegExp(
+        r'"error"\s*:\s*(true|false)',
+      ).firstMatch(cleanJson);
       if (errorMatch != null) {
         result['error'] = errorMatch.group(1) == 'true';
       }
 
-      final amountMatch = RegExp(r'"amount"\s*:\s*(\d+\.?\d*)').firstMatch(cleanJson);
+      final amountMatch = RegExp(
+        r'"amount"\s*:\s*(\d+\.?\d*)',
+      ).firstMatch(cleanJson);
       if (amountMatch != null) {
         result['amount'] = double.tryParse(amountMatch.group(1) ?? '0');
       }
 
-      final messageMatch = RegExp(r'"message"\s*:\s*"([^"]*)"').firstMatch(cleanJson);
+      final messageMatch = RegExp(
+        r'"message"\s*:\s*"([^"]*)"',
+      ).firstMatch(cleanJson);
       if (messageMatch != null) {
         result['message'] = messageMatch.group(1);
       }
@@ -203,9 +218,12 @@ class _PaymentWebViewState extends State<PaymentWebView> {
         final paymentId = uri.queryParameters['payment_id'];
         final amount = uri.queryParameters['amount'];
 
-        print('[PaymentWebView] Payment success: ID=$paymentId, Amount=$amount');
+        print(
+          '[PaymentWebView] Payment success: ID=$paymentId, Amount=$amount',
+        );
         _handlePaymentSuccess(
-            'wallet.webview.success_credited'.trParams({'amount': '$amount'}));
+          'wallet.webview.success_credited'.trParams({'amount': '$amount'}),
+        );
       }
     } catch (e) {
       print('[PaymentWebView] Error handling Flutter URL: $e');
@@ -256,8 +274,8 @@ class _PaymentWebViewState extends State<PaymentWebView> {
           widget.paymentMethod == 'paypal'
               ? 'wallet.webview.title_paypal'.tr
               : widget.paymentMethod == 'stripe'
-                  ? 'wallet.webview.title_card'.tr
-                  : 'wallet.webview.title_mobile_money'.tr,
+              ? 'wallet.webview.title_card'.tr
+              : 'wallet.webview.title_mobile_money'.tr,
         ),
         centerTitle: false,
         backgroundColor: AppThemeSystem.primaryColor,
@@ -294,11 +312,13 @@ class _PaymentWebViewState extends State<PaymentWebView> {
                           ),
                         ),
                         const SizedBox(height: 8),
-                        Obx(() => LinearProgressIndicator(
-                              value: loadingProgress.value,
-                              backgroundColor: AppThemeSystem.grey200,
-                              color: AppThemeSystem.primaryColor,
-                            )),
+                        Obx(
+                          () => LinearProgressIndicator(
+                            value: loadingProgress.value,
+                            backgroundColor: AppThemeSystem.grey200,
+                            color: AppThemeSystem.primaryColor,
+                          ),
+                        ),
                       ],
                     ),
                   ),
@@ -345,7 +365,10 @@ class _PaymentWebViewState extends State<PaymentWebView> {
       ),
     );
     if (cancel == true) {
-      _close({'success': false, 'message': 'wallet.webview.cancelled_by_user'.tr});
+      _close({
+        'success': false,
+        'message': 'wallet.webview.cancelled_by_user'.tr,
+      });
     }
   }
 }

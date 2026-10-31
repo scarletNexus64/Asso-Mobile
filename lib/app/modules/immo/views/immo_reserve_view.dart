@@ -39,11 +39,19 @@ String? immoMoveInApiValue(DateTime? date) =>
     date?.toIso8601String().substring(0, 10);
 
 class ImmoReserveArgs {
-  const ImmoReserveArgs({required this.listing, this.unit, this.advanceMonths});
+  const ImmoReserveArgs({
+    required this.listing,
+    this.unit,
+    this.advanceMonths,
+    this.choice = ImmoLotChoice.single,
+  });
 
   final RealEstateListing listing;
   final RealEstateUnit? unit;
   final int? advanceMonths;
+
+  /// Terrain : nombre de morceaux, ou tout le terrain.
+  final ImmoLotChoice choice;
 }
 
 /// Parcours « Réserver » (captures Studapart 22 à 26) : seul ou accompagné,
@@ -117,6 +125,8 @@ class _ImmoReserveViewState extends State<ImmoReserveView> {
       _listing.id,
       unitId: widget.args.unit?.id,
       advanceMonths: _isLand ? null : _advance,
+      quantity: widget.args.choice.quantity,
+      whole: widget.args.choice.whole,
     );
     if (mounted && request == _quoteRequest) {
       setState(() {
@@ -191,7 +201,8 @@ class _ImmoReserveViewState extends State<ImmoReserveView> {
           if (mounted) _loadQuote();
         },
         body: {
-          'unit_id': ?widget.args.unit?.id,
+          if (!widget.args.choice.whole) 'unit_id': ?widget.args.unit?.id,
+          if (_isLand) ...widget.args.choice.apiFields,
           if (!_isLand) 'advance_months': _advance,
           if (!_isLand) 'months': _months ?? 0,
           if (_moveIn != null) 'move_in_date': immoMoveInApiValue(_moveIn),
@@ -741,9 +752,9 @@ class _ImmoReserveViewState extends State<ImmoReserveView> {
           color: context.ds.textPrimary,
         ),
       ),
-      if (widget.args.unit != null)
+      if (widget.args.unit != null || widget.args.choice.whole)
         Text(
-          widget.args.unit!.label,
+          widget.args.choice.label(widget.args.unit, lots: q?.quantity),
           style: context.textStyle(
             FontSizeType.body2,
             color: context.ds.textSecondary,
@@ -764,10 +775,10 @@ class _ImmoReserveViewState extends State<ImmoReserveView> {
           padding: const EdgeInsets.all(AppDesign.space4),
           child: ImmoLotPaymentDetails(
             payment: immoLotPayment(q, widget.args.unit),
-            pricePerM2: ImmoLandPrice.of(
-              _listing,
-              unit: widget.args.unit,
-            ).perM2,
+            pricePerM2: widget.args.choice.whole
+                ? null
+                : ImmoLandPrice.of(_listing, unit: widget.args.unit).perM2,
+            lotCount: q.quantity,
           ),
         )
       else

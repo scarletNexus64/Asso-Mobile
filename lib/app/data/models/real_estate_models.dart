@@ -231,6 +231,12 @@ class RealEstateSubdivision {
   final int? totalPrice;
   final double? depositPercent;
 
+  /// « Tout acheter » : il reste au moins deux morceaux en vente.
+  final bool canBuyWhole;
+
+  /// Paiement de tous les morceaux encore en vente (null si [canBuyWhole] faux).
+  final RealEstateLotPayment? wholePayment;
+
   const RealEstateSubdivision({
     this.isSubdivided = false,
     this.saleMode = 'whole',
@@ -243,6 +249,8 @@ class RealEstateSubdivision {
     this.lotPriceFrom,
     this.totalPrice,
     this.depositPercent,
+    this.canBuyWhole = false,
+    this.wholePayment,
   });
 
   bool get isPerLot => saleMode == 'per_lot';
@@ -260,6 +268,12 @@ class RealEstateSubdivision {
         lotPriceFrom: _intOrNull(j['lot_price_from']),
         totalPrice: _intOrNull(j['total_price']),
         depositPercent: _doubleOrNull(j['deposit_percent']),
+        canBuyWhole: _bool(j['can_buy_whole']),
+        wholePayment: j['whole_payment'] is Map
+            ? RealEstateLotPayment.fromJson(
+                Map<String, dynamic>.from(j['whole_payment']),
+              )
+            : null,
       );
 }
 
@@ -654,6 +668,10 @@ class RealEstateQuote {
   final RealEstateCabinet? commissionCabinet;
   final String? netPayeeKind;
 
+  /// Terrain : nombre de morceaux payés, et « tout le terrain ».
+  final int quantity;
+  final bool whole;
+
   const RealEstateQuote({
     required this.unitPrice,
     this.advanceMonths,
@@ -666,6 +684,8 @@ class RealEstateQuote {
     this.platformAmount,
     this.commissionCabinet,
     this.netPayeeKind,
+    this.quantity = 1,
+    this.whole = false,
   });
 
   factory RealEstateQuote.fromJson(Map<String, dynamic> j) => RealEstateQuote(
@@ -684,6 +704,8 @@ class RealEstateQuote {
           )
         : null,
     netPayeeKind: j['net_payee_kind']?.toString(),
+    quantity: _int(j['quantity'], 1),
+    whole: _bool(j['whole']),
   );
 }
 
@@ -785,6 +807,9 @@ class RealEstateReservation {
   final String status;
   final Map<String, dynamic>? listing;
   final String? unitLabel;
+
+  /// Terrain : nombre de morceaux achetés (1 pour une maison).
+  final int quantity;
   final DateTime? moveInDate;
   final int? months;
   final int? advanceMonths;
@@ -824,6 +849,7 @@ class RealEstateReservation {
     required this.status,
     this.listing,
     this.unitLabel,
+    this.quantity = 1,
     this.moveInDate,
     this.months,
     this.advanceMonths,
@@ -875,6 +901,7 @@ class RealEstateReservation {
         ? Map<String, dynamic>.from(j['listing'])
         : null,
     unitLabel: j['unit_label']?.toString(),
+    quantity: _int(j['quantity'], 1),
     moveInDate: _date(j['move_in_date']),
     months: _intOrNull(j['months']),
     advanceMonths: _intOrNull(j['advance_months']),

@@ -1,3 +1,4 @@
+import '../../../data/services/country_sync.dart';
 import 'dart:async';
 import 'package:get/get.dart';
 import '../../../data/providers/storage_service.dart';
@@ -99,6 +100,8 @@ class SplashController extends GetxController {
       final isAuthenticated = StorageService.isAuthenticated;
 
       if (isAuthenticated) {
+        // Pays choisi à l'accueil → compte (ne remplace qu'un pays déduit).
+        CountrySync.push();
 
         // Envoyer/mettre à jour le token FCM et s'abonner au topic des annonces
         try {

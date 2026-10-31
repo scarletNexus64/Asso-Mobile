@@ -47,12 +47,16 @@ class RealEstateService {
     int id, {
     int? unitId,
     int? advanceMonths,
+    int quantity = 1,
+    bool whole = false,
   }) async {
     final res = await ApiProvider.get(
       '$_base/listings/$id/quote',
       queryParams: {
-        if (unitId != null) 'unit_id': unitId,
+        if (unitId != null && !whole) 'unit_id': unitId,
         if (advanceMonths != null) 'advance_months': advanceMonths,
+        if (whole) 'whole': 1,
+        if (!whole && quantity > 1) 'quantity': quantity,
       },
     );
     if (!res.success || res.data?['data'] is! Map) return null;

@@ -44,8 +44,8 @@ dependencies:
   app_links: ^6.3.2
   # WebSocket natif pour Reverb
   web_socket_channel: ^3.0.1
-  firebase_core: ^3.10.0
-  firebase_messaging: ^15.2.0
+  firebase_core: ^4.14.0
+  firebase_messaging: ^16.6.0
   flutter_local_notifications: ^18.0.1
   device_info_plus: ^11.2.0
   timeago: ^3.7.0
@@ -53,7 +53,9 @@ dependencies:
   dio: ^5.9.2
   http_parser: ^4.0.2
   # Paiement carte natif (Payment Sheet) — remplace l'ancien parcours stripe_direct WebView
-  flutter_stripe: ^11.5.0
+  # 12.x : SDK Stripe iOS 25.9 / Android 23.1, où l'inscription Connect intégrée
+  # (module StripeConnect, ajouté côté natif) n'est plus en bêta privée.
+  flutter_stripe: ^12.6.0
   fl_chart: ^1.2.0
   flutter_staggered_grid_view: ^0.7.0
   upgrader: ^13.7.0

@@ -57,7 +57,8 @@ class PaymentMethodCard extends StatelessWidget {
                         gradient: LinearGradient(
                           colors: [
                             overlayColor ?? AppDesign.info,
-                            overlayColor?.withValues(alpha: 0.8) ?? AppDesign.info,
+                            overlayColor?.withValues(alpha: 0.8) ??
+                                AppDesign.info,
                           ],
                           begin: Alignment.topLeft,
                           end: Alignment.bottomRight,

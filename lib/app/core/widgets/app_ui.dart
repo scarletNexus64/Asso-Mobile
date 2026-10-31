@@ -324,15 +324,19 @@ class AppBadge extends StatelessWidget {
             Icon(icon, size: 12, color: foreground),
             const SizedBox(width: 4),
           ],
-          Text(
-            label,
-            style: context.textStyle(
-              FontSizeType.overline,
-              fontWeight: FontWeight.w600,
-              color: foreground,
+          // Flexible : dans un espace étroit, le libellé se coupe (…) au lieu
+          // de déborder.
+          Flexible(
+            child: Text(
+              label,
+              style: context.textStyle(
+                FontSizeType.overline,
+                fontWeight: FontWeight.w600,
+                color: foreground,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
           ),
         ],
       ),

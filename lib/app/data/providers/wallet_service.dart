@@ -185,4 +185,82 @@ class WalletService {
   static Future<ApiResponse> deletePayoutAccount() async {
     return await ApiProvider.delete(AppConstants.walletPayoutAccountUrl);
   }
+
+  // ---- IBAN et retraits par méthode -----------------------------------
+
+  static const String _ibanCheckUrl = '/v1/wallet/iban/check';
+  static const String _bankAccountUrl = '/v1/wallet/bank-account';
+  static const String _withdrawPreviewUrl = '/v1/wallet/withdraw/preview';
+  static const String _withdrawBankUrl = '/v1/wallet/withdraw/bank';
+
+  /// Vérifie un IBAN : `data.valid`, `data.stripe_supported`, `data.next_step`
+  /// (fix | stripe_onboarding | recommend_mobile_money).
+  static Future<ApiResponse> checkIban(String iban) async {
+    return await ApiProvider.post(_ibanCheckUrl, body: {'iban': iban});
+  }
+
+  /// IBAN enregistré pour un virement manuel (banque non prise en charge par Stripe).
+  static Future<ApiResponse> getBankAccount() async {
+    return await ApiProvider.get(_bankAccountUrl);
+  }
+
+  static Future<ApiResponse> saveBankAccount({
+    required String iban,
+    required String accountHolder,
+    String? bic,
+    String? bankName,
+  }) async {
+    return await ApiProvider.put(
+      _bankAccountUrl,
+      body: {
+        'iban': iban,
+        'account_holder': accountHolder,
+        if (bic != null && bic.isNotEmpty) 'bic': bic,
+        if (bankName != null && bankName.isNotEmpty) 'bank_name': bankName,
+      },
+    );
+  }
+
+  static Future<ApiResponse> deleteBankAccount() async {
+    return await ApiProvider.delete(_bankAccountUrl);
+  }
+
+  /// Aperçu d'un retrait : frais, net reçu, automatique ou demande (≈ 48 h).
+  static Future<ApiResponse> previewWithdrawal({
+    required String method, // mobile_money | bank_transfer
+    required double amount,
+    String? currency,
+    String? provider,
+  }) async {
+    return await ApiProvider.post(
+      _withdrawPreviewUrl,
+      body: {
+        'method': method,
+        'amount': amount,
+        if (currency != null) 'currency': currency,
+        if (provider != null) 'provider': provider,
+      },
+    );
+  }
+
+  /// Virement bancaire : IBAN Stripe (automatique ou demande) ou IBAN manuel.
+  static Future<ApiResponse> withdrawBank({
+    required double amount,
+    String? currency,
+    String? notes,
+  }) async {
+    return await ApiProvider.post(
+      _withdrawBankUrl,
+      body: {
+        'amount': amount,
+        if (currency != null) 'currency': currency,
+        if (notes != null && notes.isNotEmpty) 'notes': notes,
+      },
+    );
+  }
+
+  /// Annule une demande de retrait pas encore prise en charge par ASSO.
+  static Future<ApiResponse> cancelWithdrawal(int withdrawalId) async {
+    return await ApiProvider.post('/v1/wallet/withdrawals/$withdrawalId/cancel');
+  }
 }

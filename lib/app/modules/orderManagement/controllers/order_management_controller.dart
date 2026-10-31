@@ -163,6 +163,7 @@ class OrderManagementController extends GetxController {
         delivery: delivery,
         deposit: DepositOrderInfo.fromOrder(order),
         settled: order['settled'] == true,
+        carrierHandover: CarrierHandoverInfo.fromMap(order['carrier_handover']),
       );
     }).toList();
   }
@@ -814,17 +815,30 @@ class OrderManagementController extends GetxController {
     border: const OutlineInputBorder(),
   );
 
-  /// Remise du colis au transporteur : numéro de suivi obligatoire.
+  /// Remise du colis au transporteur : agence et numéro de suivi attribués par
+  /// ASSO. Seul un transporteur à suivi en ligne (DHL, FedEx) demande encore le
+  /// numéro de son bordereau.
   Future<void> handToCarrier(OrderModel order) async {
     final orderId = int.tryParse(order.id);
     if (orderId == null) return;
     final numberCtrl = TextEditingController();
-    final locationCtrl = TextEditingController();
     final noteCtrl = TextEditingController();
     final error = RxnString();
+    final handover = order.carrierHandover;
+    final needsNumber = handover?.requiresTrackingNumber == true;
     final company =
         order.delivery?.companyName ??
         'order_management.hand_to_carrier.default_carrier'.tr;
+    final messageKey = needsNumber
+        ? 'order_management.hand_to_carrier.waybill_message'
+        : handover?.collectedAtShop == true
+        ? 'order_management.hand_to_carrier.collected_message'
+        : 'order_management.hand_to_carrier.auto_message';
+    final agencyLines = [
+      if (handover?.hasAgency == true) handover!.agencyName!,
+      if (handover?.agencyAddress != null) handover!.agencyAddress!,
+      if (handover?.agencyPhone != null) handover!.agencyPhone!,
+    ];
 
     final confirmed = await Get.dialog<bool>(
       AlertDialog(
@@ -836,11 +850,10 @@ class OrderManagementController extends GetxController {
         content: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'order_management.hand_to_carrier.message'.trParams({
-                  'company': company,
-                }),
+                messageKey.trParams({'company': company}),
                 style: const TextStyle(fontSize: 13),
               ),
               if (order.delivery?.routeLabel != null) ...[
@@ -856,28 +869,30 @@ class OrderManagementController extends GetxController {
                 ),
               ],
               const SizedBox(height: 14),
-              Obx(
-                () => TextField(
-                  controller: numberCtrl,
-                  textCapitalization: TextCapitalization.characters,
-                  decoration: _fieldDecoration(
-                    'order_management.hand_to_carrier.tracking_number'.tr,
-                    hint:
-                        'order_management.hand_to_carrier.tracking_number_hint'
-                            .tr,
-                    icon: Icons.qr_code_2_rounded,
-                  ).copyWith(errorText: error.value),
-                ),
+              _handoverInfoTile(
+                icon: Icons.store_mall_directory_outlined,
+                title: 'order_management.hand_to_carrier.agency_label'.tr,
+                lines: agencyLines.isNotEmpty
+                    ? agencyLines
+                    : ['order_management.hand_to_carrier.agency_auto'.tr],
               ),
               const SizedBox(height: 12),
-              TextField(
-                controller: locationCtrl,
-                decoration: _fieldDecoration(
-                  'order_management.hand_to_carrier.agency'.tr,
-                  hint: 'order_management.hand_to_carrier.agency_hint'.tr,
-                  icon: Icons.store_mall_directory_outlined,
+              if (needsNumber)
+                Obx(
+                  () => TextField(
+                    controller: numberCtrl,
+                    textCapitalization: TextCapitalization.characters,
+                    decoration: _fieldDecoration(
+                      'order_management.hand_to_carrier.tracking_number'.tr,
+                      icon: Icons.qr_code_2_rounded,
+                    ).copyWith(errorText: error.value),
+                  ),
+                )
+              else
+                _handoverInfoTile(
+                  icon: Icons.qr_code_2_rounded,
+                  lines: ['order_management.hand_to_carrier.tracking_auto'.tr],
                 ),
-              ),
               const SizedBox(height: 12),
               TextField(
                 controller: noteCtrl,
@@ -897,7 +912,7 @@ class OrderManagementController extends GetxController {
           ),
           ElevatedButton(
             onPressed: () {
-              if (numberCtrl.text.trim().isEmpty) {
+              if (needsNumber && numberCtrl.text.trim().isEmpty) {
                 error.value =
                     'order_management.hand_to_carrier.tracking_required'.tr;
                 return;
@@ -920,14 +935,62 @@ class OrderManagementController extends GetxController {
     await _submitTracking(
       () => VendorService.handToCarrier(
         orderId,
-        trackingNumber: numberCtrl.text.trim(),
-        location: locationCtrl.text.trim(),
+        trackingNumber: needsNumber ? numberCtrl.text.trim() : null,
         note: noteCtrl.text.trim(),
       ),
       successTitle: 'order_management.hand_to_carrier.success_title'.tr,
       successMessage: 'order_management.hand_to_carrier.success_message'.tr,
     );
   }
+
+  /// Ligne d'information en lecture seule (agence, suivi automatique).
+  Widget _handoverInfoTile({
+    required IconData icon,
+    String? title,
+    required List<String> lines,
+  }) => Container(
+    width: double.infinity,
+    padding: const EdgeInsets.all(12),
+    decoration: BoxDecoration(
+      color: AppThemeSystem.primaryColor.withValues(alpha: 0.06),
+      borderRadius: BorderRadius.circular(8),
+      border: Border.all(
+        color: AppThemeSystem.primaryColor.withValues(alpha: 0.25),
+      ),
+    ),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, size: 20, color: AppThemeSystem.primaryColor),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (title != null)
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              for (final (i, line) in lines.indexed)
+                Text(
+                  line,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: i == 0 && title != null
+                        ? FontWeight.w600
+                        : FontWeight.normal,
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ],
+    ),
+  );
 
   /// Nouvelle étape de suivi d'une commande transporteur expédiée.
   Future<void> addTrackingStep(OrderModel order) async {
